@@ -17,6 +17,7 @@ pub mod fb2;
 pub mod html;
 pub mod mobi;
 pub mod odt;
+pub mod pdf;
 pub mod rtf;
 pub mod text;
 pub mod xml;
@@ -41,6 +42,7 @@ pub fn loaders() -> Vec<Box<dyn Loader>> {
         Box::new(odt::OdtLoader),
         Box::new(rtf::RtfLoader),
         Box::new(fb2::Fb2Loader),
+        Box::new(pdf::PdfLoader),
     ]
 }
 
