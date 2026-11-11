@@ -38,7 +38,8 @@ gerçek bir geliştirme oturumu.
 | `Up` / `k` | bir satır geri |
 | `a` | otomatik akışı aç/kapat |
 | `+` / `-` | otomatik akış hızı |
-| `m` | görünümü değiştir (mask) |
+| `m` / `M` | görünümü değiştir: sonraki / önceki (code, log, diff, test, build) |
+| `l` / `L` | kod dilini değiştir: sonraki / önceki (code görünümüne geçer) |
 | `n` / `N` | gürültüyü artır / azalt |
 | `b` | yer imi ekle (`cache saved` mesajı) |
 | `:` | ayar menüsü (dosya aç, görünüm, dil, hız, gürültü, yer imleri) |

@@ -66,3 +66,69 @@ async def test_noise_keys_clamped(tmp_path):
             await pilot.press("N")
         assert app.session.noise == 0
         assert load_config(tmp_path / "st").noise == 0
+
+
+async def test_l_cycles_languages_and_keeps_pos(tmp_path):
+    from fcc.masks.code import LANGS
+
+    app = make_app(tmp_path)
+    async with app.run_test(size=(100, 24)) as pilot:
+        await pilot.press("space")
+        pos = app.session.pos
+        assert pos != (0, 0)
+        start = LANGS.index(app._mask.lang)
+        seen = []
+        for _ in range(len(LANGS)):
+            before = [ln.plain for ln in app.feed.visible_lines()]
+            await pilot.press("l")
+            await pilot.pause()
+            seen.append(app._mask.lang)
+            assert app._mask.name == "code" and app._mask is app.session.mask
+            assert app.session.pos == pos
+            assert any(ln.pos == pos for ln in app.feed.visible_lines())
+            assert [ln.plain for ln in app.feed.visible_lines()] != before
+            assert load_config(tmp_path / "st").lang == app._mask.lang
+        assert seen == [LANGS[(start + i + 1) % len(LANGS)] for i in range(len(LANGS))]
+
+
+async def test_shift_keys_cycle_backwards(tmp_path):
+    from fcc.masks.code import LANGS
+
+    app = make_app(tmp_path)
+    async with app.run_test(size=(100, 24)) as pilot:
+        lang = app._mask.lang
+        await pilot.press("L")
+        await pilot.pause()
+        assert app._mask.lang == LANGS[LANGS.index(lang) - 1]
+        await pilot.press("M")
+        await pilot.pause()
+        assert app._mask.name == MASK_NAMES[-1]
+        assert load_config(tmp_path / "st").mask == MASK_NAMES[-1]
+
+
+async def test_l_from_another_mask_returns_to_code_in_the_next_language(tmp_path):
+    from fcc.masks.code import LANGS
+
+    app = make_app(tmp_path)
+    async with app.run_test(size=(100, 24)) as pilot:
+        lang = app.config.lang
+        await pilot.press("m")
+        await pilot.pause()
+        assert app._mask.name == "log"
+        await pilot.press("l")
+        await pilot.pause()
+        assert app._mask.name == "code"
+        assert app._mask.lang == LANGS[(LANGS.index(lang) + 1) % len(LANGS)]
+        cfg = load_config(tmp_path / "st")
+        assert (cfg.mask, cfg.lang) == ("code", app._mask.lang)
+
+
+async def test_language_switch_during_panic_shows_no_text(tmp_path):
+    app = make_app(tmp_path)
+    async with app.run_test(size=(100, 24)) as pilot:
+        await pilot.press("escape")
+        await pilot.press("l")
+        await pilot.pause()
+        assert app.panic
+        assert app.feed.history_lines()
+        assert not any(ln.is_book for ln in app.feed.history_lines())

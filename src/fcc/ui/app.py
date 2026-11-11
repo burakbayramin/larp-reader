@@ -13,7 +13,7 @@ from textual.widgets import Static
 from fcc.book import Book, Pos
 from fcc.errors import FccError, InputUnavailable, NoInput
 from fcc.loaders import load_book
-from fcc.masks import MASK_NAMES, Mask, get_mask
+from fcc.masks import LANGS, MASK_NAMES, Mask, get_mask
 from fcc.masks.base import Line, plain_line
 from fcc.session import Session
 from fcc.state import (
@@ -65,7 +65,10 @@ class FccApp(App):
         Binding("a", "toggle_auto", show=False),
         Binding("plus", "faster", show=False),
         Binding("minus", "slower", show=False),
-        Binding("m", "cycle_mask", show=False),
+        Binding("m", "cycle_mask(1)", show=False),
+        Binding("M", "cycle_mask(-1)", show=False),
+        Binding("l", "cycle_lang(1)", show=False),
+        Binding("L", "cycle_lang(-1)", show=False),
         Binding("n", "noise(1)", show=False),
         Binding("N", "noise(-1)", show=False),
         Binding("b", "bookmark", show=False),
@@ -322,16 +325,24 @@ class FccApp(App):
         self._redraw()
         self._restart_timer()
 
-    def action_cycle_mask(self) -> None:
-        i = MASK_NAMES.index(self._mask.name) if self._mask.name in MASK_NAMES else -1
-        name = MASK_NAMES[(i + 1) % len(MASK_NAMES)]
-        self._mask = get_mask(name, self.config.lang)
+    def _use_mask(self, name: str, lang: str) -> None:
+        """Switch the disguise in place, staying on the current paragraph."""
+        self._mask = get_mask(name, lang)
         if self.session is not None:
             self.session.mask = self._mask
             self.session.pos = self.session.pos  # new layout: restart at the paragraph's top
-        self.config.mask = name
+        self.config.mask, self.config.lang = name, lang
         self._persist_config()
         self._redraw()
+
+    def action_cycle_mask(self, step: int = 1) -> None:
+        i = MASK_NAMES.index(self._mask.name) if self._mask.name in MASK_NAMES else -1
+        self._use_mask(MASK_NAMES[(i + step) % len(MASK_NAMES)], self.config.lang)
+
+    def action_cycle_lang(self, step: int = 1) -> None:
+        """Next source language; only the code mask has one, so this also returns to it."""
+        i = LANGS.index(self.config.lang) if self.config.lang in LANGS else -1
+        self._use_mask("code", LANGS[(i + step) % len(LANGS)])
 
     def action_noise(self, delta: int) -> None:
         level = min(MAX_NOISE, max(0, self.config.noise + delta))
