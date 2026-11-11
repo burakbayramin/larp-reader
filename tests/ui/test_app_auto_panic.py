@@ -1,6 +1,6 @@
 import re
 
-from fcc.state import Config, load_progress
+from fcc.state import Config, load_config, load_progress
 from fcc.ui import app as app_mod
 from fcc.ui.app import FccApp
 from tests.ui.test_app_manual import make_txt
@@ -106,31 +106,34 @@ async def test_buffer_capped_at_2000(tmp_path):
         assert len(app.feed.history_lines()) == 2000
 
 
-async def test_speed_clamped(tmp_path):
+async def test_wpm_clamped(tmp_path):
     app = FccApp(make_txt(tmp_path), cfg(), tmp_path / "st")
     async with app.run_test(size=(80, 24)) as pilot:
-        for _ in range(30):
-            await pilot.press("+")
-        assert app.speed == 20.0
         for _ in range(60):
+            await pilot.press("+")
+        assert app.config.wpm == 1500
+        for _ in range(80):
             await pilot.press("-")
-        assert app.speed == 0.2
+        assert app.config.wpm == 60
 
 
-async def test_speed_step_is_1_25(tmp_path):
-    app = FccApp(make_txt(tmp_path), cfg(speed=2.0), tmp_path / "st")
+async def test_wpm_step_is_about_ten_percent_and_shown(tmp_path):
+    (tmp_path / "st").mkdir()
+    app = FccApp(make_txt(tmp_path), cfg(wpm=200), tmp_path / "st")
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.press("+")
-        assert app.speed == 2.5
+        assert app.config.wpm == 220
+        assert "220/min" in str(app.query_one("#status").render())
         await pilot.press("-")
-        assert app.speed == 2.0
+        assert app.config.wpm == 200
+        assert load_config(tmp_path / "st").wpm == 200
 
 
-async def test_config_auto_and_speed_apply_at_startup(tmp_path):
-    app = FccApp(make_txt(tmp_path), cfg(auto=True, speed=4.0), tmp_path / "st")
+async def test_config_auto_and_wpm_apply_at_startup(tmp_path):
+    app = FccApp(make_txt(tmp_path), cfg(auto=True, wpm=400), tmp_path / "st")
     async with app.run_test(size=(80, 24)):
         assert app.auto
-        assert app.speed == 4.0
+        assert app.config.wpm == 400
         assert app._timer is not None
 
 

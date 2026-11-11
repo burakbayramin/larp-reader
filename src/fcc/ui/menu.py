@@ -13,7 +13,7 @@ from fcc.masks import MASK_NAMES
 from fcc.masks.code import LANGS
 from fcc.state import HIDE_STYLES
 
-SPEEDS = (0.5, 1.0, 1.5, 2.0, 3.0, 5.0, 8.0, 12.0, 20.0)
+WPMS = (120, 160, 200, 240, 280, 320, 400, 500, 650, 800)
 NOISE_LEVELS = (0, 1, 2, 3, 4, 5)
 
 
@@ -26,7 +26,7 @@ class Panic:
 class Apply:
     mask: str
     lang: str
-    speed: float
+    wpm: int
     noise: int
     hide: str = "stream"
 
@@ -117,14 +117,14 @@ class MenuScreen(ModalScreen[MenuResult]):
         self,
         mask: str,
         lang: str,
-        speed: float,
+        wpm: int,
         noise: int,
         marks: list[tuple[str, Pos]],
         sections: list[tuple[str, Pos]] | None = None,
         hide: str = "stream",
     ) -> None:
         super().__init__()
-        self._mask, self._lang, self._speed, self._noise = mask, lang, speed, noise
+        self._mask, self._lang, self._wpm, self._noise = mask, lang, wpm, noise
         self._marks = marks
         self._sections = sections or []
         self._hide = hide
@@ -134,7 +134,7 @@ class MenuScreen(ModalScreen[MenuResult]):
         yield _PathInput(placeholder="input: path", id="path")
         yield _Choice("target", MASK_NAMES, self._mask, id="target")
         yield _Choice("lang", LANGS, self._lang, id="lang")
-        yield _Choice("rate", SPEEDS, self._speed, id="rate")
+        yield _Choice("rate", WPMS, self._wpm, id="rate")
         yield _Choice("verbosity", NOISE_LEVELS, self._noise, id="noise")
         yield _Choice("on hide", HIDE_STYLES, self._hide, id="hide")
         yield Static("marks:" if self._marks else "marks: none")

@@ -72,10 +72,10 @@ async def test_menu_changes_mask_and_persists(tmp_path):
         assert app._mask.name == MASK_NAMES[1] == "log"
         assert app.session.mask is app._mask
         assert app.session.noise == 1
-        assert app.speed > 1.5 or app.speed != Config().speed
+        assert app.config.wpm == 240  # one step right of the default 220
         saved = load_config(tmp_path / "st")
         assert (saved.mask, saved.noise) == ("log", 1)
-        assert saved.speed == app.speed
+        assert saved.wpm == 240
         assert saved.lang == app.config.lang != "python"
 
 

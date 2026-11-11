@@ -20,11 +20,10 @@ from fcc.errors import FccError, InputUnavailable, NoInput
 from fcc.loaders import load_book, supported_extensions
 from fcc.masks import LANGS, MASK_NAMES, Mask, get_mask
 from fcc.masks.base import Line, plain_line
+from fcc.pace import line_delay, step_wpm, words_in
 from fcc.session import Session
 from fcc.state import (
     MAX_NOISE,
-    MAX_SPEED,
-    MIN_SPEED,
     Config,
     Entry,
     last_entry,
@@ -36,11 +35,11 @@ from fcc.ui.feed import Feed
 from fcc.ui.menu import Apply, Jump, MenuResult, MenuScreen, OpenFile, Panic, section_label
 
 MIN_WIDTH = 40
-SPEED_STEP = 1.25
-PANIC_SPEEDUP = 3
+PANIC_RATE = 4.5  # filler lines per second while hidden
 AUTOSAVE_SECONDS = 10
 FLASH_SECONDS = 2
 _SAVED_MSG = "cache saved"
+_RATE_MSG = "throttle {}/min"
 _NO_MARKS_MSG = "cache empty"
 _NOT_FOUND_MSG = "Pattern not found"
 _WRAP_MSG = {False: "search hit BOTTOM, continuing at TOP", True: "search hit TOP, continuing at BOTTOM"}
@@ -66,7 +65,7 @@ _KEYS = (
     ("/", "find"),
     ("f / F", "find next / prev"),
     ("a", "auto scroll"),
-    ("+ / -", "scroll speed"),
+    ("+ / -", "reading rate"),
     ("m / M", "next / prev view"),
     ("l / L", "next / prev language"),
     ("n / N", "more / less filler"),
@@ -149,7 +148,6 @@ class FccApp(App):
         self._rows = 24
         self.auto = False
         self.panic = False
-        self.speed = min(MAX_SPEED, max(MIN_SPEED, config.speed))
         self._timer: Timer | None = None
         self._queue: list[Line] = []
         self._panic_rng = Random()
@@ -161,6 +159,7 @@ class FccApp(App):
         self._page_rows = 0
         self._more_below = False
         self._query = ""  # last search; its matches are highlighted
+        self._last_words = 0  # words of the newest text on screen, still to be read
 
     def compose(self) -> ComposeResult:
         yield self.feed
@@ -242,7 +241,9 @@ class FccApp(App):
             if at_top:
                 lines += s.mask.header(Random(s.book.id), self._width())
             if self.auto:
-                lines += s.paragraph_lines(s.pos)
+                para = s.paragraph_lines(s.pos)
+                self._last_words = words_in(para)
+                lines += para
             else:
                 rows = max(0, self._view_height() - len(lines))
                 text = s.window(rows + 1)
@@ -423,13 +424,16 @@ class FccApp(App):
         self._restart_timer()
 
     def action_faster(self) -> None:
-        self._set_speed(self.speed * SPEED_STEP)
+        self._set_wpm(step_wpm(self.config.wpm, 1))
 
     def action_slower(self) -> None:
-        self._set_speed(self.speed / SPEED_STEP)
+        self._set_wpm(step_wpm(self.config.wpm, -1))
 
-    def _set_speed(self, speed: float) -> None:
-        self.speed = min(MAX_SPEED, max(MIN_SPEED, speed))
+    def _set_wpm(self, wpm: int) -> None:
+        self.config.wpm = wpm
+        self._persist_config()
+        if not self.panic:
+            self._flash_msg(_RATE_MSG.format(wpm))
         self._restart_timer()
 
     # -- side panel and the folder's other files ---------------------------
@@ -562,7 +566,7 @@ class FccApp(App):
             MenuScreen(
                 self._mask.name,
                 self.config.lang,
-                self.speed,
+                self.config.wpm,
                 self.config.noise,
                 marks,
                 sections,
@@ -587,14 +591,14 @@ class FccApp(App):
     def _apply_settings(self, r: Apply) -> None:
         self._mask = get_mask(r.mask, r.lang)
         self.config.mask, self.config.lang = r.mask, r.lang
-        self.config.noise, self.config.speed = r.noise, r.speed
+        self.config.noise, self.config.wpm = r.noise, r.wpm
         self.config.hide = r.hide
         if self.session is not None:
             self.session.mask = self._mask
             self.session.noise = r.noise
             self.session.pos = self.session.pos  # new layout: restart at the paragraph's top
         self._persist_config()
-        self._set_speed(r.speed)
+        self._restart_timer()
         self._redraw()
 
     def _open_from_menu(self, path: Path) -> None:
@@ -655,12 +659,17 @@ class FccApp(App):
         if self.panic and self.config.hide == "shell":
             return  # a shell waits for input
         if self.panic:
-            interval = 1 / (self.speed * PANIC_SPEEDUP)
+            self._timer = self.set_interval(1 / PANIC_RATE, self.tick)
         elif self.auto and self.session is not None:
-            interval = 1 / self.speed
-        else:
-            return
-        self._timer = self.set_interval(interval, self.tick)
+            # the text already on screen gets its reading time before the next line
+            self._timer = self.set_timer(line_delay(self._last_words, self.config.wpm), self._auto_step)
+
+    def _auto_step(self) -> None:
+        """Show the next line, then wait as long as it takes to read it."""
+        self._timer = None
+        self.tick()
+        if self.auto and not self.panic and self._timer is None:
+            self._timer = self.set_timer(line_delay(self._last_words, self.config.wpm), self._auto_step)
 
     def tick(self) -> None:
         """One timer step: a panic noise line, or the next book line plus its noise."""
@@ -682,6 +691,7 @@ class FccApp(App):
             out.append(ln)
             if ln.is_book:
                 break
+        self._last_words = words_in(out)
         if out:
             self.feed.append(self._highlight(out))
         if finished:

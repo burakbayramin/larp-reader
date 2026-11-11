@@ -11,14 +11,14 @@ from fcc.state import (
 
 
 def test_roundtrip_config(tmp_path):
-    cfg = Config(mask="log", lang="go", noise=0, speed=3.0, auto=True)
+    cfg = Config(mask="log", lang="go", noise=0, wpm=300, auto=True)
     save_config(tmp_path, cfg)
     assert load_config(tmp_path) == cfg
 
 
 def test_missing_config_returns_defaults_without_bak(tmp_path):
     assert load_config(tmp_path) == Config()
-    assert Config() == Config("code", "python", 2, 1.5, False)
+    assert Config() == Config("code", "python", 2, 220, False)
     assert list(tmp_path.iterdir()) == []
 
 
@@ -106,13 +106,17 @@ def test_config_noise_coerced_and_clamped(tmp_path, raw, expected):
 @pytest.mark.parametrize(
     "raw, expected",
     [
-        (100, 20.0), (0.01, 0.2), ("3", 3.0), (2, 2.0), (0, Config().speed), (-1, Config().speed),
-        ("fast", Config().speed), (None, Config().speed), (float("nan"), Config().speed),
-        (True, Config().speed),
+        (300, 300), (5000, 1500), (10, 60), ("250", 250), (249.6, 250), (-1, 60),
+        ("fast", Config().wpm), (None, Config().wpm), (float("nan"), Config().wpm),
+        (True, Config().wpm),
     ],
 )
-def test_config_speed_coerced_and_clamped(tmp_path, raw, expected):
-    assert _config_with(tmp_path, speed=raw).speed == expected
+def test_config_wpm_coerced_and_clamped(tmp_path, raw, expected):
+    assert _config_with(tmp_path, wpm=raw).wpm == expected
+
+
+def test_old_speed_setting_is_ignored(tmp_path):
+    assert _config_with(tmp_path, speed=3.0) == Config()
 
 
 def test_config_unknown_mask_and_lang_fall_back_to_defaults(tmp_path):
@@ -123,8 +127,8 @@ def test_config_unknown_mask_and_lang_fall_back_to_defaults(tmp_path):
 
 
 def test_config_valid_values_kept(tmp_path):
-    cfg = _config_with(tmp_path, mask="log", lang="go", noise=0, speed=0.2, auto=True)
-    assert cfg == Config(mask="log", lang="go", noise=0, speed=0.2, auto=True)
+    cfg = _config_with(tmp_path, mask="log", lang="go", noise=0, wpm=120, auto=True)
+    assert cfg == Config(mask="log", lang="go", noise=0, wpm=120, auto=True)
 
 
 def test_config_auto_must_be_bool(tmp_path):

@@ -9,6 +9,7 @@ from fcc import __version__
 from fcc.errors import NoInput
 from fcc.masks import MASK_NAMES
 from fcc.masks.code import LANGS
+from fcc.pace import MAX_WPM, MIN_WPM
 from fcc.state import HIDE_STYLES, MAX_NOISE, Config, last_entry, load_config, load_progress, save_config, state_dir
 
 
@@ -17,13 +18,13 @@ def _version() -> str:
     return f"fcc {__version__} ({target})"
 
 
-def _positive_float(text: str) -> float:
+def _wpm(text: str) -> int:
     try:
-        value = float(text)
+        value = int(text)
     except ValueError:
         raise argparse.ArgumentTypeError(f"invalid number: {text!r}") from None
-    if not value > 0 or value == float("inf"):
-        raise argparse.ArgumentTypeError(f"must be a positive number: {text!r}")
+    if not MIN_WPM <= value <= MAX_WPM:
+        raise argparse.ArgumentTypeError(f"must be between {MIN_WPM} and {MAX_WPM}: {text!r}")
     return value
 
 
@@ -37,7 +38,7 @@ def _parser() -> argparse.ArgumentParser:
     b.add_argument("--lang", choices=LANGS, help="language for the code style")
     b.add_argument("--noise", type=int, choices=range(MAX_NOISE + 1), help="amount of filler output")
     b.add_argument("--auto", action="store_true", default=None, help="advance automatically")
-    b.add_argument("--speed", type=_positive_float, help="auto advance speed")
+    b.add_argument("--wpm", type=_wpm, help="words per minute for auto advance")
     b.add_argument("--hide", choices=HIDE_STYLES, help="what the hide key shows")
     return p
 
@@ -52,7 +53,7 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     sdir = state_dir()
     config = load_config(sdir)
-    for name in ("mask", "lang", "noise", "auto", "speed", "hide"):
+    for name in ("mask", "lang", "noise", "auto", "wpm", "hide"):
         value = getattr(args, name, None)
         if value is not None:
             setattr(config, name, value)

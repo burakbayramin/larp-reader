@@ -49,12 +49,12 @@ def test_help_has_no_forbidden_words(capsys):
 def test_build_updates_config(tmp_path, calls, appdata):
     f = tmp_path / "a.txt"
     f.write_text("hello", encoding="utf-8")
-    rc = cli.main(["build", str(f), "--mask=code", "--lang=go", "--noise=4", "--auto", "--speed=2.5"])
+    rc = cli.main(["build", str(f), "--mask=code", "--lang=go", "--noise=4", "--auto", "--wpm=300"])
     assert rc == 0
     assert len(calls) == 1
     path, config, sdir = calls[0]
     assert path == f
-    assert (config.mask, config.lang, config.noise, config.auto, config.speed) == ("code", "go", 4, True, 2.5)
+    assert (config.mask, config.lang, config.noise, config.auto, config.wpm) == ("code", "go", 4, True, 300)
     assert sdir == appdata
     assert load_config(appdata) == config
 
@@ -85,7 +85,7 @@ def test_no_args_without_history_errors(calls, capsys):
 
 
 @pytest.mark.parametrize(
-    "flag", ["--noise=9", "--noise=-1", "--speed=0", "--speed=-2", "--speed=abc", "--mask=nope", "--lang=cobol"]
+    "flag", ["--noise=9", "--noise=-1", "--wpm=0", "--wpm=59", "--wpm=1501", "--wpm=abc", "--wpm=2.5", "--mask=nope", "--lang=cobol"]
 )
 def test_bad_flag_rejected_before_config_saved(tmp_path, calls, appdata, flag, capsys):
     f = tmp_path / "a.txt"

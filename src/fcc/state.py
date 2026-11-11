@@ -9,9 +9,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from fcc.masks import LANGS, MASK_NAMES
+from fcc.pace import DEFAULT_WPM, clamp_wpm
 
-MIN_SPEED = 0.2
-MAX_SPEED = 20.0
 MAX_NOISE = 5
 HIDE_STYLES = ("stream", "shell")
 
@@ -28,7 +27,7 @@ class Config:
     mask: str = "code"
     lang: str = "python"
     noise: int = 2
-    speed: float = 1.5
+    wpm: int = DEFAULT_WPM  # reading speed for auto scroll
     auto: bool = False
     hide: str = "stream"  # what the hide key shows: streaming output or a shell prompt
 
@@ -100,9 +99,9 @@ def _valid_config(obj: dict) -> Config:
     noise = _number(obj.get("noise"))
     if noise is not None:
         cfg.noise = min(MAX_NOISE, max(0, int(noise)))
-    speed = _number(obj.get("speed"))
-    if speed is not None and speed > 0:
-        cfg.speed = min(MAX_SPEED, max(MIN_SPEED, float(speed)))
+    wpm = _number(obj.get("wpm"))
+    if wpm is not None:
+        cfg.wpm = clamp_wpm(wpm)
     if isinstance(obj.get("auto"), bool):
         cfg.auto = obj["auto"]
     if obj.get("hide") in HIDE_STYLES:

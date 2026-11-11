@@ -23,7 +23,8 @@ fcc build <dosya> --mask=code --lang=python --noise=2
 - `--mask`: `code`, `log`, `diff`, `test`, `build`, `git` (`git log --stat`), `docker` (`docker compose up` logları)
 - `--lang`: `python`, `typescript`, `go`, `rust`, `java`, `csharp` (code görünümü için)
 - `--noise`: araya karışan sahte çıktı miktarı (0-5)
-- `--auto`, `--speed`: otomatik akış ve hızı
+- `--auto`: otomatik akış
+- `--wpm`: okuma hızı, dakikada kelime (60-1500, varsayılan 220); otomatik akış buna göre ilerler
 - `--hide`: panik tuşu ne göstersin: `stream` (akan sahte çıktı) veya `shell` (komut yazılabilen sahte shell)
 - Dosya verilmezse en son açılan kitaptan devam edilir.
 
@@ -42,13 +43,13 @@ gerçek bir geliştirme oturumu.
 | `/` | metinde ara (büyük-küçük harf ve İ/ı fark etmez); eşleşmeler vurgulanır |
 | `f` / `F` | sonraki / önceki eşleşme (sona gelince başa sarar) |
 | `a` | otomatik akışı aç/kapat |
-| `+` / `-` | otomatik akış hızı |
+| `+` / `-` | okuma hızını ~%10 artır / azalt (`throttle 240/min` mesajı) |
 | `m` / `M` | görünümü değiştir: sonraki / önceki (code, log, diff, test, build, git, docker) |
 | `l` / `L` | kod dilini değiştir: sonraki / önceki (code görünümüne geçer) |
 | `n` / `N` | gürültüyü artır / azalt |
 | `b` | yer imi ekle (`cache saved` mesajı) |
 | `'` / `"` | sonraki / önceki yer imine git |
-| `:` | ayar menüsü (dosya aç, görünüm, dil, hız, gürültü, panik biçimi, yer imleri, bölümler) |
+| `:` | ayar menüsü (dosya aç, görünüm, dil, okuma hızı, gürültü, panik biçimi, yer imleri, bölümler) |
 | `o` / `O` | klasördeki sonraki / önceki kitaba geç (her kitabın yeri ayrı saklanır) |
 | `Esc` | yan panel: kısayollar ve klasördeki kitaplar; panel açıkken `1`-`9` ile listeden kitap aç |
 | `` ` `` | panik: anında sahte çıktı akışı ya da sahte shell (panel, menü veya arama açıksa onu da kapatır) |
@@ -56,6 +57,9 @@ gerçek bir geliştirme oturumu.
 
 Menüde `Tab`/`Up`/`Down` ile alan değiştirilir, `Left`/`Right` ile değer seçilir,
 `Enter` uygular.
+
+Otomatik akış okuma hızına göre ilerler: her satır, içindeki kelime sayısına göre
+ekranda kalır (220 WPM'de 11 kelimelik bir satır 3 saniye).
 
 Sahte shell (`--hide=shell` ya da menüde `on hide: shell`): panik tuşuna basınca
 gerçek bir prompt çıkar (Windows'ta `PS C:\...>`, macOS/Linux'ta kullanıcı@makine).
