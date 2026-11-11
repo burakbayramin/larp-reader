@@ -46,6 +46,7 @@ gerçek bir geliştirme oturumu.
 | `l` / `L` | kod dilini değiştir: sonraki / önceki (code görünümüne geçer) |
 | `n` / `N` | gürültüyü artır / azalt |
 | `b` | yer imi ekle (`cache saved` mesajı) |
+| `'` / `"` | sonraki / önceki yer imine git |
 | `:` | ayar menüsü (dosya aç, görünüm, dil, hız, gürültü, yer imleri, bölümler) |
 | `o` / `O` | klasördeki sonraki / önceki kitaba geç (her kitabın yeri ayrı saklanır) |
 | `Esc` | yan panel: kısayollar ve klasördeki kitaplar; panel açıkken `1`-`9` ile listeden kitap aç |

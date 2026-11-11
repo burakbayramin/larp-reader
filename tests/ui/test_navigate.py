@@ -158,3 +158,28 @@ async def test_backtick_in_search_hides_everything(tmp_path):
         await pilot.press("slash", "grave_accent")
         assert app.panic
         assert not app.query_one("#searchbar").display
+
+
+# -- bookmark jumps ----------------------------------------------------------
+
+
+async def test_quote_keys_jump_between_marks(tmp_path):
+    app = make_app(tmp_path)
+    async with app.run_test(size=(80, 24)) as pilot:
+        app._bookmarks = [[0, 6], [0, 2]]
+        await pilot.press("apostrophe")
+        assert app.session.pos == (0, 2)
+        await pilot.press("apostrophe")
+        assert app.session.pos == (0, 6)
+        await pilot.press("apostrophe")
+        assert app.session.pos == (0, 2)  # wraps
+        await pilot.press("quotation_mark")
+        assert app.session.pos == (0, 6)
+
+
+async def test_quote_without_marks_says_so(tmp_path):
+    app = make_app(tmp_path)
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.press("apostrophe")
+        assert app.session.pos == (0, 0)
+        assert "cache" in status_text(app)

@@ -38,6 +38,7 @@ PANIC_SPEEDUP = 3
 AUTOSAVE_SECONDS = 10
 FLASH_SECONDS = 2
 _SAVED_MSG = "cache saved"
+_NO_MARKS_MSG = "cache empty"
 _NOT_FOUND_MSG = "Pattern not found"
 _WRAP_MSG = {False: "search hit BOTTOM, continuing at TOP", True: "search hit TOP, continuing at BOTTOM"}
 HIGHLIGHT = "reverse"
@@ -69,6 +70,7 @@ _KEYS = (
     ("o / O", "next / prev input"),
     ("1-9", "open listed input"),
     ("b", "mark this place"),
+    ("' / \"", "next / prev mark"),
     (":", "config"),
     ("`", "hide / unhide"),
     ("esc", "this panel"),
@@ -106,6 +108,8 @@ class FccApp(App):
         Binding("slash", "search", show=False),
         Binding("f", "find_next(1)", show=False),
         Binding("F", "find_next(-1)", show=False),
+        Binding("apostrophe", "jump_mark(1)", show=False),
+        Binding("quotation_mark", "jump_mark(-1)", show=False),
         Binding("down,j", "step(1)", show=False),
         Binding("up,k", "step(-1)", show=False),
         Binding("q", "quit_and_save", show=False),
@@ -311,6 +315,26 @@ class FccApp(App):
             target = s.book.prev_chapter(s.pos)
         if target is not None:
             self._go(target)
+
+    def action_jump_mark(self, step: int) -> None:
+        s = self.session
+        if s is None or self.panic:
+            return
+        marks: list[tuple[int, Pos]] = []
+        for m in self._bookmarks:
+            pos = (m[0], m[1])
+            if _valid_pos(s.book, pos) == pos:
+                marks.append((s.book.index_of(pos), pos))
+        if not marks:
+            self._flash_msg(_NO_MARKS_MSG)
+            return
+        marks.sort()
+        here = s.book.index_of(s.pos)
+        if step > 0:
+            target = next((p for i, p in marks if i > here), marks[0][1])
+        else:
+            target = next((p for i, p in reversed(marks) if i < here), marks[-1][1])
+        self._go(target)
 
     # -- search -----------------------------------------------------------
 
