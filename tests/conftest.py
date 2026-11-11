@@ -5,7 +5,14 @@ from pathlib import Path
 import pymupdf
 import pytest
 
-_ARIAL = Path(r"C:\Windows\Fonts\arial.ttf")
+# a TrueType font with Turkish letters; the built-in PDF fonts lack ı, ş and ğ
+_FONTS = (
+    Path(r"C:\Windows\Fonts\arial.ttf"),
+    Path("/System/Library/Fonts/Supplemental/Arial.ttf"),  # macOS
+    Path("/Library/Fonts/Arial Unicode.ttf"),
+    Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),  # Debian/Ubuntu
+    Path("/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf"),  # Fedora
+)
 
 BODY_1 = "Türkçe karakterler: ığşçöü İstanbul."
 BODY_2 = "Ağır ağır çıkalım şu dağlara."
@@ -13,9 +20,10 @@ PAGE_WORDS = {2: "ikinci", 3: "üçüncü", 4: "dördüncü"}
 
 
 def _font() -> pymupdf.Font:
-    if _ARIAL.exists():
-        return pymupdf.Font(fontfile=str(_ARIAL))
-    return pymupdf.Font("notos")
+    for path in _FONTS:
+        if path.exists():
+            return pymupdf.Font(fontfile=str(path))
+    return pymupdf.Font("notos")  # needs the pymupdf-fonts package
 
 
 def _write(page: pymupdf.Page, font: pymupdf.Font, point: tuple[float, float], text: str) -> None:
