@@ -29,6 +29,7 @@ def test_render_keeps_every_word_in_order(name):
 @pytest.mark.parametrize("name", registered_mask_names())
 def test_lines_fit_width(name):
     lines = get_mask(name).render(PARA, (0, 0), 60, Random(1))
+    assert lines
     assert all(len(l.plain) <= 60 for l in lines)
 
 
