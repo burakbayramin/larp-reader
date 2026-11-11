@@ -82,3 +82,51 @@ def test_invalid_utf8_backed_up_and_defaults_returned(tmp_path):
     assert (tmp_path / "progress.json.bak").read_bytes() == b"\xff\xfe\x00"
     assert not (tmp_path / "config.json").exists()
     assert not (tmp_path / "progress.json").exists()
+
+
+import pytest  # noqa: E402
+
+
+def _config_with(tmp_path, **fields_):
+    (tmp_path / "config.json").write_text(json.dumps(fields_), encoding="utf-8")
+    return load_config(tmp_path)
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        (9, 5), (-3, 0), ("2", 2), ("4.0", 4), (3.7, 3), ("lots", Config().noise),
+        (None, Config().noise), (True, Config().noise), ([1], Config().noise),
+    ],
+)
+def test_config_noise_coerced_and_clamped(tmp_path, raw, expected):
+    assert _config_with(tmp_path, noise=raw).noise == expected
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        (100, 20.0), (0.01, 0.2), ("3", 3.0), (2, 2.0), (0, Config().speed), (-1, Config().speed),
+        ("fast", Config().speed), (None, Config().speed), (float("nan"), Config().speed),
+        (True, Config().speed),
+    ],
+)
+def test_config_speed_coerced_and_clamped(tmp_path, raw, expected):
+    assert _config_with(tmp_path, speed=raw).speed == expected
+
+
+def test_config_unknown_mask_and_lang_fall_back_to_defaults(tmp_path):
+    cfg = _config_with(tmp_path, mask="nope", lang="cobol", noise=1)
+    assert (cfg.mask, cfg.lang, cfg.noise) == (Config().mask, Config().lang, 1)
+    cfg = _config_with(tmp_path, mask=3, lang=None)
+    assert (cfg.mask, cfg.lang) == (Config().mask, Config().lang)
+
+
+def test_config_valid_values_kept(tmp_path):
+    cfg = _config_with(tmp_path, mask="log", lang="go", noise=0, speed=0.2, auto=True)
+    assert cfg == Config(mask="log", lang="go", noise=0, speed=0.2, auto=True)
+
+
+def test_config_auto_must_be_bool(tmp_path):
+    assert _config_with(tmp_path, auto="yes").auto is False
+    assert _config_with(tmp_path, auto=1).auto is False

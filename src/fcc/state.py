@@ -2,10 +2,17 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import tempfile
-from dataclasses import asdict, dataclass, fields
+from dataclasses import asdict, dataclass
 from pathlib import Path
+
+from fcc.masks import LANGS, MASK_NAMES
+
+MIN_SPEED = 0.2
+MAX_SPEED = 20.0
+MAX_NOISE = 5
 
 
 def state_dir() -> Path:
@@ -67,12 +74,43 @@ def _read_json(path: Path):
         return None
 
 
+def _number(value) -> float | None:
+    """A finite number from an int/float or a numeric string; None otherwise."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, str):
+        try:
+            value = float(value)
+        except ValueError:
+            return None
+    if not isinstance(value, (int, float)) or not math.isfinite(value):
+        return None
+    return value
+
+
+def _valid_config(obj: dict) -> Config:
+    """Config from untrusted JSON: each bad field falls back to (or is clamped into) its valid range."""
+    cfg = Config()
+    if obj.get("mask") in MASK_NAMES:
+        cfg.mask = obj["mask"]
+    if obj.get("lang") in LANGS:
+        cfg.lang = obj["lang"]
+    noise = _number(obj.get("noise"))
+    if noise is not None:
+        cfg.noise = min(MAX_NOISE, max(0, int(noise)))
+    speed = _number(obj.get("speed"))
+    if speed is not None and speed > 0:
+        cfg.speed = min(MAX_SPEED, max(MIN_SPEED, float(speed)))
+    if isinstance(obj.get("auto"), bool):
+        cfg.auto = obj["auto"]
+    return cfg
+
+
 def load_config(dir: Path) -> Config:
     obj = _read_json(Path(dir) / "config.json")
     if obj is None:
         return Config()
-    known = {f.name for f in fields(Config)}
-    return Config(**{k: v for k, v in obj.items() if k in known})
+    return _valid_config(obj)
 
 
 def save_config(dir: Path, cfg: Config) -> None:

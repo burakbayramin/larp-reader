@@ -9,12 +9,22 @@ from fcc import __version__
 from fcc.errors import NoInput
 from fcc.masks import MASK_NAMES
 from fcc.masks.code import LANGS
-from fcc.state import Config, last_entry, load_config, load_progress, save_config, state_dir
+from fcc.state import MAX_NOISE, Config, last_entry, load_config, load_progress, save_config, state_dir
 
 
 def _version() -> str:
     target = "x86_64-pc-windows-msvc" if sys.platform == "win32" else f"{platform.machine()}-unknown-linux-gnu"
     return f"fcc {__version__} ({target})"
+
+
+def _positive_float(text: str) -> float:
+    try:
+        value = float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"invalid number: {text!r}") from None
+    if not value > 0 or value == float("inf"):
+        raise argparse.ArgumentTypeError(f"must be a positive number: {text!r}")
+    return value
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -25,9 +35,9 @@ def _parser() -> argparse.ArgumentParser:
     b.add_argument("file", nargs="?", type=Path, help="input file (default: last used)")
     b.add_argument("--mask", choices=MASK_NAMES, help="output style")
     b.add_argument("--lang", choices=LANGS, help="language for the code style")
-    b.add_argument("--noise", type=int, help="amount of filler output")
+    b.add_argument("--noise", type=int, choices=range(MAX_NOISE + 1), help="amount of filler output")
     b.add_argument("--auto", action="store_true", default=None, help="advance automatically")
-    b.add_argument("--speed", type=float, help="auto advance speed")
+    b.add_argument("--speed", type=_positive_float, help="auto advance speed")
     return p
 
 

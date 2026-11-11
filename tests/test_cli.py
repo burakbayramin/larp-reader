@@ -82,3 +82,25 @@ def test_no_args_without_history_errors(calls, capsys):
     assert cli.main([]) == 1
     assert calls == []
     assert "no input files" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "flag", ["--noise=9", "--noise=-1", "--speed=0", "--speed=-2", "--speed=abc", "--mask=nope", "--lang=cobol"]
+)
+def test_bad_flag_rejected_before_config_saved(tmp_path, calls, appdata, flag, capsys):
+    f = tmp_path / "a.txt"
+    f.write_text("hello", encoding="utf-8")
+    with pytest.raises(SystemExit) as e:
+        cli.main(["build", str(f), flag])
+    assert e.value.code == 2
+    assert calls == []
+    assert not (appdata / "config.json").exists()
+
+
+def test_noise_9_does_not_poison_later_runs(tmp_path, calls, appdata):
+    f = tmp_path / "a.txt"
+    f.write_text("hello", encoding="utf-8")
+    with pytest.raises(SystemExit):
+        cli.main(["build", str(f), "--noise", "9"])
+    assert cli.main(["build", str(f)]) == 0
+    assert calls[-1][1].noise == Config().noise

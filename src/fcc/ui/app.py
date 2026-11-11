@@ -16,14 +16,21 @@ from fcc.loaders import load_book
 from fcc.masks import MASK_NAMES, Mask, get_mask
 from fcc.masks.base import Line, plain_line
 from fcc.session import Session
-from fcc.state import Config, Entry, last_entry, load_progress, save_config, save_progress
+from fcc.state import (
+    MAX_NOISE,
+    MAX_SPEED,
+    MIN_SPEED,
+    Config,
+    Entry,
+    last_entry,
+    load_progress,
+    save_config,
+    save_progress,
+)
 from fcc.ui.feed import Feed
 from fcc.ui.menu import Apply, Jump, MenuResult, MenuScreen, OpenFile, Panic
 
 MIN_WIDTH = 40
-MIN_SPEED = 0.2
-MAX_SPEED = 20.0
-MAX_NOISE = 5
 SPEED_STEP = 1.25
 PANIC_SPEEDUP = 3
 AUTOSAVE_SECONDS = 10
