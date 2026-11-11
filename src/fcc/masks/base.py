@@ -53,10 +53,10 @@ def error_lines(err: FccError, width: int) -> list[Line]:
     return lines
 
 
-def progress_bar_label(done: int, total: int, cells: int = 10) -> str:
+def progress_bar_label(done: int, total: int, cells: int = 10, label: str = "Indexing") -> str:
     filled = 0 if total <= 0 else min(cells, max(0, done * cells // total))
     if filled >= cells:
         bar = "=" * cells
     else:
         bar = "=" * filled + ">" + " " * (cells - filled - 1)
-    return f"Indexing [{bar}] {done}/{total}"
+    return f"{label} [{bar}] {done}/{total}"
