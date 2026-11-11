@@ -83,3 +83,54 @@ def fb2_file(tmp_path) -> Path:
     path = tmp_path / "book.fb2"
     path.write_text(FB2, encoding="utf-8")
     return path
+
+
+@pytest.fixture
+def text_image_pdf(tmp_path) -> Path:
+    pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 40, 40), False)
+    pix.set_rect(pix.irect, (200, 30, 30))
+    doc = pymupdf.open()
+    page = doc.new_page()
+    page.insert_text((72, 60), "Resimli sayfa metni.")
+    page.insert_image(pymupdf.Rect(72, 100, 272, 300), pixmap=pix)
+    path = tmp_path / "img.pdf"
+    doc.save(path)
+    doc.close()
+    return path
+
+
+@pytest.fixture
+def toc_pdf(tmp_path) -> Path:
+    doc = pymupdf.open()
+    for i, word in enumerate(["alfa", "beta", "gama", "delta"], 1):
+        doc.new_page().insert_text((72, 100), f"Sayfa metni {word}.")
+    doc.set_toc([[1, "Bir", 1], [1, "Iki", 3]])
+    path = tmp_path / "toc.pdf"
+    doc.save(path)
+    doc.close()
+    return path
+
+
+FB2_RICH = """<?xml version="1.0" encoding="utf-8"?>
+<FictionBook xmlns="http://www.gribuser.ru/xml/fictionbook/2.0" xmlns:l="http://www.w3.org/1999/xlink">
+<body>
+<section><title><p>Ana</p></title>
+<epigraph><p>Epigraf metni.</p></epigraph>
+<p>Giriş.</p>
+<subtitle>Alt başlık</subtitle>
+<image l:href="#cover.jpg"/>
+<poem><stanza><v>Dize bir</v><v>Dize iki</v></stanza></poem>
+<cite><p>Alıntı metni.</p></cite>
+<section><title><p>İç</p></title><p>İç metin.</p></section>
+<p>Son paragraf.</p>
+</section>
+</body>
+</FictionBook>
+"""
+
+
+@pytest.fixture
+def fb2_rich_file(tmp_path) -> Path:
+    path = tmp_path / "rich.fb2"
+    path.write_text(FB2_RICH, encoding="utf-8")
+    return path

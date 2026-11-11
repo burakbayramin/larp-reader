@@ -24,17 +24,48 @@ def _fb2_chapters(data: bytes) -> list[Chapter]:
     def text_of(el: ET.Element) -> str:
         return " ".join("".join(el.itertext()).split())
 
-    root = ET.fromstring(data)
+    def flatten(el: ET.Element, out: list[str]) -> None:
+        for c in el:
+            t = local(c.tag)
+            if t in ("p", "subtitle", "v"):
+                out.append(text_of(c))
+            elif t == "image":
+                href = next((v for k, v in c.attrib.items() if local(k) == "href"), "")
+                name = href.lstrip("#").rsplit("/", 1)[-1]
+                if name:
+                    out.append(f"[asset: {name}]")
+            elif t in ("epigraph", "cite", "poem", "stanza", "annotation"):
+                flatten(c, out)
+
+    def flatten_one(c: ET.Element, out: list[str]) -> None:
+        wrapper = ET.Element("w")
+        wrapper.append(c)
+        flatten(wrapper, out)
+
     chapters: list[Chapter] = []
+
+    def emit(title: str | None, raw: list[str]) -> None:
+        paras = normalize_paragraphs(raw)
+        if paras:
+            chapters.append(Chapter(title, tuple(Paragraph(p) for p in paras)))
+
+    def walk(sec: ET.Element) -> None:
+        title_el = next((c for c in sec if local(c.tag) == "title"), None)
+        title = (text_of(title_el) or None) if title_el is not None else None
+        buf: list[str] = []
+        for c in sec:
+            if local(c.tag) == "section":
+                emit(title, buf)
+                title, buf = None, []
+                walk(c)
+            elif local(c.tag) != "title":
+                flatten_one(c, buf)
+        emit(title, buf)
+
+    root = ET.fromstring(data)
     for body in (e for e in root if local(e.tag) == "body" and e.get("name") != "notes"):
-        for sec in (e for e in body.iter() if local(e.tag) == "section"):
-            ps = [text_of(c) for c in sec if local(c.tag) == "p"]
-            if not ps:
-                continue
-            title_el = next((c for c in sec if local(c.tag) == "title"), None)
-            title = text_of(title_el) if title_el is not None else None
-            paras = normalize_paragraphs(ps)
-            chapters.append(Chapter(title or None, tuple(Paragraph(p) for p in paras)))
+        for sec in (e for e in body if local(e.tag) == "section"):
+            walk(sec)
     return chapters
 
 
@@ -43,7 +74,7 @@ def _mask(text: str) -> str:
 
 
 def _page_blocks(page: pymupdf.Page) -> list[tuple]:
-    return sorted(page.get_text("blocks"), key=lambda b: (b[5],))
+    return sorted(page.get_text("blocks", flags=pymupdf.TEXTFLAGS_BLOCKS | pymupdf.TEXT_PRESERVE_IMAGES), key=lambda b: (b[5],))
 
 
 def _repeated_keys(pages: list[list[tuple]]) -> set[str]:

@@ -85,3 +85,28 @@ def test_can_load_magic_and_extension(tmp_path):
     assert loader.can_load(tmp_path / "noext", b"<?xml version='1.0'?><FictionBook")
     assert loader.can_load(tmp_path / "noext", b"\0" * 60 + b"BOOKMOBI")
     assert not loader.can_load(tmp_path / "a.txt", b"hello")
+
+
+def test_pdf_image_block_becomes_asset(text_image_pdf):
+    texts = _texts(MupdfLoader().load(text_image_pdf))
+    assert texts == ["Resimli sayfa metni.", "[asset: page1_img1]"]
+
+
+def test_pdf_toc_splits_chapters(toc_pdf):
+    book = MupdfLoader().load(toc_pdf)
+    assert [c.title for c in book.chapters] == ["Bir", "Iki"]
+    assert [[p.text for p in c.paragraphs] for c in book.chapters] == [
+        ["Sayfa metni alfa.", "Sayfa metni beta."],
+        ["Sayfa metni gama.", "Sayfa metni delta."],
+    ]
+
+
+def test_fb2_rich_content(fb2_rich_file):
+    book = MupdfLoader().load(fb2_rich_file)
+    assert [c.title for c in book.chapters] == ["Ana", "İç", None]
+    assert [p.text for p in book.chapters[0].paragraphs] == [
+        "Epigraf metni.", "Giriş.", "Alt başlık", "[asset: cover.jpg]",
+        "Dize bir", "Dize iki", "Alıntı metni.",
+    ]
+    assert [p.text for p in book.chapters[1].paragraphs] == ["İç metin."]
+    assert [p.text for p in book.chapters[2].paragraphs] == ["Son paragraf."]
