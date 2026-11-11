@@ -52,6 +52,7 @@ LISTED_INPUTS = 9  # one per digit key
 
 _KEYS = (
     ("space", "page down"),
+    ("u, pgup", "page up"),
     ("j / k", "line down / up"),
     ("a", "auto scroll"),
     ("+ / -", "scroll speed"),
@@ -84,7 +85,8 @@ class FccApp(App):
     }
     """
     BINDINGS = [
-        Binding("space", "page", show=False),
+        Binding("space,pagedown", "page", show=False),
+        Binding("u,pageup", "page_back", show=False),
         Binding("down,j", "step(1)", show=False),
         Binding("up,k", "step(-1)", show=False),
         Binding("q", "quit_and_save", show=False),
@@ -251,6 +253,15 @@ class FccApp(App):
     def action_page(self) -> None:
         # the next screen starts at the first line this one did not show
         self._scroll(self._page_rows)
+
+    def action_page_back(self) -> None:
+        """The screen that ends just above this one (or the first screen)."""
+        if self.session is None or self.auto or self.panic:
+            return
+        rows = self._view_height() - (1 if self._width() < MIN_WIDTH else 0)
+        self._notice = []
+        self.session.scroll(-max(1, rows))
+        self._redraw()
 
     def action_step(self, n: int) -> None:
         self._scroll(n)

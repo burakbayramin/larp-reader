@@ -33,7 +33,8 @@ gerçek bir geliştirme oturumu.
 
 | Tuş | İşlev |
 | --- | --- |
-| `Space` | bir sayfa ileri |
+| `Space` / `PgDn` | bir sayfa ileri |
+| `u` / `PgUp` | bir sayfa geri |
 | `Down` / `j` | bir satır ileri |
 | `Up` / `k` | bir satır geri |
 | `a` | otomatik akışı aç/kapat |
