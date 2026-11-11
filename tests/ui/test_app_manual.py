@@ -34,9 +34,9 @@ async def test_space_starts_next_screen_at_first_unseen_line(tmp_path):
     app = FccApp(make_txt(tmp_path), cfg(), tmp_path / "st")
     async with app.run_test(size=(80, 24)) as pilot:
         s = app.session
-        header = len(s.mask.header(None))
+        header = len(s.mask.header(None, 80))
         stream = s.window(1000)
-        assert app.feed.visible_lines() == s.mask.header(None) + stream[: 23 - header]
+        assert app.feed.visible_lines() == s.mask.header(None, 80) + stream[: 23 - header]
         await pilot.press("space")
         assert app.feed.visible_lines() == stream[23 - header : 23 - header + 23]
         # pos/line_offset name the paragraph line now at the top

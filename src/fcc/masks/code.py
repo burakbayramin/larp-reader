@@ -4,7 +4,7 @@ from random import Random
 
 from fcc.book import Paragraph, Pos
 from fcc.errors import FccError
-from fcc.masks.base import Line, error_lines, plain_line, progress_bar_label
+from fcc.masks.base import Line, error_lines, fit_lines, plain_line, progress_bar_label
 from fcc.text import wrap
 
 LANGS = ("python", "typescript", "go", "rust", "java", "csharp")
@@ -74,13 +74,21 @@ class CodeMask:
         if lang not in LANGS:
             raise ValueError(f"unknown language: {lang!r}")
         self.lang = lang
+        # number for the next stand-alone noise line: continues the last rendered
+        # block so filler between paragraphs carries a gutter like every other line
+        self._next_no = 1
 
-    def header(self, rng: Random) -> list[Line]:
-        return [plain_line(t, "dim green") for t in _HEADERS[self.lang]]
+    def header(self, rng: Random, width: int) -> list[Line]:
+        return fit_lines([plain_line(t, "dim green") for t in _HEADERS[self.lang]], width)
+
+    def _noise_text(self, rng: Random) -> str:
+        return rng.choice(_NOISE[self.lang])
 
     def noise(self, rng: Random, width: int) -> Line:
-        text = rng.choice(_NOISE[self.lang])
-        return plain_line(text[: max(1, width)], "green")
+        gutter = f"{self._next_no:>4} "
+        self._next_no += 1
+        text = self._noise_text(rng)[: max(0, width - len(gutter))]
+        return Line(((gutter[: max(1, width)], "dim"), (text, "green")), False)
 
     def _frame(self) -> tuple[str, list[str], list[str]]:
         """(prefix for each text line, opening lines, closing lines)."""
@@ -110,7 +118,7 @@ class CodeMask:
             n += 1
 
         avail = max(1, width - _NUM_WIDTH)
-        emit(self.noise(rng, avail).plain, "green")
+        emit(self._noise_text(rng)[:avail], "green")
         for t in opening:
             emit(t, "dim green")
         for text in wrap(para.text, body_width):
@@ -123,7 +131,8 @@ class CodeMask:
             n += 1
         for t in closing:
             emit(t, "dim green")
-        emit(self.noise(rng, avail).plain, "green")
+        emit(self._noise_text(rng)[:avail], "green")
+        self._next_no = n
         return out
 
     def error(self, err: FccError, width: int) -> list[Line]:

@@ -51,7 +51,7 @@ def test_error_shows_real_reason(name):
 def test_no_forbidden_words_in_chrome(name):
     mask = get_mask(name)
     rng = Random(3)
-    chrome = [l.plain for l in mask.header(rng)]
+    chrome = [l.plain for l in mask.header(rng, 80)]
     chrome += [mask.noise(rng, 50).plain for _ in range(50)]
     chrome.append(mask.progress_label(142, 380, 50))
     text = "\n".join(chrome).lower()
@@ -68,3 +68,21 @@ def test_unregistered_and_unknown_names_raise():
     for name in ("nope",):
         with pytest.raises(ValueError):
             get_mask(name)
+
+
+@pytest.mark.parametrize("width", [40, 60, 120])
+@pytest.mark.parametrize("name", registered_mask_names())
+def test_header_fits_width(name, width):
+    lines = get_mask(name).header(Random(1), width)
+    assert lines
+    assert all(len(l.plain) <= width for l in lines), [l.plain for l in lines]
+    assert not any(l.is_book for l in lines)
+
+
+@pytest.mark.parametrize("width", [40, 60, 80])
+def test_test_banner_centered_to_width_like_pytest(width):
+    banner = get_mask("test").header(Random(1), width)[0].plain
+    assert len(banner) == width
+    assert banner.strip("=").strip() == "test session starts"
+    left, right = banner.split(" test session starts ")
+    assert set(left) == set(right) == {"="} and abs(len(left) - len(right)) <= 1

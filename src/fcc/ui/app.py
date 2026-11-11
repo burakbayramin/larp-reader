@@ -169,7 +169,7 @@ class FccApp(App):
         if s is not None:
             at_top = s.book.index_of(s.pos) == 0 and (self.auto or s.line_offset == 0)
             if at_top:
-                lines += s.mask.header(Random(s.book.id))
+                lines += s.mask.header(Random(s.book.id), self._width())
             if self.auto:
                 lines += s.paragraph_lines(s.pos)
             else:

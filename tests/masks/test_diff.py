@@ -8,7 +8,7 @@ PARA = Paragraph("Oda dar ve basıktı, tavanı alçaktı. " * 6)
 
 
 def test_header_is_a_diff_preamble():
-    lines = [l.plain for l in get_mask("diff").header(Random(1))]
+    lines = [l.plain for l in get_mask("diff").header(Random(1), 80)]
     assert re.fullmatch(r"diff --git a/src/\S+ b/src/\S+", lines[0])
     assert any(l.startswith("--- a/src/") for l in lines)
     assert any(l.startswith("+++ b/src/") for l in lines)

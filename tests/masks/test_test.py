@@ -8,7 +8,7 @@ PARA = Paragraph("Oda dar ve basıktı, tavanı alçaktı. " * 6)
 
 
 def test_header_is_pytest_session_banner():
-    text = "\n".join(l.plain for l in get_mask("test").header(Random(1)))
+    text = "\n".join(l.plain for l in get_mask("test").header(Random(1), 80))
     assert "test session starts" in text
     assert re.search(r"collected \d+ items", text)
 

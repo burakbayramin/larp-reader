@@ -5,7 +5,7 @@ from random import Random
 
 from fcc.book import Paragraph, Pos
 from fcc.errors import FccError
-from fcc.masks.base import Line, error_lines, plain_line, progress_bar_label
+from fcc.masks.base import Line, error_lines, fit_lines, plain_line, progress_bar_label
 from fcc.text import wrap
 
 _EPOCH = datetime(2026, 11, 11, 9, 0, 0)
@@ -57,8 +57,11 @@ class LogMask:
     def __init__(self, lang: str = "python") -> None:
         self.lang = lang
 
-    def header(self, rng: Random) -> list[Line]:
-        return [plain_line("-- Logs begin at Wed 2026-11-11 09:00:00 UTC --", "dim")]
+    def header(self, rng: Random, width: int) -> list[Line]:
+        text = "-- Logs begin at Wed 2026-11-11 09:00:00 UTC --"
+        if len(text) > width:
+            text = "-- Logs begin at 2026-11-11 09:00:00 --"
+        return fit_lines([plain_line(text, "dim")], width)
 
     def _entry(self, rng: Random, t: datetime, width: int) -> Line:
         level = rng.choices(["INFO", "DEBUG", "WARN"], weights=[6, 2, 1])[0]

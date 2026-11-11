@@ -4,7 +4,7 @@ from random import Random
 
 from fcc.book import Paragraph, Pos
 from fcc.errors import FccError
-from fcc.masks.base import Line, error_lines, plain_line
+from fcc.masks.base import Line, error_lines, fit_lines, plain_line
 from fcc.text import wrap
 
 _FILES = ("parser", "session", "render", "config", "index", "format", "cache")
@@ -18,13 +18,17 @@ class TestMask:
     def __init__(self, lang: str = "python") -> None:
         self.lang = lang
 
-    def header(self, rng: Random) -> list[Line]:
-        return [
-            plain_line("=" * 29 + " test session starts " + "=" * 30, "bold"),
-            plain_line("platform linux -- Python 3.12.1, pytest-8.1.1, pluggy-1.4.0", ""),
-            plain_line("rootdir: /home/dev/project", ""),
-            plain_line("collected 380 items", ""),
-        ]
+    def header(self, rng: Random, width: int) -> list[Line]:
+        # pytest centres its banner on the terminal width
+        return fit_lines(
+            [
+                plain_line(" test session starts ".center(width, "="), "bold"),
+                plain_line("platform linux -- Python 3.12.1, pytest-8.1.1, pluggy-1.4.0", ""),
+                plain_line("rootdir: /home/dev/project", ""),
+                plain_line("collected 380 items", ""),
+            ],
+            width,
+        )
 
     def noise(self, rng: Random, width: int) -> Line:
         name = f"tests/test_{rng.choice(_FILES)}.py::test_{rng.choice(_CASES)}"

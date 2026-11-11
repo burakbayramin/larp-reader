@@ -25,7 +25,7 @@ class Line:
 class Mask(Protocol):
     name: str
 
-    def header(self, rng: Random) -> list[Line]: ...
+    def header(self, rng: Random, width: int) -> list[Line]: ...
 
     def render(
         self,
@@ -45,6 +45,11 @@ class Mask(Protocol):
 
 def plain_line(text: str, style: str = "") -> Line:
     return Line(((text, style),), False)
+
+
+def fit_lines(lines: list[Line], width: int) -> list[Line]:
+    """Crop single-segment chrome lines to `width` columns."""
+    return [plain_line(l.plain[: max(1, width)], l.segments[0][1] if l.segments else "") for l in lines]
 
 
 def error_lines(err: FccError, width: int) -> list[Line]:

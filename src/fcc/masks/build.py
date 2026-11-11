@@ -4,7 +4,7 @@ from random import Random
 
 from fcc.book import Paragraph, Pos
 from fcc.errors import FccError
-from fcc.masks.base import Line, error_lines, plain_line, progress_bar_label
+from fcc.masks.base import Line, error_lines, fit_lines, plain_line, progress_bar_label
 from fcc.text import wrap
 
 _CRATES = ("serde", "tokio", "regex", "anyhow", "hyper", "clap", "memchr", "once_cell", "bytes", "itoa")
@@ -19,8 +19,8 @@ class BuildMask:
     def __init__(self, lang: str = "rust") -> None:
         self.lang = lang
 
-    def header(self, rng: Random) -> list[Line]:
-        return [plain_line("    Updating crates.io index", "bold green")]
+    def header(self, rng: Random, width: int) -> list[Line]:
+        return fit_lines([plain_line("    Updating crates.io index", "bold green")], width)
 
     def noise(self, rng: Random, width: int) -> Line:
         ver = f"{rng.randint(0, 2)}.{rng.randint(0, 20)}.{rng.randint(0, 9)}"

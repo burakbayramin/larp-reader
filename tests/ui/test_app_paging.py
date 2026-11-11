@@ -92,7 +92,7 @@ async def test_j_and_k_scroll_one_line_across_paragraphs(tmp_path):
         s = app.session
         content = [ln for p in [(0, 0), (0, 1), (0, 2), (0, 3)] for ln in s.paragraph_lines(p)]
         first = len(s.paragraph_lines((0, 0)))
-        header = len(s.mask.header(None))
+        header = len(s.mask.header(None, 60))
         # at the very top the header precedes the text
         assert app.feed.visible_lines()[header:] == content[: 23 - header]
         for i in range(1, first + 2):
