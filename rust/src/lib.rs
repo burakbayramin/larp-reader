@@ -4,7 +4,12 @@
 //! `docs/superpowers/plans/2026-11-11-rust-port.md` for the map and order.
 
 pub mod book;
+pub mod cli;
 pub mod errors;
+pub mod masks;
+pub mod noise;
+pub mod pace;
+pub mod state;
 pub mod text;
 
 /// `fcc --version`: looks like a compiler's, never names what the program really is.
