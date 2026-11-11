@@ -6,12 +6,15 @@ from fcc.book import Book
 from fcc.errors import DrmProtected, EmptyBook, FccError, NoTextLayer, UnsupportedFormat
 from fcc.loaders.base import Loader
 from fcc.loaders.azw3 import Azw3Loader
+from fcc.loaders.docx import DocxLoader
 from fcc.loaders.epub import EpubLoader
 from fcc.loaders.html import HtmlLoader
 from fcc.loaders.mupdf import MupdfLoader
+from fcc.loaders.odt import OdtLoader
+from fcc.loaders.rtf import RtfLoader
 from fcc.loaders.text import TextLoader
 
-LOADERS: list[Loader] = [TextLoader(), EpubLoader(), HtmlLoader(), Azw3Loader(), MupdfLoader()]
+LOADERS: list[Loader] = [TextLoader(), EpubLoader(), HtmlLoader(), Azw3Loader(), DocxLoader(), OdtLoader(), RtfLoader(), MupdfLoader()]
 
 
 def load_book(path: Path) -> Book:
