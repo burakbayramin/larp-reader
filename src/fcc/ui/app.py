@@ -8,10 +8,11 @@ from rich.text import Text
 from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
+from textual.containers import Horizontal
 from textual.timer import Timer
-from textual.widgets import Static
+from textual.widgets import Input, Static
 
-from fcc.book import Book, Pos
+from fcc.book import Book, Pos, match_spans
 from fcc.errors import FccError, InputUnavailable, NoInput
 from fcc.loaders import load_book, supported_extensions
 from fcc.masks import LANGS, MASK_NAMES, Mask, get_mask
@@ -37,6 +38,9 @@ PANIC_SPEEDUP = 3
 AUTOSAVE_SECONDS = 10
 FLASH_SECONDS = 2
 _SAVED_MSG = "cache saved"
+_NOT_FOUND_MSG = "Pattern not found"
+_WRAP_MSG = {False: "search hit BOTTOM, continuing at TOP", True: "search hit TOP, continuing at BOTTOM"}
+HIGHLIGHT = "reverse"
 _WARNING = "warning: window too narrow"
 
 
@@ -55,6 +59,8 @@ _KEYS = (
     ("u, pgup", "page up"),
     ("j / k", "line down / up"),
     ("] / [", "next / prev section"),
+    ("/", "find"),
+    ("f / F", "find next / prev"),
     ("a", "auto scroll"),
     ("+ / -", "scroll speed"),
     ("m / M", "next / prev view"),
@@ -74,6 +80,7 @@ class FccApp(App):
     TITLE = "fcc"
     SUB_TITLE = ""
     ENABLE_COMMAND_PALETTE = False  # a recognisable Textual popup; Esc would close it, not panic
+    AUTO_FOCUS = None  # keys go to the app's bindings until a bar is opened
     CSS = """
     Screen { layout: vertical; background: #1e1e1e; color: #d4d4d4; }
     Feed { background: #1e1e1e; color: #d4d4d4; }
@@ -84,12 +91,21 @@ class FccApp(App):
         width: 38; height: 100%; padding: 1 2;
         background: #252526; color: #cccccc; border-left: solid #3c3c3c;
     }
+    .bar { dock: bottom; height: 1; display: none; background: #1e1e1e; }
+    .bar Static { width: auto; height: 1; color: #d4d4d4; }
+    .bar Input, .bar Input:focus {
+        width: 1fr; height: 1; border: none; padding: 0;
+        background: #1e1e1e; color: #d4d4d4;
+    }
     """
     BINDINGS = [
         Binding("space,pagedown", "page", show=False),
         Binding("u,pageup", "page_back", show=False),
         Binding("right_square_bracket", "chapter(1)", show=False),
         Binding("left_square_bracket", "chapter(-1)", show=False),
+        Binding("slash", "search", show=False),
+        Binding("f", "find_next(1)", show=False),
+        Binding("F", "find_next(-1)", show=False),
         Binding("down,j", "step(1)", show=False),
         Binding("up,k", "step(-1)", show=False),
         Binding("q", "quit_and_save", show=False),
@@ -137,10 +153,14 @@ class FccApp(App):
         # manual mode: text lines on screen now, and whether more text follows them
         self._page_rows = 0
         self._more_below = False
+        self._query = ""  # last search; its matches are highlighted
 
     def compose(self) -> ComposeResult:
         yield self.feed
         yield Static("", id="status")
+        with Horizontal(id="searchbar", classes="bar"):
+            yield Static("/")
+            yield _BarInput(id="search")
         yield Static("", id="help")
 
     # -- lifecycle --------------------------------------------------------
@@ -219,8 +239,14 @@ class FccApp(App):
                 self._more_below = len(text) > rows
                 self._page_rows = min(rows, len(text))
                 lines += text[:rows]
-        self.feed.set_lines(lines)
+        self.feed.set_lines(self._highlight(lines))
         self._update_status()
+
+    def _highlight(self, lines: list[Line]) -> list[Line]:
+        """Mark the last search's matches inside the text, like grep --color."""
+        if not self._query:
+            return lines
+        return [highlight(ln, self._query) if ln.is_book else ln for ln in lines]
 
     def _update_status(self) -> None:
         status = self.query_one("#status", Static)
@@ -285,6 +311,67 @@ class FccApp(App):
             target = s.book.prev_chapter(s.pos)
         if target is not None:
             self._go(target)
+
+    # -- search -----------------------------------------------------------
+
+    def _bar(self, name: str, show: bool) -> None:
+        bar = self.query_one(f"#{name}bar")
+        field = self.query_one(f"#{name}", Input)
+        bar.display = show
+        self.query_one("#status", Static).display = not show
+        if show:
+            field.value = ""
+            field.focus()
+        elif field.has_focus:
+            self.set_focus(None)
+
+    def action_search(self) -> None:
+        if self.session is None or self.panic:
+            return
+        self._show_help(False)
+        self._bar("search", True)
+
+    def _find(self, start: Pos, backward: bool, wrapped: bool = False) -> None:
+        s = self.session
+        assert s is not None
+        found = s.book.find(self._query, start, backward)
+        if found is None:
+            self._redraw()
+            self._flash_msg(_NOT_FOUND_MSG)
+            return
+        pos, wrapped_now = found
+        self._go(pos)
+        if wrapped or wrapped_now:
+            self._flash_msg(_WRAP_MSG[backward])
+
+    def action_find_next(self, step: int) -> None:
+        s = self.session
+        if s is None or self.panic or not self._query:
+            return
+        backward = step < 0
+        start = s.book.prev_pos(s.pos) if backward else s.book.next_pos(s.pos)
+        wrapped = start is None
+        if start is None:
+            order = [(ci, 0) for ci, _ in s.book.chapter_list()]
+            if not order:
+                return
+            last_ci = order[-1][0]
+            start = (last_ci, len(s.book.chapters[last_ci].paragraphs) - 1) if backward else order[0]
+        self._find(start, backward, wrapped)
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id == "search":
+            event.stop()
+            self._bar("search", False)
+            self._query = event.value.strip()
+            if self._query and self.session is not None:
+                self._find(self.session.pos, backward=False)
+            else:
+                self._redraw()
+
+    def bar_escape(self, field: Input) -> None:
+        if field.id == "search":
+            self._bar("search", False)
 
     def action_step(self, n: int) -> None:
         self._scroll(n)
@@ -378,6 +465,7 @@ class FccApp(App):
     def action_toggle_panic(self) -> None:
         self.panic = not self.panic
         self._show_help(False)
+        self._bar("search", False)
         self._stop_timer()
         self.feed.clear()
         self._queue = []
@@ -398,7 +486,10 @@ class FccApp(App):
         if mark not in self._bookmarks:
             self._bookmarks.append(mark)
             self._try_save()
-        self._flash = _SAVED_MSG
+        self._flash_msg(_SAVED_MSG)
+
+    def _flash_msg(self, msg: str) -> None:
+        self._flash = msg
         if self._flash_timer is not None:
             self._flash_timer.stop()
         self._flash_timer = self.set_timer(FLASH_SECONDS, self._clear_flash)
@@ -539,7 +630,7 @@ class FccApp(App):
             if ln.is_book:
                 break
         if out:
-            self.feed.append(out)
+            self.feed.append(self._highlight(out))
         if finished:
             # end of text: back to manual mode so the paging keys work again
             self._stop_timer()
@@ -584,3 +675,36 @@ def _valid_pos(book: Book, pos: Pos) -> Pos:
         return pos
     except IndexError:
         return (0, 0)
+
+
+class _BarInput(Input):
+    """One-line input at the bottom; the hide key and Esc still work while typing."""
+
+    def on_key(self, event: events.Key) -> None:
+        if event.key == "grave_accent":
+            event.prevent_default()
+            event.stop()
+            self.app.action_toggle_panic()
+        elif event.key == "escape":
+            event.prevent_default()
+            event.stop()
+            self.app.bar_escape(self)
+
+
+def highlight(line: Line, query: str) -> Line:
+    """`line` with every match of `query` inside its text segments shown reversed."""
+    segments: list[tuple[str, str]] = []
+    for text, style in line.segments:
+        spans = match_spans(text, query) if "book" in style.split() else []
+        if not spans:
+            segments.append((text, style))
+            continue
+        at = 0
+        for start, end in spans:
+            if start > at:
+                segments.append((text[at:start], style))
+            segments.append((text[start:end], f"{style} {HIGHLIGHT}"))
+            at = end
+        if at < len(text):
+            segments.append((text[at:], style))
+    return Line(tuple(segments), line.is_book, line.pos)

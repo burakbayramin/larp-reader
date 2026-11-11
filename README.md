@@ -38,6 +38,8 @@ gerçek bir geliştirme oturumu.
 | `Down` / `j` | bir satır ileri |
 | `Up` / `k` | bir satır geri |
 | `]` / `[` | sonraki bölüm / bölüm başı, oradaysa önceki bölüm |
+| `/` | metinde ara (büyük-küçük harf ve İ/ı fark etmez); eşleşmeler vurgulanır |
+| `f` / `F` | sonraki / önceki eşleşme (sona gelince başa sarar) |
 | `a` | otomatik akışı aç/kapat |
 | `+` / `-` | otomatik akış hızı |
 | `m` / `M` | görünümü değiştir: sonraki / önceki (code, log, diff, test, build, git, docker) |
@@ -47,7 +49,7 @@ gerçek bir geliştirme oturumu.
 | `:` | ayar menüsü (dosya aç, görünüm, dil, hız, gürültü, yer imleri, bölümler) |
 | `o` / `O` | klasördeki sonraki / önceki kitaba geç (her kitabın yeri ayrı saklanır) |
 | `Esc` | yan panel: kısayollar ve klasördeki kitaplar; panel açıkken `1`-`9` ile listeden kitap aç |
-| `` ` `` | panik: anında sahte çıktı akışı (panel ya da menü açıksa onu da kapatır) |
+| `` ` `` | panik: anında sahte çıktı akışı (panel, menü veya arama açıksa onu da kapatır) |
 | `q` | ilerlemeyi kaydet ve çık |
 
 Menüde `Tab`/`Up`/`Down` ile alan değiştirilir, `Left`/`Right` ile değer seçilir,

@@ -72,6 +72,55 @@ class Book:
                 return (ci, 0)
         return None
 
+    # -- search -----------------------------------------------------------
+
+    def find(self, query: str, start: Pos, backward: bool = False) -> tuple[Pos, bool] | None:
+        """First paragraph from `start` (inclusive) on containing `query`.
+
+        Searches toward the end (or the beginning when `backward`) and wraps
+        around once.  Returns the paragraph and whether the search wrapped.
+        """
+        needle = fold(query.strip())
+        if not needle:
+            return None
+        order = [(ci, pi) for ci, c in enumerate(self.chapters) for pi in range(len(c.paragraphs))]
+        if not order:
+            return None
+        here = order.index(start) if start in order else 0
+        n = len(order)
+        for k in range(n):
+            i = here - k if backward else here + k
+            wrapped = i < 0 or i >= n
+            pos = order[i % n]
+            if needle in fold(self.paragraph(pos).text):
+                return pos, wrapped
+        return None
+
+
+def fold(text: str) -> str:
+    """Case-folded text of the same length; Turkish dotted/dotless i count as plain i."""
+    out = []
+    for ch in text:
+        if ch in "İIı":
+            out.append("i")
+            continue
+        low = ch.lower()
+        out.append(low if len(low) == 1 else ch)
+    return "".join(out)
+
+
+def match_spans(text: str, query: str) -> list[tuple[int, int]]:
+    """Non-overlapping (start, end) ranges where `query` occurs in `text`, ignoring case."""
+    needle = fold(query.strip())
+    if not needle:
+        return []
+    hay = fold(text)
+    spans: list[tuple[int, int]] = []
+    i = hay.find(needle)
+    while i >= 0:
+        spans.append((i, i + len(needle)))
+        i = hay.find(needle, i + len(needle))
+    return spans
 
 
 def book_id(data: bytes) -> str:

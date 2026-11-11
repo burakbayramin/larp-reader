@@ -89,3 +89,72 @@ async def test_menu_lists_sections_and_jumps_to_one(tmp_path):
         await pilot.press("down", "down", "enter")
         assert not isinstance(app.screen, MenuScreen)
         assert app.session.pos == (2, 0)
+
+
+# -- search ------------------------------------------------------------------
+
+
+async def type_text(pilot, text: str) -> None:
+    for ch in text:
+        await pilot.press("space" if ch == " " else ch)
+
+
+async def test_slash_searches_and_highlights(tmp_path):
+    app = make_app(tmp_path)
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.press("slash")
+        bar = app.query_one("#searchbar")
+        assert bar.display and app.query_one("#search", Input).has_focus
+        await type_text(pilot, "number 7")
+        await pilot.press("enter")
+        assert not bar.display
+        assert app.session.pos == (0, 7)
+        hits = [
+            text
+            for ln in app.feed.visible_lines()
+            for text, style in ln.segments
+            if "reverse" in style.split()
+        ]
+        assert "number 7" in hits
+
+
+async def test_f_and_shift_f_walk_matches_and_wrap(tmp_path):
+    app = make_app(tmp_path)
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.press("slash")
+        await type_text(pilot, "LOREM")
+        await pilot.press("enter")
+        assert app.session.pos == (0, 0)
+        await pilot.press("f")
+        assert app.session.pos == (0, 1)
+        await pilot.press("F", "F")
+        assert app.session.pos == (0, 9)  # wrapped to the end
+        assert "continuing" in status_text(app)
+
+
+async def test_missing_pattern_reports_and_stays(tmp_path):
+    app = make_app(tmp_path)
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.press("slash")
+        await type_text(pilot, "zzz")
+        await pilot.press("enter")
+        assert app.session.pos == (0, 0)
+        assert "Pattern not found" in status_text(app)
+
+
+async def test_escape_cancels_search_without_opening_the_panel(tmp_path):
+    app = make_app(tmp_path)
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.press("slash", "x", "escape")
+        assert not app.query_one("#searchbar").display
+        assert not app.query_one("#help").display
+        await pilot.press("j")
+        assert app.session.line_offset == 1 or app.session.pos != (0, 0)
+
+
+async def test_backtick_in_search_hides_everything(tmp_path):
+    app = make_app(tmp_path)
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.press("slash", "grave_accent")
+        assert app.panic
+        assert not app.query_one("#searchbar").display
