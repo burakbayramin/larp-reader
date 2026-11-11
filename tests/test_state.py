@@ -130,3 +130,35 @@ def test_config_valid_values_kept(tmp_path):
 def test_config_auto_must_be_bool(tmp_path):
     assert _config_with(tmp_path, auto="yes").auto is False
     assert _config_with(tmp_path, auto=1).auto is False
+
+
+def test_progress_parsed_per_entry_and_not_quarantined(tmp_path):
+    good = {"path": "C:/a.epub", "chapter": 1, "paragraph": 2, "bookmarks": [[0, 1]], "updated_at": "2026-11-01T10:00:00"}
+    raw = {
+        "good": good,
+        "extra": dict(good, future_field="x"),
+        "nomarks": {"path": "C:/b.epub", "chapter": 0, "paragraph": 5, "updated_at": "2026-11-02T10:00:00"},
+        "nodate": {"path": "C:/c.epub", "chapter": 0, "paragraph": 1},
+        "nochapter": {"path": "C:/d.epub", "paragraph": 1, "bookmarks": [], "updated_at": "x"},
+        "badtype": dict(good, chapter="one"),
+        "notdict": [1, 2, 3],
+        "badmarks": dict(good, bookmarks=[[1, 2], "zz", [3], [True, 1], [4, 5]]),
+    }
+    (tmp_path / "progress.json").write_text(json.dumps(raw), encoding="utf-8")
+    data = load_progress(tmp_path)
+    assert not (tmp_path / "progress.json.bak").exists()
+    assert set(data) == {"good", "extra", "nomarks", "nodate", "badmarks"}
+    assert data["good"] == Entry(**good)
+    assert data["extra"] == Entry(**good)
+    assert data["nomarks"].bookmarks == []
+    assert data["nodate"].updated_at == ""
+    assert data["badmarks"].bookmarks == [[1, 2], [4, 5]]
+    # saving keeps every readable book's progress
+    save_progress(tmp_path, data)
+    assert set(load_progress(tmp_path)) == set(data)
+
+
+def test_progress_top_level_not_object_is_quarantined(tmp_path):
+    (tmp_path / "progress.json").write_text("[1, 2]", encoding="utf-8")
+    assert load_progress(tmp_path) == {}
+    assert (tmp_path / "progress.json.bak").exists()

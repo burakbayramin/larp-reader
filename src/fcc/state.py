@@ -117,16 +117,37 @@ def save_config(dir: Path, cfg: Config) -> None:
     _atomic_write(Path(dir) / "config.json", asdict(cfg))
 
 
+def _index(value) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def _entry(obj) -> Entry | None:
+    """One progress entry from untrusted JSON; None if a required field is missing or bad.
+
+    Unknown keys are ignored, missing optional keys get defaults and malformed
+    bookmarks are dropped, so one odd entry never costs the other books' progress.
+    """
+    if not isinstance(obj, dict):
+        return None
+    path, chapter, paragraph = obj.get("path"), obj.get("chapter"), obj.get("paragraph")
+    if not isinstance(path, str) or not _index(chapter) or not _index(paragraph):
+        return None
+    marks = obj.get("bookmarks")
+    bookmarks = [
+        list(m)
+        for m in (marks if isinstance(marks, list) else [])
+        if isinstance(m, list) and len(m) == 2 and all(_index(x) for x in m)
+    ]
+    updated_at = obj.get("updated_at")
+    return Entry(path, chapter, paragraph, bookmarks, updated_at if isinstance(updated_at, str) else "")
+
+
 def load_progress(dir: Path) -> dict[str, Entry]:
     obj = _read_json(Path(dir) / "progress.json")
     if obj is None:
         return {}
-    try:
-        return {k: Entry(**v) for k, v in obj.items()}
-    except TypeError:
-        os.replace(Path(dir) / "progress.json",
-                   Path(dir) / "progress.json.bak")
-        return {}
+    entries = {k: _entry(v) for k, v in obj.items()}
+    return {k: e for k, e in entries.items() if e is not None}
 
 
 def save_progress(dir: Path, data: dict[str, Entry]) -> None:
