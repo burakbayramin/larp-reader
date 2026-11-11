@@ -19,6 +19,11 @@ from fcc.loaders.text import TextLoader
 LOADERS: list[Loader] = [TextLoader(), EpubLoader(), HtmlLoader(), Azw3Loader(), DocxLoader(), OdtLoader(), RtfLoader(), MupdfLoader(), CalibreLoader()]
 
 
+def supported_extensions() -> frozenset[str]:
+    """Lower-case suffixes some loader opens directly (without a converter)."""
+    return frozenset(ext for loader in LOADERS for ext in loader.extensions)
+
+
 def load_book(path: Path) -> Book:
     path = Path(path)
     with path.open("rb") as f:

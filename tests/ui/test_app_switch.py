@@ -43,7 +43,7 @@ async def test_m_redraws_with_new_mask_style(tmp_path):
 async def test_m_during_panic_switches_panic_stream_mask(tmp_path):
     app = make_app(tmp_path)
     async with app.run_test(size=(100, 24)) as pilot:
-        await pilot.press("escape")
+        await pilot.press("grave_accent")
         await pilot.press("m")
         await pilot.pause()
         assert app.panic and app._mask.name == "log"
@@ -126,7 +126,7 @@ async def test_l_from_another_mask_returns_to_code_in_the_next_language(tmp_path
 async def test_language_switch_during_panic_shows_no_text(tmp_path):
     app = make_app(tmp_path)
     async with app.run_test(size=(100, 24)) as pilot:
-        await pilot.press("escape")
+        await pilot.press("grave_accent")
         await pilot.press("l")
         await pilot.pause()
         assert app.panic

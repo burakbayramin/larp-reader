@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from random import Random
 
+from rich.text import Text
 from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -12,7 +13,7 @@ from textual.widgets import Static
 
 from fcc.book import Book, Pos
 from fcc.errors import FccError, InputUnavailable, NoInput
-from fcc.loaders import load_book
+from fcc.loaders import load_book, supported_extensions
 from fcc.masks import LANGS, MASK_NAMES, Mask, get_mask
 from fcc.masks.base import Line, plain_line
 from fcc.session import Session
@@ -47,6 +48,26 @@ def resolve_mask(config: Config) -> tuple[Mask, FccError | None]:
         return get_mask("code"), FccError(str(e))
 
 
+LISTED_INPUTS = 9  # one per digit key
+
+_KEYS = (
+    ("space", "page down"),
+    ("j / k", "line down / up"),
+    ("a", "auto scroll"),
+    ("+ / -", "scroll speed"),
+    ("m / M", "next / prev view"),
+    ("l / L", "next / prev language"),
+    ("n / N", "more / less filler"),
+    ("o / O", "next / prev input"),
+    ("1-9", "open listed input"),
+    ("b", "mark this place"),
+    (":", "config"),
+    ("`", "hide / unhide"),
+    ("esc", "this panel"),
+    ("q", "quit"),
+)
+
+
 class FccApp(App):
     TITLE = "fcc"
     SUB_TITLE = ""
@@ -55,6 +76,12 @@ class FccApp(App):
     Screen { layout: vertical; background: #1e1e1e; color: #d4d4d4; }
     Feed { background: #1e1e1e; color: #d4d4d4; }
     #status { height: 1; dock: bottom; background: #1e1e1e; color: #858585; }
+    Screen { layers: base overlay; }
+    #help {
+        layer: overlay; dock: right; display: none;
+        width: 38; height: 100%; padding: 1 2;
+        background: #252526; color: #cccccc; border-left: solid #3c3c3c;
+    }
     """
     BINDINGS = [
         Binding("space", "page", show=False),
@@ -73,7 +100,11 @@ class FccApp(App):
         Binding("N", "noise(-1)", show=False),
         Binding("b", "bookmark", show=False),
         Binding("colon", "open_menu", show=False),
-        Binding("escape,grave_accent", "toggle_panic", show=False),
+        Binding("o", "cycle_input(1)", show=False),
+        Binding("O", "cycle_input(-1)", show=False),
+        *[Binding(str(n), f"open_listed({n})", show=False) for n in range(1, 10)],
+        Binding("escape", "toggle_help", show=False),
+        Binding("grave_accent", "toggle_panic", show=False),
     ]
 
     def __init__(self, path: Path | None, config: Config, state_dir: Path) -> None:
@@ -105,6 +136,7 @@ class FccApp(App):
     def compose(self) -> ComposeResult:
         yield self.feed
         yield Static("", id="status")
+        yield Static("", id="help")
 
     # -- lifecycle --------------------------------------------------------
 
@@ -245,8 +277,73 @@ class FccApp(App):
         self.speed = min(MAX_SPEED, max(MIN_SPEED, speed))
         self._restart_timer()
 
+    # -- side panel and the folder's other files ---------------------------
+
+    def _inputs(self) -> list[Path]:
+        """The openable files next to the current one, in name order."""
+        if self._entry_path is None:
+            return []
+        current = Path(self._entry_path)
+        known = supported_extensions()
+        try:
+            found = [f for f in current.parent.iterdir() if f.is_file() and f.suffix.lower() in known]
+        except OSError:
+            found = []
+        if current not in found:
+            found.append(current)
+        return sorted(found, key=lambda f: f.name.lower())
+
+    def _help_text(self) -> Text:
+        text = Text(no_wrap=True, overflow="ellipsis")
+        text.append("keys\n", "bold #d4d4d4")
+        for keys, what in _KEYS:
+            text.append(f"{keys:<9}", "#dcdcaa")
+            text.append(f"{what}\n", "#cccccc")
+        files = self._inputs()
+        if files:
+            text.append("\ninputs\n", "bold #d4d4d4")
+            current = Path(self._entry_path) if self._entry_path else None
+            for n, f in enumerate(files[:LISTED_INPUTS], 1):
+                here = f == current
+                text.append(f"{'>' if here else n} ", "#dcdcaa")
+                text.append(f"{f.name}\n", "bold #d4d4d4" if here else "#cccccc")
+            if len(files) > LISTED_INPUTS:
+                text.append(f"  +{len(files) - LISTED_INPUTS} more (o / O)\n", "#858585")
+        return text
+
+    def _show_help(self, show: bool) -> None:
+        panel = self.query_one("#help", Static)
+        if show:
+            panel.update(self._help_text())
+        panel.display = show
+
+    def action_toggle_help(self) -> None:
+        if self.panic:
+            return  # hidden means hidden: only the hide key brings things back
+        self._show_help(not self.query_one("#help", Static).display)
+
+    def _switch_to(self, path: Path) -> None:
+        self._open_from_menu(path)
+        if self.query_one("#help", Static).display:
+            self._show_help(True)
+
+    def action_cycle_input(self, step: int = 1) -> None:
+        files = self._inputs()
+        if self.panic or len(files) < 2:
+            return
+        i = files.index(Path(self._entry_path))
+        self._switch_to(files[(i + step) % len(files)])
+
+    def action_open_listed(self, n: int) -> None:
+        files = self._inputs()[:LISTED_INPUTS]
+        if self.panic or not self.query_one("#help", Static).display or n > len(files):
+            return
+        if files[n - 1] != Path(self._entry_path):
+            self._switch_to(files[n - 1])
+
     def action_toggle_panic(self) -> None:
         self.panic = not self.panic
+        self._show_help(False)
         self._stop_timer()
         self.feed.clear()
         self._queue = []

@@ -36,7 +36,7 @@ async def test_panic_removes_every_book_word(tmp_path):
         await pilot.press("a")
         for _ in range(5):
             app.tick()
-        await pilot.press("escape")
+        await pilot.press("grave_accent")
         await pilot.pause()
         assert app.panic
         for _ in range(30):
@@ -69,7 +69,7 @@ async def test_panic_toggle_returns_to_same_pos(tmp_path):
         assert any(ln.pos == pos for ln in app.feed.visible_lines())
         # auto mode is restored as auto
         await pilot.press("a")
-        await pilot.press("escape", "escape")
+        await pilot.press("grave_accent", "grave_accent")
         assert app.auto and not app.panic
         assert app.session.pos == pos
 
@@ -151,7 +151,7 @@ async def test_auto_reaches_end_and_stops(tmp_path):
 async def test_manual_keys_do_nothing_in_panic(tmp_path):
     app = FccApp(make_txt(tmp_path), cfg(), tmp_path / "st")
     async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.press("escape")
+        await pilot.press("grave_accent")
         await pilot.press("space", "down")
         assert app.session.progress()[0] == 1
         assert not any(ln.is_book for ln in app.feed.history_lines())
@@ -189,7 +189,7 @@ async def test_panic_prefills_a_screenful_before_first_tick(tmp_path):
     app = FccApp(make_txt(tmp_path), cfg(), tmp_path / "st")
     async with app.run_test(size=(80, 24)) as pilot:
         words = book_words(app.session.book)
-        await pilot.press("escape")
+        await pilot.press("grave_accent")
         await pilot.pause()
         assert app.panic
         assert len(app.feed.history_lines()) >= 23

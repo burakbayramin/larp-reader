@@ -43,7 +43,9 @@ gerçek bir geliştirme oturumu.
 | `n` / `N` | gürültüyü artır / azalt |
 | `b` | yer imi ekle (`cache saved` mesajı) |
 | `:` | ayar menüsü (dosya aç, görünüm, dil, hız, gürültü, yer imleri) |
-| `Esc` / `` ` `` | panik: anında sahte çıktı akışı (menü açıksa menüyü de kapatır) |
+| `o` / `O` | klasördeki sonraki / önceki kitaba geç (her kitabın yeri ayrı saklanır) |
+| `Esc` | yan panel: kısayollar ve klasördeki kitaplar; panel açıkken `1`-`9` ile listeden kitap aç |
+| `` ` `` | panik: anında sahte çıktı akışı (panel ya da menü açıksa onu da kapatır) |
 | `q` | ilerlemeyi kaydet ve çık |
 
 Menüde `Tab`/`Up`/`Down` ile alan değiştirilir, `Left`/`Right` ile değer seçilir,

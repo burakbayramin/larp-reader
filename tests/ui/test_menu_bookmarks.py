@@ -137,20 +137,33 @@ async def test_menu_open_bad_file_keeps_session(tmp_path):
         assert any(ln.is_book for ln in app.feed.visible_lines())
 
 
-@pytest.mark.parametrize("key", ["escape", "grave_accent"])
-async def test_panic_from_menu_closes_menu(tmp_path, key):
+async def test_panic_from_menu_closes_menu(tmp_path):
     app = make_app(tmp_path)
     async with app.run_test(size=(100, 24)) as pilot:
         words = book_words(app.session.book)
         await pilot.press("colon")
         await pilot.pause()
         assert in_menu(app)
-        await pilot.press(key)
+        await pilot.press("grave_accent")
         await pilot.pause()
         assert not in_menu(app)
         assert app.panic
         assert not any(w in shown(app) for w in words)
         assert not any(ln.is_book for ln in app.feed.visible_lines())
+
+
+async def test_escape_closes_menu_and_changes_nothing(tmp_path):
+    app = make_app(tmp_path)
+    async with app.run_test(size=(100, 24)) as pilot:
+        before = [ln.plain for ln in app.feed.visible_lines()]
+        await pilot.press("colon")
+        await pilot.pause()
+        assert in_menu(app)
+        await pilot.press("escape")
+        await pilot.pause()
+        assert not in_menu(app) and not app.panic
+        assert [ln.plain for ln in app.feed.visible_lines()] == before
+        assert not app.query_one("#help").display
 
 
 async def test_menu_text_has_no_forbidden_words(tmp_path):

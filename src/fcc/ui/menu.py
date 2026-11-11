@@ -99,7 +99,8 @@ class MenuScreen(ModalScreen[MenuResult]):
     MenuScreen OptionList:focus { border: none; }
     """
     BINDINGS = [
-        Binding("escape,grave_accent", "panic", show=False, priority=True),
+        Binding("escape", "close", show=False, priority=True),
+        Binding("grave_accent", "panic", show=False, priority=True),
         Binding("enter", "apply", show=False),
         Binding("down", "app.focus_next", show=False),
         Binding("up", "app.focus_previous", show=False),
@@ -137,6 +138,9 @@ class MenuScreen(ModalScreen[MenuResult]):
 
     def action_panic(self) -> None:
         self.dismiss(Panic())
+
+    def action_close(self) -> None:
+        self.dismiss(None)
 
     def action_apply(self) -> None:
         self.dismiss(
