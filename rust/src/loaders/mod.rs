@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use crate::book::Book;
 use crate::errors::FccError;
 
+pub mod calibre;
 pub mod docx;
 pub mod epub;
 pub mod fb2;
@@ -43,6 +44,7 @@ pub fn loaders() -> Vec<Box<dyn Loader>> {
         Box::new(rtf::RtfLoader),
         Box::new(fb2::Fb2Loader),
         Box::new(pdf::PdfLoader),
+        Box::new(calibre::CalibreLoader::system()),
     ]
 }
 
@@ -132,11 +134,20 @@ pub fn find_program(name: &str) -> Option<PathBuf> {
 }
 
 pub fn load_book(path: &Path) -> Result<Book, FccError> {
+    load_with(path, &loaders(), find_program("ebook-convert").is_some())
+}
+
+/// `load_book` with a given loader chain; `calibre_present` decides the install hint.
+pub fn load_with(
+    path: &Path,
+    loaders: &[Box<dyn Loader>],
+    calibre_present: bool,
+) -> Result<Book, FccError> {
     let mut head = Vec::with_capacity(4096);
     File::open(path)
         .and_then(|f| f.take(4096).read_to_end(&mut head))
         .map_err(|e| FccError::from_io(&e))?;
-    for loader in loaders() {
+    for loader in loaders {
         if !loader.can_load(path, &head) {
             continue;
         }
@@ -157,7 +168,7 @@ pub fn load_book(path: &Path) -> Result<Book, FccError> {
         .unwrap_or("(uzantısız)".into());
     // the suffix only, never the file name: it may be the title
     let mut msg = format!("\"{ext}\" biçimi açılamadı");
-    if find_program("ebook-convert").is_none() {
+    if !calibre_present {
         msg.push_str("; Calibre (ebook-convert) kurarak tekrar deneyin");
     }
     Err(FccError::UnsupportedFormat(msg))
