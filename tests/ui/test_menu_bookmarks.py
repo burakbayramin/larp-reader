@@ -27,8 +27,9 @@ def in_menu(app) -> bool:
 async def test_bookmark_added_once(tmp_path):
     app = make_app(tmp_path)
     async with app.run_test(size=(100, 24)) as pilot:
-        await pilot.press("down", "down")
+        await pilot.press("space")
         pos = app.session.pos
+        assert pos != (0, 0)
         await pilot.press("b")
         assert status_text(app) == "cache saved"
         assert app._flash_timer is not None
@@ -38,7 +39,8 @@ async def test_bookmark_added_once(tmp_path):
         app._clear_flash()  # what the 2 s timer fires
         assert status_text(app) != "cache saved"
         assert "Indexing" in status_text(app) or "/" in status_text(app)
-        await pilot.press("down", "b")
+        await pilot.press("space", "b")
+        assert app.session.pos != pos
         marks = next(iter(load_progress(tmp_path / "st").values())).bookmarks
         assert marks == [list(pos), list(app.session.pos)]
 
@@ -80,10 +82,10 @@ async def test_menu_changes_mask_and_persists(tmp_path):
 async def test_menu_jump_to_bookmark(tmp_path):
     app = make_app(tmp_path)
     async with app.run_test(size=(100, 24)) as pilot:
-        await pilot.press("down", "down", "down")
+        await pilot.press("space")
         marked = app.session.pos
         await pilot.press("b")
-        await pilot.press("up", "up", "up", "up")
+        await pilot.press("space")
         assert app.session.pos != marked
         await pilot.press("colon")
         await pilot.pause()
@@ -154,8 +156,10 @@ async def test_panic_from_menu_closes_menu(tmp_path, key):
 async def test_menu_text_has_no_forbidden_words(tmp_path):
     app = make_app(tmp_path)
     async with app.run_test(size=(100, 24)) as pilot:
-        await pilot.press("down", "b", "colon")
+        await pilot.press("space", "b", "colon")
         await pilot.pause()
+        label = f"L{app.session.book.index_of(app.session.pos) + 1}"
+        assert label != "L1"
         texts = []
         for w in app.screen.query("*"):
             if isinstance(w, Static):
@@ -165,5 +169,5 @@ async def test_menu_text_has_no_forbidden_words(tmp_path):
             if isinstance(w, OptionList):
                 texts += [str(w.get_option_at_index(i).prompt) for i in range(w.option_count)]
         joined = "\n".join(texts)
-        assert "fcc config" in joined and "L2" in joined
+        assert "fcc config" in joined and label in joined
         assert not FORBIDDEN.search(joined), joined

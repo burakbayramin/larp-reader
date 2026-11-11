@@ -85,6 +85,9 @@ class FccApp(App):
         self._bookmarks: list[list[int]] = []
         self._flash: str | None = None
         self._flash_timer: Timer | None = None
+        # manual mode: text lines on screen now, and whether more text follows them
+        self._page_rows = 0
+        self._more_below = False
 
     def compose(self) -> ComposeResult:
         yield self.feed
@@ -110,8 +113,9 @@ class FccApp(App):
     def on_resize(self, event: events.Resize) -> None:
         # App.size lags behind the event, so track the event's size ourselves.
         self._cols, self._rows = event.size.width, event.size.height
-        if self.session is not None:
+        if self.session is not None and self.session.width != self._width():
             self.session.width = self._width()
+            self.session.pos = self.session.pos  # re-wrapped: restart at the paragraph's top
         self._redraw()
 
     def _open(self) -> None:
@@ -154,12 +158,17 @@ class FccApp(App):
         lines += self._notice
         s = self.session
         if s is not None:
-            if s.book.index_of(s.pos) == 0:
+            at_top = s.book.index_of(s.pos) == 0 and (self.auto or s.line_offset == 0)
+            if at_top:
                 lines += s.mask.header(Random(s.book.id))
             if self.auto:
                 lines += s.paragraph_lines(s.pos)
             else:
-                lines += s.lines_from(s.pos, self._view_height())
+                rows = max(0, self._view_height() - len(lines))
+                text = s.window(rows + 1)
+                self._more_below = len(text) > rows
+                self._page_rows = min(rows, len(text))
+                lines += text[:rows]
         self.feed.set_lines(lines)
         self._update_status()
 
@@ -183,24 +192,23 @@ class FccApp(App):
 
     # -- actions ----------------------------------------------------------
 
-    def _move(self, n: int) -> None:
+    def _scroll(self, n: int) -> None:
+        """Move the manual view by `n` rendered lines; never past the last screen."""
         if self.session is None or self.auto or self.panic:
             return
+        if n > 0 and not self._more_below:
+            return  # the end of the text is already on screen
         self._notice = []
-        if n > 0:
-            self.session.advance(n)
-        else:
-            self.session.back(-n)
+        if n:
+            self.session.scroll(n)
         self._redraw()
 
     def action_page(self) -> None:
-        if self.auto or self.panic:
-            return
-        shown = {ln.pos for ln in self.feed.visible_lines() if ln.is_book}
-        self._move(max(1, len(shown)))
+        # the next screen starts at the first line this one did not show
+        self._scroll(self._page_rows)
 
     def action_step(self, n: int) -> None:
-        self._move(n)
+        self._scroll(n)
 
     def action_quit_and_save(self) -> None:
         self._try_save()
@@ -286,6 +294,7 @@ class FccApp(App):
         if self.session is not None:
             self.session.mask = self._mask
             self.session.noise = r.noise
+            self.session.pos = self.session.pos  # new layout: restart at the paragraph's top
         self._persist_config()
         self._set_speed(r.speed)
         self._redraw()
@@ -309,6 +318,7 @@ class FccApp(App):
         self._mask = get_mask(name, self.config.lang)
         if self.session is not None:
             self.session.mask = self._mask
+            self.session.pos = self.session.pos  # new layout: restart at the paragraph's top
         self.config.mask = name
         self._persist_config()
         self._redraw()

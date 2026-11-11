@@ -93,3 +93,35 @@ def test_setters_change_rendering():
     s.mask = CodeMask("python")
     s.noise = 4
     assert s.noise == 4 and s.mask.name == "code"
+
+
+def test_window_spans_paragraphs_from_line_offset():
+    s = mk(noise=2)
+    stream = s.paragraph_lines((0, 0)) + s.paragraph_lines((0, 1)) + s.paragraph_lines((0, 2))
+    assert s.window(10_000) == stream
+    s.line_offset = 3
+    assert s.window(5) == stream[3:8]
+
+
+def test_scroll_crosses_paragraphs_both_ways_and_clamps():
+    s = mk(noise=2)
+    first = len(s.paragraph_lines((0, 0)))
+    stream = s.window(10_000)
+    assert s.scroll(first + 1) is True
+    assert (s.pos, s.line_offset) == ((0, 1), 1)
+    assert s.window(1) == [stream[first + 1]]
+    assert s.scroll(-2) is True
+    assert (s.pos, s.line_offset) == ((0, 0), first - 1)
+    assert s.scroll(-10_000) is True and (s.pos, s.line_offset) == ((0, 0), 0)
+    assert s.scroll(-1) is False
+    assert s.scroll(len(stream)) is False  # no such line: stay put
+    assert (s.pos, s.line_offset) == ((0, 0), 0)
+    assert s.scroll(len(stream) - 1) is True and s.window(10) == [stream[-1]]
+
+
+def test_setting_pos_resets_line_offset():
+    s = mk()
+    s.scroll(2)
+    assert s.line_offset == 2
+    s.pos = (0, 1)
+    assert s.line_offset == 0

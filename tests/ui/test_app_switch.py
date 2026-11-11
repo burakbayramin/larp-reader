@@ -15,7 +15,7 @@ def make_app(tmp_path, **kw):
 async def test_m_cycles_masks_and_keeps_pos(tmp_path):
     app = make_app(tmp_path)
     async with app.run_test(size=(100, 24)) as pilot:
-        await pilot.press("down", "down")
+        await pilot.press("space")
         pos = app.session.pos
         assert pos != (0, 0)
         seen = [app._mask.name]

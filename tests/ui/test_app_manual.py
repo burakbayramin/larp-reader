@@ -30,33 +30,39 @@ async def test_manual_space_advances_and_status_updates(tmp_path):
         assert f" {app.session.progress()[0]}/10" in status_text(app)
 
 
-async def test_space_advances_by_visible_paragraph_count(tmp_path):
+async def test_space_starts_next_screen_at_first_unseen_line(tmp_path):
     app = FccApp(make_txt(tmp_path), cfg(), tmp_path / "st")
     async with app.run_test(size=(80, 24)) as pilot:
-        visible = {ln.pos for ln in app.feed.visible_lines() if ln.is_book}
-        assert len(visible) >= 2
+        s = app.session
+        header = len(s.mask.header(None))
+        stream = s.window(1000)
+        assert app.feed.visible_lines() == s.mask.header(None) + stream[: 23 - header]
         await pilot.press("space")
-        assert app.session.progress()[0] == 1 + len(visible)
+        assert app.feed.visible_lines() == stream[23 - header : 23 - header + 23]
+        # pos/line_offset name the paragraph line now at the top
+        assert s.paragraph_lines(s.pos)[s.line_offset] == stream[23 - header]
+        assert s.pos != (0, 0)
 
 
-async def test_down_and_j_advance_one_paragraph(tmp_path):
+async def test_down_and_j_scroll_one_line(tmp_path):
     app = FccApp(make_txt(tmp_path), cfg(), tmp_path / "st")
     async with app.run_test(size=(80, 24)) as pilot:
+        stream = app.session.window(1000)
         await pilot.press("down")
-        assert app.session.progress()[0] == 2
+        assert app.feed.visible_lines()[:23] == stream[1:24]
         await pilot.press("j")
-        assert app.session.progress()[0] == 3
+        assert app.feed.visible_lines()[:23] == stream[2:25]
 
 
-async def test_up_goes_back_one_paragraph(tmp_path):
+async def test_up_and_k_scroll_back_one_line(tmp_path):
     app = FccApp(make_txt(tmp_path), cfg(), tmp_path / "st")
     async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.press("down", "down")
-        assert app.session.progress()[0] == 3
+        stream = app.session.window(1000)
+        await pilot.press("down", "down", "down")
         await pilot.press("up")
-        assert app.session.progress()[0] == 2
+        assert app.feed.visible_lines() == stream[2:25]
         await pilot.press("k")
-        assert app.session.progress()[0] == 1
+        assert app.feed.visible_lines() == stream[1:24]
 
 
 async def test_q_saves_progress(tmp_path):
@@ -65,8 +71,9 @@ async def test_q_saves_progress(tmp_path):
     st.mkdir()
     app = FccApp(path, cfg(), st)
     async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.press("down", "down", "down")
+        await pilot.press("space", "space")
         pos = app.session.pos
+        assert pos != (0, 0)
         book_id = app.session.book.id
         await pilot.press("q")
     saved = load_progress(st)
@@ -74,7 +81,7 @@ async def test_q_saves_progress(tmp_path):
     app2 = FccApp(path, cfg(), st)
     async with app2.run_test(size=(80, 24)):
         assert app2.session.pos == pos
-        assert app2.session.progress()[0] == 4
+        assert app2.session.progress()[0] == app2.session.book.index_of(pos) + 1
 
 
 async def test_resize_keeps_paragraph(tmp_path):
