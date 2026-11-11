@@ -106,6 +106,174 @@ pub trait Mask {
     fn progress_label(&self, done: usize, total: usize, width: usize) -> String;
 }
 
+/// A fresh mask by name; `lang` matters only to the code mask.
+pub fn get_mask(name: &str, lang: &str) -> Result<Box<dyn Mask>, String> {
+    Ok(match name {
+        "code" => Box::new(code::CodeMask::new(lang)?),
+        "log" => Box::new(log::LogMask::default()),
+        "diff" => Box::new(diff::DiffMask),
+        "test" => Box::new(test::TestMask),
+        "build" => Box::new(build::BuildMask),
+        "git" => Box::new(git::GitMask),
+        "docker" => Box::new(docker::DockerMask),
+        "agent" => Box::new(agent::AgentMask::default()),
+        _ => return Err(format!("unknown or unregistered mask: {name:?}")),
+    })
+}
+
+/// The rules every mask keeps (`tests/masks/test_contract.py`).
+#[cfg(test)]
+mod contract {
+    use super::*;
+    use crate::errors::FccError;
+    use rand::SeedableRng;
+
+    const FORBIDDEN: &[&str] = &["book", "reader", "okuyucu"];
+
+    fn para() -> Paragraph {
+        Paragraph::new("Raskolnikov o sabah erkenden uyandı. Oda dar ve basıktı, ".repeat(3))
+    }
+
+    fn rng(seed: u64) -> Rng {
+        Rng::seed_from_u64(seed)
+    }
+
+    fn masks() -> Vec<Box<dyn Mask>> {
+        MASK_NAMES
+            .iter()
+            .map(|n| get_mask(n, "python").unwrap())
+            .collect()
+    }
+
+    /// Words of the text segments, in order.
+    fn text_words(lines: &[Line]) -> Vec<String> {
+        lines
+            .iter()
+            .filter(|l| l.is_book)
+            .flat_map(|l| &l.segments)
+            .filter(|(_, s)| s.split_whitespace().next() == Some("book"))
+            .flat_map(|(t, _)| t.split_whitespace().map(String::from))
+            .collect()
+    }
+
+    #[test]
+    fn render_keeps_every_word_in_order() {
+        for mut m in masks() {
+            let lines = m.render(&para(), (0, 0), 60, &mut rng(1), 1);
+            let want: Vec<String> = para().text.split_whitespace().map(String::from).collect();
+            assert_eq!(text_words(&lines), want, "{}", m.name());
+        }
+    }
+
+    #[test]
+    fn lines_fit_width() {
+        for mut m in masks() {
+            let lines = m.render(&para(), (0, 0), 60, &mut rng(1), 1);
+            assert!(!lines.is_empty());
+            for l in &lines {
+                assert!(
+                    unicode_width::UnicodeWidthStr::width(l.plain().as_str()) <= 60,
+                    "{}: {}",
+                    m.name(),
+                    l.plain()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn book_lines_carry_pos() {
+        for mut m in masks() {
+            let lines = m.render(&para(), (0, 0), 60, &mut rng(1), 1);
+            assert!(lines.iter().any(|l| l.is_book));
+            assert!(
+                lines.iter().all(|l| (l.pos == Some((0, 0))) == l.is_book),
+                "{}",
+                m.name()
+            );
+        }
+    }
+
+    #[test]
+    fn error_shows_real_reason() {
+        let reason = "Metin katmanı yok, OCR desteklenmiyor";
+        for m in masks() {
+            let lines = m.error(&FccError::NoTextLayer(reason.into()), 60);
+            assert!(
+                lines
+                    .iter()
+                    .map(Line::plain)
+                    .collect::<Vec<_>>()
+                    .join(" ")
+                    .contains(reason)
+            );
+        }
+    }
+
+    #[test]
+    fn no_forbidden_words_in_chrome() {
+        for mut m in masks() {
+            let mut r = rng(3);
+            let mut chrome: Vec<String> = m.header(&mut r, 80).iter().map(Line::plain).collect();
+            chrome.extend((0..50).map(|_| m.noise(&mut r, 50).plain()));
+            chrome.push(m.progress_label(142, 380, 50));
+            let text = chrome.join("\n").to_lowercase();
+            assert!(!FORBIDDEN.iter().any(|w| text.contains(w)), "{}", m.name());
+        }
+    }
+
+    #[test]
+    fn render_tiny_width_does_not_hang() {
+        for mut m in masks() {
+            m.render(&para(), (0, 0), 3, &mut rng(1), 1);
+        }
+    }
+
+    #[test]
+    fn unknown_names_and_languages_are_errors() {
+        assert!(get_mask("nope", "python").is_err());
+        assert!(get_mask("code", "cobol").is_err());
+    }
+
+    #[test]
+    fn header_fits_width() {
+        for width in [40, 60, 120] {
+            for mut m in masks() {
+                let lines = m.header(&mut rng(1), width);
+                assert!(!lines.is_empty());
+                assert!(
+                    lines
+                        .iter()
+                        .all(|l| l.plain().chars().count() <= width && !l.is_book),
+                    "{}",
+                    m.name()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn line_count_matches_render() {
+        let paras: Vec<Paragraph> = [1, 7, 40, 200]
+            .iter()
+            .map(|n| Paragraph::new("kelime ".repeat(*n)))
+            .chain([Paragraph::new("x".repeat(300))])
+            .collect();
+        for name in MASK_NAMES {
+            let langs: &[&str] = if *name == "code" { LANGS } else { &["python"] };
+            for lang in langs {
+                for width in [40, 60, 120] {
+                    let mut m = get_mask(name, lang).unwrap();
+                    for (seed, p) in paras.iter().enumerate() {
+                        let n = m.render(p, (0, 0), width, &mut rng(seed as u64), 1).len();
+                        assert_eq!(m.line_count(p, width), n, "{name}/{lang} at {width}");
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
