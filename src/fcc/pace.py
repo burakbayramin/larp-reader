@@ -1,4 +1,4 @@
-"""Reading speed in words per minute: auto-scroll delays."""
+"""Reading speed in words per minute: auto-scroll delays and learning from manual paging."""
 from __future__ import annotations
 
 import math
@@ -10,6 +10,12 @@ MIN_WPM = 60
 MAX_WPM = 1500
 WPM_STEP = 1.1
 MIN_DELAY = 0.12  # seconds; lines without text still take a beat
+
+# a screen counts as a reading sample only within these bounds
+MIN_SAMPLE_SECONDS = 2.0  # quicker than this is skimming or paging past
+MAX_SAMPLE_SECONDS = 300.0  # longer than this the reader was probably away
+MIN_SAMPLE_WORDS = 15
+LEARN_WEIGHT = 0.25  # how far one screen moves the estimate toward its own rate
 
 
 def clamp_wpm(value) -> int:
@@ -41,3 +47,10 @@ def words_in(lines: list[Line]) -> int:
                 count += len(text.split())
     return count
 
+
+def learn(wpm: int, words: int, seconds: float) -> int | None:
+    """The rate after reading `words` words in `seconds`, or None if the screen says nothing reliable."""
+    if words < MIN_SAMPLE_WORDS or not MIN_SAMPLE_SECONDS <= seconds <= MAX_SAMPLE_SECONDS:
+        return None
+    measured = words * 60 / seconds
+    return clamp_wpm(wpm + (measured - wpm) * LEARN_WEIGHT)

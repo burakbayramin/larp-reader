@@ -1,4 +1,4 @@
-"""Reading-speed pacing: words per minute and line delays."""
+"""Reading-speed pacing: words per minute, line delays and learning from manual paging."""
 import pytest
 
 from fcc.masks.base import Line
@@ -8,6 +8,7 @@ from fcc.pace import (
     MIN_DELAY,
     MIN_WPM,
     clamp_wpm,
+    learn,
     line_delay,
     step_wpm,
     words_in,
@@ -35,3 +36,19 @@ def test_words_in_counts_only_text_segments():
     ]
     assert words_in(lines) == 5
 
+
+def test_learn_moves_toward_the_measured_rate():
+    # 100 words in 20 s = 300 wpm; a quarter of the way from 200
+    assert learn(200, 100, 20.0) == 225
+
+
+@pytest.mark.parametrize(
+    "words, seconds",
+    [(100, 1.0), (100, 600.0), (5, 10.0)],  # skimmed, walked away, too little text
+)
+def test_learn_ignores_unreliable_screens(words, seconds):
+    assert learn(200, words, seconds) is None
+
+
+def test_learn_result_is_clamped():
+    assert learn(MAX_WPM, 2000, 2.5) == MAX_WPM

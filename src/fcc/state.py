@@ -27,7 +27,7 @@ class Config:
     mask: str = "code"
     lang: str = "python"
     noise: int = 2
-    wpm: int = DEFAULT_WPM  # reading speed for auto scroll
+    wpm: int = DEFAULT_WPM  # reading speed for auto scroll, learned from manual paging
     auto: bool = False
     hide: str = "stream"  # what the hide key shows: streaming output or a shell prompt
 

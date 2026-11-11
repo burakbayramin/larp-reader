@@ -59,7 +59,11 @@ Menüde `Tab`/`Up`/`Down` ile alan değiştirilir, `Left`/`Right` ile değer se�
 `Enter` uygular.
 
 Otomatik akış okuma hızına göre ilerler: her satır, içindeki kelime sayısına göre
-ekranda kalır (220 WPM'de 11 kelimelik bir satır 3 saniye).
+ekranda kalır (220 WPM'de 11 kelimelik bir satır 3 saniye). Hız elle sayfa
+çevirdikçe öğrenilir: `Space` ile her ekran geçişinde o ekrandaki kelimeleri ne kadar
+sürede okuduğun ölçülür ve kayıtlı hız yavaşça buna yaklaşır. Çok hızlı geçilen
+(2 sn altı) ya da uzun süre açık kalan (5 dk üstü) ekranlar ve panik modunda
+geçen süre hesaba katılmaz.
 
 Sahte shell (`--hide=shell` ya da menüde `on hide: shell`): panik tuşuna basınca
 gerçek bir prompt çıkar (Windows'ta `PS C:\...>`, macOS/Linux'ta kullanıcı@makine).

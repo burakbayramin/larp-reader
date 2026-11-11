@@ -3,6 +3,7 @@ from __future__ import annotations
 import getpass
 import os
 import socket
+import time
 from datetime import datetime
 from pathlib import Path
 from random import Random
@@ -20,7 +21,7 @@ from fcc.errors import FccError, InputUnavailable, NoInput
 from fcc.loaders import load_book, supported_extensions
 from fcc.masks import LANGS, MASK_NAMES, Mask, get_mask
 from fcc.masks.base import Line, plain_line
-from fcc.pace import line_delay, step_wpm, words_in
+from fcc.pace import learn, line_delay, step_wpm, words_in
 from fcc.session import Session
 from fcc.state import (
     MAX_NOISE,
@@ -159,7 +160,12 @@ class FccApp(App):
         self._page_rows = 0
         self._more_below = False
         self._query = ""  # last search; its matches are highlighted
-        self._last_words = 0  # words of the newest text on screen, still to be read
+        # reading pace: words the reader still has to read, and how long a manual screen has been up
+        self._clock = time.monotonic
+        self._last_words = 0
+        self._view_key: tuple | None = None
+        self._view_since = 0.0
+        self._view_words = 0
 
     def compose(self) -> ComposeResult:
         yield self.feed
@@ -250,6 +256,7 @@ class FccApp(App):
                 self._more_below = len(text) > rows
                 self._page_rows = min(rows, len(text))
                 lines += text[:rows]
+                self._watch_view(s, text[:rows])
         self.feed.set_lines(self._highlight(lines))
         self._update_status()
 
@@ -290,7 +297,21 @@ class FccApp(App):
             self.session.scroll(n)
         self._redraw()
 
+    def _watch_view(self, s: Session, shown: list[Line]) -> None:
+        """Start timing a manual screen when it first shows."""
+        key = (s.book.id, s.pos, s.line_offset)
+        if key != self._view_key:
+            self._view_key = key
+            self._view_since = self._clock()
+            self._view_words = words_in(shown)
+
     def action_page(self) -> None:
+        if self.session is not None and not self.auto and not self.panic and self._more_below:
+            # paging on means the screen was read: let it tune the reading rate
+            rate = learn(self.config.wpm, self._view_words, self._clock() - self._view_since)
+            if rate is not None and rate != self.config.wpm:
+                self.config.wpm = rate
+                self._persist_config()
         # the next screen starts at the first line this one did not show
         self._scroll(self._page_rows)
 
@@ -507,6 +528,7 @@ class FccApp(App):
         self._stop_timer()
         self.feed.clear()
         self._queue = []
+        self._view_key = None  # time spent hidden is not reading time
         shell = self.config.hide == "shell"
         if self.panic:
             self.feed.set_bottom_anchored(True)
