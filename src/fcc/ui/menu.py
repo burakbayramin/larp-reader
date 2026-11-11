@@ -86,6 +86,11 @@ class _PathInput(Input):
             self.screen.dismiss(Panic())
 
 
+def section_label(n: int, title: str | None, width: int = 48) -> str:
+    label = f"{n:>3} {' '.join((title or '-').split())}"
+    return label if len(label) <= width else label[: width - 1] + "~"
+
+
 class MenuScreen(ModalScreen[MenuResult]):
     """Plain-text settings screen styled to blend in with the terminal."""
 
@@ -113,10 +118,12 @@ class MenuScreen(ModalScreen[MenuResult]):
         speed: float,
         noise: int,
         marks: list[tuple[str, Pos]],
+        sections: list[tuple[str, Pos]] | None = None,
     ) -> None:
         super().__init__()
         self._mask, self._lang, self._speed, self._noise = mask, lang, speed, noise
         self._marks = marks
+        self._sections = sections or []
 
     def compose(self) -> ComposeResult:
         yield Static("fcc config")
@@ -127,6 +134,8 @@ class MenuScreen(ModalScreen[MenuResult]):
         yield _Choice("verbosity", NOISE_LEVELS, self._noise, id="noise")
         yield Static("marks:" if self._marks else "marks: none")
         yield OptionList(*[label for label, _ in self._marks], id="marks")
+        yield Static("sections:" if len(self._sections) > 1 else "sections: 1")
+        yield OptionList(*[label for label, _ in self._sections], id="sections")
 
     def on_mount(self) -> None:
         marks = self.query_one("#marks", OptionList)
@@ -134,6 +143,11 @@ class MenuScreen(ModalScreen[MenuResult]):
             marks.highlighted = 0
         else:
             marks.display = False
+        sections = self.query_one("#sections", OptionList)
+        if len(self._sections) > 1:
+            sections.highlighted = 0
+        else:
+            sections.display = False
         self.query_one("#path", Input).focus()
 
     def action_panic(self) -> None:
@@ -160,4 +174,5 @@ class MenuScreen(ModalScreen[MenuResult]):
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         event.stop()
-        self.dismiss(Jump(self._marks[event.option_index][1]))
+        source = self._sections if event.option_list.id == "sections" else self._marks
+        self.dismiss(Jump(source[event.option_index][1]))

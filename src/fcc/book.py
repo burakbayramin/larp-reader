@@ -51,6 +51,28 @@ class Book:
         ci, pi = pos
         return sum(len(c.paragraphs) for c in self.chapters[:ci]) + pi
 
+    # -- chapters ---------------------------------------------------------
+
+    def chapter_list(self) -> list[tuple[int, str | None]]:
+        """(chapter index, title) of every chapter that has text."""
+        return [(ci, c.title) for ci, c in enumerate(self.chapters) if c.paragraphs]
+
+    def next_chapter(self, pos: Pos) -> Pos | None:
+        for ci in range(pos[0] + 1, len(self.chapters)):
+            if self.chapters[ci].paragraphs:
+                return (ci, 0)
+        return None
+
+    def prev_chapter(self, pos: Pos) -> Pos | None:
+        """The start of this chapter, or of the previous one when already there."""
+        if pos[1] > 0:
+            return (pos[0], 0)
+        for ci in range(pos[0] - 1, -1, -1):
+            if self.chapters[ci].paragraphs:
+                return (ci, 0)
+        return None
+
+
 
 def book_id(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()[:16]

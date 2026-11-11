@@ -29,7 +29,7 @@ from fcc.state import (
     save_progress,
 )
 from fcc.ui.feed import Feed
-from fcc.ui.menu import Apply, Jump, MenuResult, MenuScreen, OpenFile, Panic
+from fcc.ui.menu import Apply, Jump, MenuResult, MenuScreen, OpenFile, Panic, section_label
 
 MIN_WIDTH = 40
 SPEED_STEP = 1.25
@@ -54,6 +54,7 @@ _KEYS = (
     ("space", "page down"),
     ("u, pgup", "page up"),
     ("j / k", "line down / up"),
+    ("] / [", "next / prev section"),
     ("a", "auto scroll"),
     ("+ / -", "scroll speed"),
     ("m / M", "next / prev view"),
@@ -87,6 +88,8 @@ class FccApp(App):
     BINDINGS = [
         Binding("space,pagedown", "page", show=False),
         Binding("u,pageup", "page_back", show=False),
+        Binding("right_square_bracket", "chapter(1)", show=False),
+        Binding("left_square_bracket", "chapter(-1)", show=False),
         Binding("down,j", "step(1)", show=False),
         Binding("up,k", "step(-1)", show=False),
         Binding("q", "quit_and_save", show=False),
@@ -263,6 +266,26 @@ class FccApp(App):
         self.session.scroll(-max(1, rows))
         self._redraw()
 
+    def _go(self, pos: Pos) -> None:
+        """Show the text from the top of paragraph `pos`."""
+        assert self.session is not None
+        self.session.pos = pos
+        self._notice = []
+        self._redraw()
+
+    def action_chapter(self, step: int) -> None:
+        s = self.session
+        if s is None or self.panic:
+            return
+        if step > 0:
+            target = s.book.next_chapter(s.pos)
+        elif s.pos[1] == 0 and s.line_offset > 0:
+            target = s.pos  # back to the top of a section that starts here
+        else:
+            target = s.book.prev_chapter(s.pos)
+        if target is not None:
+            self._go(target)
+
     def action_step(self, n: int) -> None:
         self._scroll(n)
 
@@ -390,8 +413,20 @@ class FccApp(App):
             if s is not None
             else []
         )
+        sections = (
+            [(section_label(n, title), (ci, 0)) for n, (ci, title) in enumerate(s.book.chapter_list(), 1)]
+            if s is not None
+            else []
+        )
         self.push_screen(
-            MenuScreen(self._mask.name, self.config.lang, self.speed, self.config.noise, marks),
+            MenuScreen(
+                self._mask.name,
+                self.config.lang,
+                self.speed,
+                self.config.noise,
+                marks,
+                sections,
+            ),
             self._on_menu_result,
         )
 

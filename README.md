@@ -37,13 +37,14 @@ gerçek bir geliştirme oturumu.
 | `u` / `PgUp` | bir sayfa geri |
 | `Down` / `j` | bir satır ileri |
 | `Up` / `k` | bir satır geri |
+| `]` / `[` | sonraki bölüm / bölüm başı, oradaysa önceki bölüm |
 | `a` | otomatik akışı aç/kapat |
 | `+` / `-` | otomatik akış hızı |
 | `m` / `M` | görünümü değiştir: sonraki / önceki (code, log, diff, test, build, git, docker) |
 | `l` / `L` | kod dilini değiştir: sonraki / önceki (code görünümüne geçer) |
 | `n` / `N` | gürültüyü artır / azalt |
 | `b` | yer imi ekle (`cache saved` mesajı) |
-| `:` | ayar menüsü (dosya aç, görünüm, dil, hız, gürültü, yer imleri) |
+| `:` | ayar menüsü (dosya aç, görünüm, dil, hız, gürültü, yer imleri, bölümler) |
 | `o` / `O` | klasördeki sonraki / önceki kitaba geç (her kitabın yeri ayrı saklanır) |
 | `Esc` | yan panel: kısayollar ve klasördeki kitaplar; panel açıkken `1`-`9` ile listeden kitap aç |
 | `` ` `` | panik: anında sahte çıktı akışı (panel ya da menü açıksa onu da kapatır) |

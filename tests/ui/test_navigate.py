@@ -55,3 +55,37 @@ async def test_pagedown_pages_like_space(tmp_path):
         after_space = screen(app)
         await pilot.press("u", "pagedown")
         assert screen(app) == after_space
+
+
+# -- chapters ----------------------------------------------------------------
+
+
+async def test_brackets_jump_between_chapters(tmp_path):
+    app = make_app(tmp_path, make_md(tmp_path))
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.press("right_square_bracket")
+        assert app.session.pos == (1, 0)
+        await pilot.press("right_square_bracket", "right_square_bracket")
+        assert app.session.pos == (2, 0)  # no chapter after the last
+        await pilot.press("left_square_bracket")
+        assert app.session.pos == (1, 0)
+        await pilot.press("j", "j", "j")
+        assert (app.session.pos, app.session.line_offset) != ((1, 0), 0)
+        await pilot.press("left_square_bracket")
+        assert app.session.pos == (1, 0) and app.session.line_offset == 0
+        await pilot.press("left_square_bracket")
+        assert app.session.pos == (0, 0)
+
+
+async def test_menu_lists_sections_and_jumps_to_one(tmp_path):
+    app = make_app(tmp_path, make_md(tmp_path))
+    async with app.run_test(size=(80, 40)) as pilot:
+        await pilot.press("colon")
+        assert isinstance(app.screen, MenuScreen)
+        sections = app.screen.query_one("#sections", OptionList)
+        assert sections.option_count == 3
+        assert "Kısım 2" in str(sections.get_option_at_index(2).prompt)
+        sections.focus()
+        await pilot.press("down", "down", "enter")
+        assert not isinstance(app.screen, MenuScreen)
+        assert app.session.pos == (2, 0)
