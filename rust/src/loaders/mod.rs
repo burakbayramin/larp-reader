@@ -12,6 +12,8 @@ use crate::book::Book;
 use crate::errors::FccError;
 
 pub mod docx;
+pub mod epub;
+pub mod fb2;
 pub mod html;
 pub mod odt;
 pub mod rtf;
@@ -31,10 +33,12 @@ pub trait Loader {
 pub fn loaders() -> Vec<Box<dyn Loader>> {
     vec![
         Box::new(text::TextLoader),
+        Box::new(epub::EpubLoader),
         Box::new(html::HtmlLoader),
         Box::new(docx::DocxLoader),
         Box::new(odt::OdtLoader),
         Box::new(rtf::RtfLoader),
+        Box::new(fb2::Fb2Loader),
     ]
 }
 
@@ -69,12 +73,15 @@ pub fn decode(data: &[u8]) -> String {
     }
 }
 
+/// An asset reference without fragment or query, decoded: `a/b%20c.png?v=1#f` → `a/b c.png`.
+pub fn asset_path(src: &str) -> String {
+    let src = src.split('#').next().unwrap_or("");
+    percent_decode(src.split('?').next().unwrap_or(""))
+}
+
 /// The last part of an asset reference, decoded: `a/b/res%20x.png?v=1#f` → `res x.png`.
 pub fn asset_name(src: &str) -> String {
-    let src = src.split('#').next().unwrap_or("");
-    let src = src.split('?').next().unwrap_or("");
-    let decoded = percent_decode(src);
-    decoded
+    asset_path(src)
         .trim_end_matches('/')
         .rsplit('/')
         .next()
