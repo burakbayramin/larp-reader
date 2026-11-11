@@ -13,15 +13,16 @@ from textual.widgets import Static
 from fcc.book import Book, Pos
 from fcc.errors import FccError, NoInput
 from fcc.loaders import load_book
-from fcc.masks import Mask, get_mask
+from fcc.masks import MASK_NAMES, Mask, get_mask
 from fcc.masks.base import Line, plain_line
 from fcc.session import Session
-from fcc.state import Config, Entry, last_entry, load_progress, save_progress
+from fcc.state import Config, Entry, last_entry, load_progress, save_config, save_progress
 from fcc.ui.feed import Feed
 
 MIN_WIDTH = 40
 MIN_SPEED = 0.2
 MAX_SPEED = 20.0
+MAX_NOISE = 5
 SPEED_STEP = 1.25
 PANIC_SPEEDUP = 3
 AUTOSAVE_SECONDS = 10
@@ -51,6 +52,9 @@ class FccApp(App):
         Binding("a", "toggle_auto", show=False),
         Binding("plus", "faster", show=False),
         Binding("minus", "slower", show=False),
+        Binding("m", "cycle_mask", show=False),
+        Binding("n", "noise(1)", show=False),
+        Binding("N", "noise(-1)", show=False),
         Binding("escape,grave_accent", "toggle_panic", show=False),
     ]
 
@@ -202,9 +206,36 @@ class FccApp(App):
         self._queue = []
         if self.panic:
             self.feed.set_bottom_anchored(True)
+            self.feed.append(
+                [self._mask.noise(self._panic_rng, self._width()) for _ in range(self._view_height())]
+            )
         else:
             self._redraw()
         self._restart_timer()
+
+    def action_cycle_mask(self) -> None:
+        i = MASK_NAMES.index(self._mask.name) if self._mask.name in MASK_NAMES else -1
+        name = MASK_NAMES[(i + 1) % len(MASK_NAMES)]
+        self._mask = get_mask(name, self.config.lang)
+        if self.session is not None:
+            self.session.mask = self._mask
+        self.config.mask = name
+        self._persist_config()
+        self._redraw()
+
+    def action_noise(self, delta: int) -> None:
+        level = min(MAX_NOISE, max(0, self.config.noise + delta))
+        self.config.noise = level
+        if self.session is not None:
+            self.session.noise = level
+        self._persist_config()
+        self._redraw()
+
+    def _persist_config(self) -> None:
+        try:
+            save_config(self.state_dir, self.config)
+        except OSError:
+            pass  # best effort: the choice still applies for this run
 
     # -- timer / streaming ------------------------------------------------
 

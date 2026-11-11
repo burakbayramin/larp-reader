@@ -183,3 +183,17 @@ async def test_save_failure_does_not_crash_and_reports_once(tmp_path, monkeypatc
         assert any("disk full" in ln.plain for ln in app.feed.history_lines())
         await pilot.press("q")  # still exits without raising
     assert not app.is_running
+
+
+async def test_panic_prefills_a_screenful_before_first_tick(tmp_path):
+    app = FccApp(make_txt(tmp_path), cfg(), tmp_path / "st")
+    async with app.run_test(size=(80, 24)) as pilot:
+        words = book_words(app.session.book)
+        await pilot.press("escape")
+        await pilot.pause()
+        assert app.panic
+        assert len(app.feed.history_lines()) >= 23
+        text = shown(app)
+        assert text.strip()
+        assert not any(w in text for w in words)
+        assert not any(ln.is_book for ln in app.feed.history_lines())

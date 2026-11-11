@@ -118,8 +118,8 @@ async def test_empty_book_shows_error_not_crash(tmp_path):
         await pilot.press("q")
 
 
-async def test_unregistered_mask_falls_back_to_code_with_error(tmp_path):
-    app = FccApp(make_txt(tmp_path), Config(mask="build", lang="rust", noise=0), tmp_path / "st")
+async def test_unknown_mask_falls_back_to_code_with_error(tmp_path):
+    app = FccApp(make_txt(tmp_path), Config(mask="nope", lang="rust", noise=0), tmp_path / "st")
     async with app.run_test(size=(80, 24)):
         assert app.session is not None
         assert app.session.mask.name == "code"
