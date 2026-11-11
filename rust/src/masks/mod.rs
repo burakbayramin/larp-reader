@@ -6,6 +6,7 @@ use crate::book::{Paragraph, Pos};
 use crate::errors::FccError;
 
 pub mod base;
+pub mod code;
 pub mod codegen;
 pub mod palette;
 pub mod snippets;
