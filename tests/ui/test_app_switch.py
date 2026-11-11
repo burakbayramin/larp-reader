@@ -27,7 +27,7 @@ async def test_m_cycles_masks_and_keeps_pos(tmp_path):
             assert app.session.pos == pos
             assert any(ln.pos == pos for ln in app.feed.visible_lines())
             assert load_config(tmp_path / "st").mask == app._mask.name
-        assert seen == ["code", "log", "diff", "test", "build", "code"]
+        assert seen == ["code", "log", "diff", "test", "build", "git", "docker", "code"]
 
 
 async def test_m_redraws_with_new_mask_style(tmp_path):

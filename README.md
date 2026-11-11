@@ -1,7 +1,7 @@
 # fcc
 
 Terminal e-kitap okuyucusu; metni bir geliştirici aracının çıktısı gibi gösterir
-(`build`, `log`, `diff`, `test`, `code` görünümleri). Yoldan geçen biri bir derleme
+(`code`, `log`, `diff`, `test`, `build`, `git`, `docker` görünümleri). Yoldan geçen biri bir derleme
 aracına baktığınızı sanır.
 
 ## Kurulum
@@ -20,7 +20,7 @@ Python 3.11+ gerekir. Kurulumu doğrulamak için: `fcc --version`.
 fcc build <dosya> --mask=code --lang=python --noise=2
 ```
 
-- `--mask`: `code`, `log`, `diff`, `test`, `build`
+- `--mask`: `code`, `log`, `diff`, `test`, `build`, `git` (`git log --stat`), `docker` (`docker compose up` logları)
 - `--lang`: `python`, `typescript`, `go`, `rust`, `java`, `csharp` (code görünümü için)
 - `--noise`: araya karışan sahte çıktı miktarı (0-5)
 - `--auto`, `--speed`: otomatik akış ve hızı
@@ -38,7 +38,7 @@ gerçek bir geliştirme oturumu.
 | `Up` / `k` | bir satır geri |
 | `a` | otomatik akışı aç/kapat |
 | `+` / `-` | otomatik akış hızı |
-| `m` / `M` | görünümü değiştir: sonraki / önceki (code, log, diff, test, build) |
+| `m` / `M` | görünümü değiştir: sonraki / önceki (code, log, diff, test, build, git, docker) |
 | `l` / `L` | kod dilini değiştir: sonraki / önceki (code görünümüne geçer) |
 | `n` / `N` | gürültüyü artır / azalt |
 | `b` | yer imi ekle (`cache saved` mesajı) |
