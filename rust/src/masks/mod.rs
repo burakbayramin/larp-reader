@@ -5,6 +5,7 @@ use rand::SeedableRng;
 use crate::book::{Paragraph, Pos};
 use crate::errors::FccError;
 
+pub mod agent;
 pub mod base;
 pub mod build;
 pub mod code;
