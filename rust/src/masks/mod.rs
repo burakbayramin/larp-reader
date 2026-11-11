@@ -6,10 +6,14 @@ use crate::book::{Paragraph, Pos};
 use crate::errors::FccError;
 
 pub mod base;
+pub mod build;
 pub mod code;
 pub mod codegen;
+pub mod diff;
+pub mod log;
 pub mod palette;
 pub mod snippets;
+pub mod test;
 
 pub use base::{Line, Segment};
 
@@ -24,6 +28,34 @@ pub fn seeded(seed: &str) -> Rng {
         h = h.wrapping_mul(0x0000_0100_0000_01b3);
     }
     Rng::seed_from_u64(h)
+}
+
+/// `random.choice`.
+pub fn pick<'a, T>(rng: &mut Rng, items: &'a [T]) -> &'a T {
+    &items[rand::Rng::gen_range(rng, 0..items.len())]
+}
+
+/// `random.randint` (both ends included).
+pub fn randint(rng: &mut Rng, a: usize, b: usize) -> usize {
+    rand::Rng::gen_range(rng, a..=b)
+}
+
+/// `random.random`: in [0, 1).
+pub fn random(rng: &mut Rng) -> f64 {
+    rand::Rng::r#gen(rng)
+}
+
+/// `random.choices(items, weights)[0]`.
+pub fn weighted<'a, T>(rng: &mut Rng, items: &'a [T], weights: &[u32]) -> &'a T {
+    let total: u32 = weights.iter().sum();
+    let mut x = rand::Rng::gen_range(rng, 0..total);
+    for (item, w) in items.iter().zip(weights) {
+        if x < *w {
+            return item;
+        }
+        x -= w;
+    }
+    items.last().expect("non-empty")
 }
 
 /// In the order `m` cycles through them.
