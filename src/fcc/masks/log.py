@@ -11,8 +11,10 @@ from fcc.text import wrap
 _EPOCH = datetime(2026, 11, 11, 9, 0, 0)
 _BOOK_SVC = "svc.worker"
 _SVC_WIDTH = 10
-_PREFIX_WIDTH = 24 + 1 + 5 + 1 + _SVC_WIDTH + 2  # ts, level, service, gutters
 _SERVICES = ("svc.worker", "svc.api", "svc.cache", "svc.queue", "svc.auth")
+_SHORT_LEVEL = {"INFO": "INF", "DEBUG": "DBG", "WARN": "WRN"}
+_FULL_MIN_WIDTH = 100  # below this the ISO prefix leaves too little room for text
+_COMPACT_MIN_WIDTH = 60
 _MESSAGES = {
     "INFO": [
         "request completed in 12ms",
@@ -39,8 +41,14 @@ def _stamp(t: datetime) -> str:
     return t.strftime("%Y-%m-%dT%H:%M:%S.") + f"{t.microsecond // 1000:03d}Z"
 
 
-def _prefix(t: datetime, level: str, svc: str) -> str:
-    return f"{_stamp(t)} {level:<5} {svc:<{_SVC_WIDTH}}  "
+def _prefix(t: datetime, level: str, svc: str, width: int) -> str:
+    """Log-line prefix sized to the pane: full ISO (~43 cols), compact (~26) or tiny (13)."""
+    if width >= _FULL_MIN_WIDTH:
+        return f"{_stamp(t)} {level:<5} {svc:<{_SVC_WIDTH}}  "
+    if width >= _COMPACT_MIN_WIDTH:
+        module = svc.removeprefix("svc.")
+        return f"{t.strftime('%H:%M:%S')}.{t.microsecond // 1000:03d} {level:<5} {module:<6} "
+    return f"{t.strftime('%H:%M:%S')} {_SHORT_LEVEL[level]} "
 
 
 class LogMask:
@@ -54,7 +62,7 @@ class LogMask:
 
     def _entry(self, rng: Random, t: datetime, width: int) -> Line:
         level = rng.choices(["INFO", "DEBUG", "WARN"], weights=[6, 2, 1])[0]
-        text = _prefix(t, level, rng.choice(_SERVICES)) + rng.choice(_MESSAGES[level])
+        text = _prefix(t, level, rng.choice(_SERVICES), width) + rng.choice(_MESSAGES[level])
         return plain_line(text[: max(1, width)], "yellow" if level == "WARN" else "")
 
     def noise(self, rng: Random, width: int) -> Line:
@@ -78,10 +86,10 @@ class LogMask:
             return t
 
         out.append(self._entry(rng, tick(), width))
-        body = max(1, width - _PREFIX_WIDTH)
+        body = max(1, width - len(_prefix(t, "INFO", _BOOK_SVC, width)))
         for text in wrap(para.text, body):
             segs = (
-                (_prefix(tick(), "INFO", _BOOK_SVC), "dim"),
+                (_prefix(tick(), "INFO", _BOOK_SVC, width), "dim"),
                 (text, "book"),
             )
             out.append(Line(segs, True, pos))

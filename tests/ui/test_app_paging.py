@@ -57,9 +57,7 @@ async def collect(pilot, app, key: str, width: int) -> list[list[str]]:
 @pytest.mark.parametrize("noise", [0, 2])
 @pytest.mark.parametrize("width", [60, 40])
 @pytest.mark.parametrize("mask", MASK_NAMES)
-async def test_space_paging_shows_every_word_once_in_order(tmp_path, request, mask, width, noise):
-    if mask == "log" and width == 40:  # TODO(item 3): log prefix is wider than the pane
-        request.applymarker(pytest.mark.xfail(strict=True, reason="log prefix wider than 40 cols"))
+async def test_space_paging_shows_every_word_once_in_order(tmp_path, mask, width, noise):
     path, words = make_book(tmp_path)
     app = FccApp(path, cfg(mask, noise), tmp_path / "st")
     async with app.run_test(size=(width, 24)) as pilot:
