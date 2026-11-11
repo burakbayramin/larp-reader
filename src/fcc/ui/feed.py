@@ -6,6 +6,7 @@ from textual.widget import Widget
 from fcc.masks.base import Line
 
 _INTERNAL_MARKER = "book"
+MAX_LINES = 2000
 
 
 def clean_style(style: str) -> str:
@@ -27,7 +28,13 @@ class Feed(Widget):
         super().__init__(**kwargs)
         self._lines: list[Line] = []
         self._top = 0
+        self._bottom = False
         self._height_override: int | None = None
+
+    def set_bottom_anchored(self, bottom: bool) -> None:
+        """Bottom-anchored feeds show the last rows, like a scrolling terminal."""
+        self._bottom = bottom
+        self.refresh()
 
     def set_view_height(self, height: int) -> None:
         """Rows available for display; used until the widget has a real size."""
@@ -45,6 +52,8 @@ class Feed(Widget):
 
     def append(self, lines: list[Line]) -> None:
         self._lines += lines
+        if len(self._lines) > MAX_LINES:
+            del self._lines[: len(self._lines) - MAX_LINES]
         self.refresh()
 
     def clear(self) -> None:
@@ -53,6 +62,8 @@ class Feed(Widget):
         self.refresh()
 
     def visible_lines(self) -> list[Line]:
+        if self._bottom:
+            return self._lines[-self._height() :]
         return self._lines[self._top : self._top + self._height()]
 
     def history_lines(self) -> list[Line]:
