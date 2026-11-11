@@ -15,6 +15,7 @@ pub mod docx;
 pub mod epub;
 pub mod fb2;
 pub mod html;
+pub mod mobi;
 pub mod odt;
 pub mod rtf;
 pub mod text;
@@ -35,6 +36,7 @@ pub fn loaders() -> Vec<Box<dyn Loader>> {
         Box::new(text::TextLoader),
         Box::new(epub::EpubLoader),
         Box::new(html::HtmlLoader),
+        Box::new(mobi::MobiLoader),
         Box::new(docx::DocxLoader),
         Box::new(odt::OdtLoader),
         Box::new(rtf::RtfLoader),
