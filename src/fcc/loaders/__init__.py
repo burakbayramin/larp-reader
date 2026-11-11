@@ -5,9 +5,10 @@ from pathlib import Path
 from fcc.book import Book
 from fcc.errors import DrmProtected, EmptyBook, FccError, NoTextLayer, UnsupportedFormat
 from fcc.loaders.base import Loader
+from fcc.loaders.mupdf import MupdfLoader
 from fcc.loaders.text import TextLoader
 
-LOADERS: list[Loader] = [TextLoader()]
+LOADERS: list[Loader] = [TextLoader(), MupdfLoader()]
 
 
 def load_book(path: Path) -> Book:
