@@ -166,6 +166,8 @@ class FccApp(App):
         self._view_key: tuple | None = None
         self._view_since = 0.0
         self._view_words = 0
+        self._view_seen: dict[tuple, int] = {}  # text lines shown since the clock started -> their words
+        self._line_step = False  # the next redraw only scrolled by a line: keep timing
 
     def compose(self) -> ComposeResult:
         yield self.feed
@@ -298,12 +300,24 @@ class FccApp(App):
         self._redraw()
 
     def _watch_view(self, s: Session, shown: list[Line]) -> None:
-        """Start timing a manual screen when it first shows."""
+        """Time a manual screen from when it first shows.
+
+        Scrolling by a line keeps the clock running and adds the lines it brings
+        in, so a page turn afterwards still divides everything read by the time
+        it really took.
+        """
         key = (s.book.id, s.pos, s.line_offset)
-        if key != self._view_key:
-            self._view_key = key
+        step, self._line_step = self._line_step, False
+        if key == self._view_key:
+            return
+        book = {(ln.pos, ln.plain): words_in([ln]) for ln in shown if ln.is_book}
+        if step and self._view_key is not None:
+            self._view_seen.update(book)
+        else:
             self._view_since = self._clock()
-            self._view_words = words_in(shown)
+            self._view_seen = book
+        self._view_key = key
+        self._view_words = sum(self._view_seen.values())
 
     def action_page(self) -> None:
         if self.session is not None and not self.auto and not self.panic and self._more_below:
@@ -430,7 +444,9 @@ class FccApp(App):
             self._bar("search", False)
 
     def action_step(self, n: int) -> None:
+        self._line_step = True
         self._scroll(n)
+        self._line_step = False  # in case nothing was redrawn
 
     def action_quit_and_save(self) -> None:
         self._try_save()

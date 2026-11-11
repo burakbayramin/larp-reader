@@ -71,3 +71,18 @@ async def test_time_spent_hidden_is_not_reading_time(tmp_path):
         clock.now += 15
         await pilot.press("space")
         assert app.config.wpm == learn(200, words, 15)
+
+
+async def test_line_scrolling_keeps_the_clock_and_counts_the_new_lines(tmp_path):
+    # a screen read for 20 s, a line scrolled, then paged 3 s later: 23 s of reading,
+    # not a whole screen in 3 s
+    app, clock = make_app(tmp_path, wpm=200)
+    async with app.run_test(size=(80, 24)) as pilot:
+        before = app._view_words
+        clock.now += 20
+        await pilot.press("j", "j")
+        clock.now += 3
+        read = app._view_words
+        assert read >= before  # the lines scrolled in add up, nothing is lost
+        await pilot.press("space")
+        assert app.config.wpm == learn(200, read, 23)
