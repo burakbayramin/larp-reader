@@ -13,3 +13,9 @@ def test_wrap_respects_width_and_keeps_all_words():
 
 def test_wrap_hard_splits_overlong_word():
     assert wrap("a" * 30, 10) == ["a" * 10] * 3
+
+
+def test_wrap_nonpositive_width_does_not_hang():
+    for w in (0, -5):
+        lines = wrap("ab cd", w)
+        assert "".join(lines) == "abcd"

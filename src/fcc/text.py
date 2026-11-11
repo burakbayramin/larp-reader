@@ -12,6 +12,7 @@ def normalize_paragraphs(raw: list[str]) -> list[str]:
 
 
 def wrap(text: str, width: int) -> list[str]:
+    width = max(1, width)
     lines: list[str] = []
     cur = ""
     for word in text.split():
