@@ -4,7 +4,8 @@ from random import Random
 
 from fcc.book import Paragraph, Pos
 from fcc.errors import FccError
-from fcc.masks.base import Line, error_lines, fit_lines, plain_line, progress_bar_label
+from fcc.masks.base import Line, chrome, error_lines, progress_bar_label
+from fcc.masks.palette import CYAN, DIM, FG, GREEN, RED, highlight
 from fcc.text import wrap
 
 _CONTEXT = [
@@ -33,22 +34,21 @@ class DiffMask:
         # a shorter path in narrow panes, rather than a cut-off `diff --git` line
         full = "diff --git a/src/handler.py b/src/handler.py"
         path = "src/handler.py" if len(full) <= width else "handler.py"
-        return fit_lines(
-            [
-                plain_line(f"diff --git a/{path} b/{path}", "bold"),
-                plain_line("index 3f2a1c4..9b7e0d2 100644", "dim"),
-                plain_line(f"--- a/{path}", "bold"),
-                plain_line(f"+++ b/{path}", "bold"),
-            ],
-            width,
-        )
+        head = f"bold {FG}"
+        return [
+            chrome(width, (f"diff --git a/{path} b/{path}", head)),
+            chrome(width, ("index 3f2a1c4..9b7e0d2 100644", DIM)),
+            chrome(width, (f"--- a/{path}", head)),
+            chrome(width, (f"+++ b/{path}", head)),
+        ]
 
     def noise(self, rng: Random, width: int) -> Line:
         if rng.random() < 0.6:
-            text, style = " " + rng.choice(_CONTEXT), ""
-        else:
-            text, style = "- " + rng.choice(_REMOVED), "red"
-        return plain_line(text[: max(1, width)], style)
+            return chrome(width, (" ", FG), *highlight("python", rng.choice(_CONTEXT))[0])
+        return chrome(width, ("-", RED), (" " + rng.choice(_REMOVED), RED))
+
+    def line_count(self, para: Paragraph, width: int) -> int:
+        return len(wrap(para.text, max(1, width - 2))) + 3
 
     def render(
         self,
@@ -60,10 +60,15 @@ class DiffMask:
     ) -> list[Line]:
         texts = wrap(para.text, max(1, width - 2))
         start = 100 + line_no_start
-        hunk = f"@@ -{start},7 +{start},{7 + len(texts)} @@ def handler():"
-        out = [plain_line(hunk[: max(1, width)], "cyan")]
+        out = [
+            chrome(
+                width,
+                (f"@@ -{start},7 +{start},{7 + len(texts)} @@", CYAN),
+                (" def handler():", FG),
+            )
+        ]
         out.append(self.noise(rng, width))
-        out += [Line((("+ ", "green"), (t, "book green")), True, pos) for t in texts]
+        out += [Line((("+ ", GREEN), (t, f"book {GREEN}")), True, pos) for t in texts]
         out.append(self.noise(rng, width))
         return out
 

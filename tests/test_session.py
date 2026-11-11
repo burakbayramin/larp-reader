@@ -36,18 +36,42 @@ def test_noise_zero_has_only_book_lines():
     # the mask's own scaffolding is deterministic, so noise=0 adds nothing on top of render
     from random import Random
     s = mk(noise=0)
-    expected = s.mask.render(s.book.paragraph((0, 0)), (0, 0), 80, Random("bk:(0, 0):code:0"), 1)
+    first = len(s.mask.header(Random("bk"), 80)) + 1
+    expected = s.mask.render(s.book.paragraph((0, 0)), (0, 0), 80, Random("bk:(0, 0):code:0"), first)
     assert lines == expected
 
 
-def test_line_numbers_start_from_index_times_40():
-    s = mk(noise=0)
-    mask = CodeMask("python")
+def gutter_numbers(lines):
+    return [int(ln.plain[:4]) for ln in lines]
+
+
+def test_line_numbers_run_on_from_the_header_without_gaps():
+    # like a real file: the header is lines 1..h and every paragraph continues the count
     from random import Random
-    expected = mask.render(
-        s.book.paragraph((0, 2)), (0, 2), 80, Random("bk:(0, 2):code:0"), 2 * 40 + 1
-    )
-    assert s.paragraph_lines((0, 2)) == expected
+    for noise in (0, 3):
+        s = mk(make_book(6), noise=noise)
+        header = s.mask.header(Random("bk"), 80)
+        numbers = gutter_numbers(header)
+        for i in range(6):
+            numbers += gutter_numbers(s.paragraph_lines((0, i)))
+        assert numbers == list(range(1, len(numbers) + 1))
+
+
+def test_line_numbers_do_not_depend_on_visiting_order():
+    a, b = mk(make_book(6)), mk(make_book(6))
+    forward = [a.paragraph_lines((0, i)) for i in range(6)]
+    backward = [b.paragraph_lines((0, i)) for i in reversed(range(6))]
+    assert forward == backward[::-1]
+
+
+def test_line_numbers_follow_a_width_or_noise_change():
+    s = mk(make_book(4))
+    wide = gutter_numbers(s.paragraph_lines((0, 3)))[0]
+    s.width = 40
+    narrow = gutter_numbers(s.paragraph_lines((0, 3)))[0]
+    assert narrow > wide  # narrower pane, more wrapped lines above
+    fresh = mk(make_book(4), width=40)
+    assert s.paragraph_lines((0, 3)) == fresh.paragraph_lines((0, 3))
 
 
 def test_progress_counts_paragraphs_not_noise():
@@ -125,3 +149,17 @@ def test_setting_pos_resets_line_offset():
     assert s.line_offset == 2
     s.pos = (0, 1)
     assert s.line_offset == 0
+
+
+def test_numbering_does_not_render_the_paragraphs_above(monkeypatch):
+    # jumping deep into a long text must stay quick: lines above are counted, not built
+    s = mk(make_book(200), noise=3)
+    rendered = []
+    original = s.mask.render
+    monkeypatch.setattr(s.mask, "render", lambda *a, **k: rendered.append(a[1]) or original(*a, **k))
+    lines = s.paragraph_lines((0, 199))
+    assert rendered == [(0, 199)]
+    fresh = mk(make_book(200), noise=3)
+    total = sum(len(fresh.paragraph_lines((0, i))) for i in range(199))
+    header = len(fresh.mask.header(None, 80))
+    assert int(lines[0].plain[:4]) == header + total + 1

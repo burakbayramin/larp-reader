@@ -24,8 +24,8 @@ def state_dir() -> Path:
 
 @dataclass
 class Config:
-    mask: str = "build"
-    lang: str = "rust"
+    mask: str = "code"
+    lang: str = "python"
     noise: int = 2
     speed: float = 1.5
     auto: bool = False

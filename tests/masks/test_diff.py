@@ -3,6 +3,7 @@ from random import Random
 
 from fcc.book import Paragraph
 from fcc.masks import get_mask
+from fcc.masks.palette import GREEN
 
 PARA = Paragraph("Oda dar ve basıktı, tavanı alçaktı. " * 6)
 
@@ -22,7 +23,7 @@ def test_paragraph_starts_with_hunk_header_and_book_lines_are_additions():
     assert len(book) > 1
     assert all(l.plain.startswith("+ ") for l in book)
     assert all(l.segments[-1][1].split()[0] == "book" for l in book)
-    assert "green" in book[0].segments[-1][1]
+    assert GREEN in book[0].segments[-1][1]
 
 
 def test_hunk_header_changes_with_line_no_start():

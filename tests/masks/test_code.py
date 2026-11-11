@@ -49,10 +49,9 @@ def test_every_lang_renders_and_fits(lang):
     assert all(len(l.plain) <= 60 for l in out)
 
 
-def test_progress_label_format():
-    mask = get_mask("code")
-    assert mask.progress_label(142, 380, 50) == "Indexing [===>      ] 142/380"
-    assert mask.progress_label(0, 0, 50).startswith("Indexing [")
+def test_progress_label_is_an_editor_status_line():
+    assert get_mask("code", "rust").progress_label(142, 380, 50) == " src/indexer.rs  142/380  37%"
+    assert get_mask("code", "python").progress_label(0, 0, 50) == " src/indexer.py  0/0  0%"
 
 
 GUTTER = re.compile(r"^ *(\d+) ")

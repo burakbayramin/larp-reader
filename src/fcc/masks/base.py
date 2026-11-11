@@ -36,6 +36,10 @@ class Mask(Protocol):
         line_no_start: int = 1,
     ) -> list[Line]: ...
 
+    def line_count(self, para: Paragraph, width: int) -> int:
+        """How many lines `render` gives for this paragraph, without building them."""
+        ...
+
     def noise(self, rng: Random, width: int) -> Line: ...
 
     def error(self, err: FccError, width: int) -> list[Line]: ...
@@ -47,14 +51,32 @@ def plain_line(text: str, style: str = "") -> Line:
     return Line(((text, style),), False)
 
 
+def crop(segments: tuple[Segment, ...], width: int) -> tuple[Segment, ...]:
+    """The leading `width` columns of a segmented line."""
+    out: list[Segment] = []
+    left = width
+    for text, style in segments:
+        if left <= 0:
+            break
+        text = text[:left]
+        out.append((text, style))
+        left -= len(text)
+    return tuple(out)
+
+
+def chrome(width: int, *segments: Segment) -> Line:
+    """A non-text line of several styled segments, cropped to `width` columns."""
+    return Line(crop(segments, max(1, width)), False)
+
+
 def fit_lines(lines: list[Line], width: int) -> list[Line]:
     """Crop single-segment chrome lines to `width` columns."""
     return [plain_line(l.plain[: max(1, width)], l.segments[0][1] if l.segments else "") for l in lines]
 
 
 def error_lines(err: FccError, width: int) -> list[Line]:
-    lines = [plain_line(f"error: {err.title}"[: max(1, width)], "bold red")]
-    lines += [plain_line(t, "red") for t in wrap(str(err), width)]
+    lines = [chrome(width, ("error", "bold #f85149"), (f": {err.title}", "bold"))]
+    lines += [plain_line(t, "#f85149") for t in wrap(str(err), width)]
     return lines
 
 

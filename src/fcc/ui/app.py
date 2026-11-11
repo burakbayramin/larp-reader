@@ -52,8 +52,9 @@ class FccApp(App):
     SUB_TITLE = ""
     ENABLE_COMMAND_PALETTE = False  # a recognisable Textual popup; Esc would close it, not panic
     CSS = """
-    Screen { layout: vertical; }
-    #status { height: 1; dock: bottom; }
+    Screen { layout: vertical; background: #1e1e1e; color: #d4d4d4; }
+    Feed { background: #1e1e1e; color: #d4d4d4; }
+    #status { height: 1; dock: bottom; background: #1e1e1e; color: #858585; }
     """
     BINDINGS = [
         Binding("space", "page", show=False),

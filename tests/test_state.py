@@ -18,7 +18,7 @@ def test_roundtrip_config(tmp_path):
 
 def test_missing_config_returns_defaults_without_bak(tmp_path):
     assert load_config(tmp_path) == Config()
-    assert Config() == Config("build", "rust", 2, 1.5, False)
+    assert Config() == Config("code", "python", 2, 1.5, False)
     assert list(tmp_path.iterdir()) == []
 
 

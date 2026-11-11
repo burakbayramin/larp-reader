@@ -4,9 +4,7 @@ from random import Random
 
 from fcc.book import Book, Pos
 from fcc.masks.base import Line, Mask
-from fcc.noise import noise_lines
-
-_LINE_NO_STRIDE = 40
+from fcc.noise import noise_count, noise_lines
 
 
 class Session:
@@ -33,11 +31,46 @@ class Session:
         self._pos = pos
         self.line_offset = 0
 
-    def paragraph_lines(self, pos: Pos) -> list[Line]:
-        rng = Random(f"{self.book.id}:{pos}:{self.mask.name}:{self.noise}")
-        start = self.book.index_of(pos) * _LINE_NO_STRIDE + 1
+    def _seed(self, pos: Pos) -> str:
+        return f"{self.book.id}:{pos}:{self.mask.name}:{self.noise}"
+
+    def _noise_count(self, pos: Pos) -> int:
+        # its own generator, so the count is known without rendering the paragraph
+        return noise_count(self.noise, Random(self._seed(pos) + ":filler"))
+
+    def _render(self, pos: Pos, start: int) -> list[Line]:
+        rng = Random(self._seed(pos))
         lines = self.mask.render(self.book.paragraph(pos), pos, self.width, rng, start)
-        return lines + noise_lines(self.mask, self.noise, rng, self.width)
+        count = self._noise_count(pos)
+        return lines + noise_lines(self.mask, self.noise, rng, self.width, count)
+
+    def _line_count(self, pos: Pos) -> int:
+        return self.mask.line_count(self.book.paragraph(pos), self.width) + self._noise_count(pos)
+
+    def _line_no_start(self, pos: Pos) -> int:
+        """Number of the paragraph's first line, counted from the top of the text.
+
+        Lines are numbered continuously like a real file, so a paragraph's start
+        depends on every paragraph before it; the running totals are kept until
+        the mask, noise level or width changes.
+        """
+        settings = (self.mask, self.noise, self.width)
+        known = getattr(self, "_numbering", None)
+        if known is None or known[0] is not self.mask or known[1:] != settings[1:]:
+            self._numbering = settings
+            first = next((c, 0) for c, ch in enumerate(self.book.chapters) if ch.paragraphs)
+            header = self.mask.header(Random(self.book.id), self.width)
+            self._order: list[Pos] = [first]
+            self._starts: list[int] = [len(header) + 1]
+        index = self.book.index_of(pos)
+        while len(self._starts) <= index:
+            last = self._order[-1]
+            self._starts.append(self._starts[-1] + self._line_count(last))
+            self._order.append(self.book.next_pos(last))
+        return self._starts[index]
+
+    def paragraph_lines(self, pos: Pos) -> list[Line]:
+        return self._render(pos, self._line_no_start(pos))
 
     def lines_from(self, pos: Pos, max_book_lines: int) -> list[Line]:
         out: list[Line] = []

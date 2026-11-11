@@ -86,3 +86,15 @@ def test_test_banner_centered_to_width_like_pytest(width):
     assert banner.strip("=").strip() == "test session starts"
     left, right = banner.split(" test session starts ")
     assert set(left) == set(right) == {"="} and abs(len(left) - len(right)) <= 1
+
+
+@pytest.mark.parametrize("name", registered_mask_names())
+@pytest.mark.parametrize("width", (40, 60, 120))
+def test_line_count_matches_render(name, width):
+    from fcc.masks.code import LANGS
+
+    paras = [Paragraph("kelime " * n) for n in (1, 7, 40, 200)] + [Paragraph("x" * 300)]
+    for lang in LANGS if name == "code" else ("python",):
+        mask = get_mask(name, lang)
+        for seed, para in enumerate(paras):
+            assert mask.line_count(para, width) == len(mask.render(para, (0, 0), width, Random(seed)))

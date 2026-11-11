@@ -17,7 +17,7 @@ Python 3.11+ gerekir. Kurulumu doğrulamak için: `fcc --version`.
 ## Kullanım
 
 ```
-fcc build <dosya> --mask=build --lang=rust --noise=2
+fcc build <dosya> --mask=code --lang=python --noise=2
 ```
 
 - `--mask`: `code`, `log`, `diff`, `test`, `build`
