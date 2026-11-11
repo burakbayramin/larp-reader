@@ -13,6 +13,7 @@ from fcc.masks import LANGS, MASK_NAMES
 MIN_SPEED = 0.2
 MAX_SPEED = 20.0
 MAX_NOISE = 5
+HIDE_STYLES = ("stream", "shell")
 
 
 def state_dir() -> Path:
@@ -29,6 +30,7 @@ class Config:
     noise: int = 2
     speed: float = 1.5
     auto: bool = False
+    hide: str = "stream"  # what the hide key shows: streaming output or a shell prompt
 
 
 @dataclass
@@ -103,6 +105,8 @@ def _valid_config(obj: dict) -> Config:
         cfg.speed = min(MAX_SPEED, max(MIN_SPEED, float(speed)))
     if isinstance(obj.get("auto"), bool):
         cfg.auto = obj["auto"]
+    if obj.get("hide") in HIDE_STYLES:
+        cfg.hide = obj["hide"]
     return cfg
 
 

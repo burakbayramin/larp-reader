@@ -11,6 +11,7 @@ from textual.widgets import Input, OptionList, Static
 from fcc.book import Pos
 from fcc.masks import MASK_NAMES
 from fcc.masks.code import LANGS
+from fcc.state import HIDE_STYLES
 
 SPEEDS = (0.5, 1.0, 1.5, 2.0, 3.0, 5.0, 8.0, 12.0, 20.0)
 NOISE_LEVELS = (0, 1, 2, 3, 4, 5)
@@ -27,6 +28,7 @@ class Apply:
     lang: str
     speed: float
     noise: int
+    hide: str = "stream"
 
 
 @dataclass(frozen=True)
@@ -119,11 +121,13 @@ class MenuScreen(ModalScreen[MenuResult]):
         noise: int,
         marks: list[tuple[str, Pos]],
         sections: list[tuple[str, Pos]] | None = None,
+        hide: str = "stream",
     ) -> None:
         super().__init__()
         self._mask, self._lang, self._speed, self._noise = mask, lang, speed, noise
         self._marks = marks
         self._sections = sections or []
+        self._hide = hide
 
     def compose(self) -> ComposeResult:
         yield Static("fcc config")
@@ -132,6 +136,7 @@ class MenuScreen(ModalScreen[MenuResult]):
         yield _Choice("lang", LANGS, self._lang, id="lang")
         yield _Choice("rate", SPEEDS, self._speed, id="rate")
         yield _Choice("verbosity", NOISE_LEVELS, self._noise, id="noise")
+        yield _Choice("on hide", HIDE_STYLES, self._hide, id="hide")
         yield Static("marks:" if self._marks else "marks: none")
         yield OptionList(*[label for label, _ in self._marks], id="marks")
         yield Static("sections:" if len(self._sections) > 1 else "sections: 1")
@@ -163,6 +168,7 @@ class MenuScreen(ModalScreen[MenuResult]):
                 self.query_one("#lang", _Choice).value,
                 self.query_one("#rate", _Choice).value,
                 self.query_one("#noise", _Choice).value,
+                self.query_one("#hide", _Choice).value,
             )
         )
 

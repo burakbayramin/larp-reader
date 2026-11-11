@@ -24,6 +24,7 @@ fcc build <dosya> --mask=code --lang=python --noise=2
 - `--lang`: `python`, `typescript`, `go`, `rust`, `java`, `csharp` (code görünümü için)
 - `--noise`: araya karışan sahte çıktı miktarı (0-5)
 - `--auto`, `--speed`: otomatik akış ve hızı
+- `--hide`: panik tuşu ne göstersin: `stream` (akan sahte çıktı) veya `shell` (komut yazılabilen sahte shell)
 - Dosya verilmezse en son açılan kitaptan devam edilir.
 
 Windows Terminal'de ekranı bölmek için `Alt+Shift+D`: bir tarafta kitap, diğer tarafta
@@ -47,14 +48,20 @@ gerçek bir geliştirme oturumu.
 | `n` / `N` | gürültüyü artır / azalt |
 | `b` | yer imi ekle (`cache saved` mesajı) |
 | `'` / `"` | sonraki / önceki yer imine git |
-| `:` | ayar menüsü (dosya aç, görünüm, dil, hız, gürültü, yer imleri, bölümler) |
+| `:` | ayar menüsü (dosya aç, görünüm, dil, hız, gürültü, panik biçimi, yer imleri, bölümler) |
 | `o` / `O` | klasördeki sonraki / önceki kitaba geç (her kitabın yeri ayrı saklanır) |
 | `Esc` | yan panel: kısayollar ve klasördeki kitaplar; panel açıkken `1`-`9` ile listeden kitap aç |
-| `` ` `` | panik: anında sahte çıktı akışı (panel, menü veya arama açıksa onu da kapatır) |
+| `` ` `` | panik: anında sahte çıktı akışı ya da sahte shell (panel, menü veya arama açıksa onu da kapatır) |
 | `q` | ilerlemeyi kaydet ve çık |
 
 Menüde `Tab`/`Up`/`Down` ile alan değiştirilir, `Left`/`Right` ile değer seçilir,
 `Enter` uygular.
+
+Sahte shell (`--hide=shell` ya da menüde `on hide: shell`): panik tuşuna basınca
+gerçek bir prompt çıkar (Windows'ta `PS C:\...>`, macOS/Linux'ta kullanıcı@makine).
+`ls`, `pwd`, `git status`, `clear` beklenen çıktıyı verir; `npm`, `pytest`, `cargo`,
+`docker` gibi araçlar o anki görünümün çıktısını basar; bilinmeyen komutlar
+`command not found` verir. Kitaba dönmek için yine `` ` ``.
 
 ## Desteklenen biçimler
 

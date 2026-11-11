@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import getpass
+import os
+import socket
 from datetime import datetime
 from pathlib import Path
 from random import Random
@@ -165,6 +168,9 @@ class FccApp(App):
         with Horizontal(id="searchbar", classes="bar"):
             yield Static("/")
             yield _BarInput(id="search")
+        with Horizontal(id="shellbar", classes="bar"):
+            yield Static(shell_prompt(), id="prompt")
+            yield _BarInput(id="shell")
         yield Static("", id="help")
 
     # -- lifecycle --------------------------------------------------------
@@ -392,6 +398,10 @@ class FccApp(App):
                 self._find(self.session.pos, backward=False)
             else:
                 self._redraw()
+        elif event.input.id == "shell":
+            event.stop()
+            event.input.value = ""
+            self._run_shell(event.value)
 
     def bar_escape(self, field: Input) -> None:
         if field.id == "search":
@@ -493,14 +503,29 @@ class FccApp(App):
         self._stop_timer()
         self.feed.clear()
         self._queue = []
+        shell = self.config.hide == "shell"
         if self.panic:
             self.feed.set_bottom_anchored(True)
-            self.feed.append(
-                [self._mask.noise(self._panic_rng, self._width()) for _ in range(self._view_height())]
-            )
+            rows = self._view_height() - (1 if shell else 0)
+            self.feed.append([self._mask.noise(self._panic_rng, self._width()) for _ in range(rows)])
+            if shell:
+                self._bar("shell", True)
         else:
+            self._bar("shell", False)
             self._redraw()
         self._restart_timer()
+
+    # -- fake shell -------------------------------------------------------
+
+    def _run_shell(self, command: str) -> None:
+        """Echo a command at the prompt and print something believable for it."""
+        command = command.strip()
+        out = shell_output(command, self._mask, self._panic_rng, self._width())
+        if out is None:
+            self.feed.clear()
+            return
+        prompt = self.query_one("#prompt", Static).render()
+        self.feed.append([plain_line(f"{prompt}{command}", "#d4d4d4"), *out])
 
     def action_bookmark(self) -> None:
         s = self.session
@@ -541,6 +566,7 @@ class FccApp(App):
                 self.config.noise,
                 marks,
                 sections,
+                self.config.hide,
             ),
             self._on_menu_result,
         )
@@ -562,6 +588,7 @@ class FccApp(App):
         self._mask = get_mask(r.mask, r.lang)
         self.config.mask, self.config.lang = r.mask, r.lang
         self.config.noise, self.config.speed = r.noise, r.speed
+        self.config.hide = r.hide
         if self.session is not None:
             self.session.mask = self._mask
             self.session.noise = r.noise
@@ -625,6 +652,8 @@ class FccApp(App):
 
     def _restart_timer(self) -> None:
         self._stop_timer()
+        if self.panic and self.config.hide == "shell":
+            return  # a shell waits for input
         if self.panic:
             interval = 1 / (self.speed * PANIC_SPEEDUP)
         elif self.auto and self.session is not None:
@@ -732,3 +761,60 @@ def highlight(line: Line, query: str) -> Line:
         if at < len(text):
             segments.append((text[at:], style))
     return Line(tuple(segments), line.is_book, line.pos)
+
+
+def shell_prompt() -> str:
+    """A prompt like the user's own shell would show for the current folder."""
+    cwd = Path.cwd()
+    if os.name == "nt":
+        return f"PS {cwd}> "
+    try:
+        user = getpass.getuser()
+    except Exception:  # no login name in some containers
+        user = "dev"
+    host = socket.gethostname().split(".")[0] or "localhost"
+    if os.environ.get("SHELL", "").endswith("zsh"):
+        return f"{user}@{host} {cwd.name or '/'} % "
+    home = Path.home()
+    shown = "~" + str(cwd)[len(str(home)):] if cwd == home or home in cwd.parents else str(cwd)
+    return f"{user}@{host}:{shown}$ "
+
+
+_LISTING = (("README.md", "#d4d4d4"), ("docs", "bold #58a6ff"), ("pyproject.toml", "#d4d4d4"),
+            ("src", "bold #58a6ff"), ("tests", "bold #58a6ff"))
+_GIT_STATUS = (
+    "On branch main",
+    "Your branch is up to date with 'origin/main'.",
+    "",
+    "nothing to commit, working tree clean",
+)
+_TOOLS = frozenset(
+    "make cmake npm npx pnpm yarn node tsc python python3 py pip pip3 pytest uv poetry cargo "
+    "rustc go dotnet mvn gradle ./gradlew docker kubectl terraform ruff mypy black eslint git".split()
+)
+
+
+def shell_output(command: str, mask: Mask, rng: Random, width: int) -> list[Line] | None:
+    """What a shell prints for `command`; None means clear the screen."""
+    words = command.split()
+    if not words:
+        return []
+    name = words[0]
+    if name in ("clear", "cls"):
+        return None
+    if name in ("ls", "dir"):
+        segs: list[tuple[str, str]] = []
+        for i, (entry, style) in enumerate(_LISTING):
+            segs += [("  " if i else "", ""), (entry, style)]
+        return [Line(tuple(segs), False)]
+    if name == "pwd":
+        return [plain_line(str(Path.cwd()))]
+    if command == "git status":
+        return [plain_line(t) for t in _GIT_STATUS]
+    if name in _TOOLS:
+        return [mask.noise(rng, width) for _ in range(rng.randint(4, 12))]
+    if os.name == "nt":
+        return [plain_line(f"{name}: The term '{name}' is not recognized as a name of a cmdlet, "
+                           "function, script file, or executable program.", "#f85149")]
+    shell = Path(os.environ.get("SHELL", "bash")).name or "bash"
+    return [plain_line(f"{shell}: command not found: {name}")]

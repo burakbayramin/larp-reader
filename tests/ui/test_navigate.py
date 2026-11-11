@@ -183,3 +183,60 @@ async def test_quote_without_marks_says_so(tmp_path):
         await pilot.press("apostrophe")
         assert app.session.pos == (0, 0)
         assert "cache" in status_text(app)
+
+
+# -- fake shell --------------------------------------------------------------
+
+
+async def test_shell_hide_shows_a_prompt_that_takes_commands(tmp_path):
+    app = make_app(tmp_path, hide="shell")
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.press("grave_accent")
+        assert app.panic
+        prompt = app.query_one("#shellbar")
+        assert prompt.display and app.query_one("#shell", Input).has_focus
+        before = len(app.feed.history_lines())
+        await pilot.pause(0.5)
+        assert len(app.feed.history_lines()) == before  # a shell waits, it does not stream
+        await type_text(pilot, "ls")
+        await pilot.press("enter")
+        lines = [ln.plain for ln in app.feed.history_lines()]
+        assert any(l.endswith(" ls") for l in lines)
+        assert "src" in " ".join(lines)
+        words = book_words(app.session.book)
+        assert not any(w in shown(app).split() for w in words - {"number"})
+        await type_text(pilot, "jk")
+        assert app.session.pos == (0, 0) and app.session.line_offset == 0
+        await pilot.press("grave_accent")
+        assert not app.panic and not prompt.display
+
+
+async def test_shell_clear_and_unknown_commands(tmp_path):
+    app = make_app(tmp_path, hide="shell")
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.press("grave_accent")
+        await type_text(pilot, "clear")
+        await pilot.press("enter")
+        assert app.feed.history_lines() == []
+        await type_text(pilot, "frobnicate")
+        await pilot.press("enter")
+        assert "frobnicate" in shown(app) and ("not found" in shown(app) or "not recognized" in shown(app))
+
+
+async def test_hide_style_is_a_menu_setting(tmp_path):
+    app = make_app(tmp_path)
+    async with app.run_test(size=(80, 40)) as pilot:
+        await pilot.press("colon")
+        app.screen.query_one("#hide").focus()
+        await pilot.press("right", "enter")
+        assert app.config.hide == "shell"
+        assert load_config(tmp_path / "st").hide == "shell"
+
+
+def test_hide_config_is_validated(tmp_path):
+    import json
+
+    (tmp_path / "config.json").write_text(json.dumps({"hide": "shell"}))
+    assert load_config(tmp_path).hide == "shell"
+    (tmp_path / "config.json").write_text(json.dumps({"hide": "nope"}))
+    assert load_config(tmp_path).hide == "stream"
