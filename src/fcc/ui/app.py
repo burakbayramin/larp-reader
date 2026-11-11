@@ -18,6 +18,7 @@ from fcc.masks.base import Line, plain_line
 from fcc.session import Session
 from fcc.state import Config, Entry, last_entry, load_progress, save_config, save_progress
 from fcc.ui.feed import Feed
+from fcc.ui.menu import Apply, Jump, MenuResult, MenuScreen, OpenFile, Panic
 
 MIN_WIDTH = 40
 MIN_SPEED = 0.2
@@ -26,6 +27,8 @@ MAX_NOISE = 5
 SPEED_STEP = 1.25
 PANIC_SPEEDUP = 3
 AUTOSAVE_SECONDS = 10
+FLASH_SECONDS = 2
+_SAVED_MSG = "cache saved"
 _WARNING = "warning: window too narrow"
 
 
@@ -55,6 +58,8 @@ class FccApp(App):
         Binding("m", "cycle_mask", show=False),
         Binding("n", "noise(1)", show=False),
         Binding("N", "noise(-1)", show=False),
+        Binding("b", "bookmark", show=False),
+        Binding("colon", "open_menu", show=False),
         Binding("escape,grave_accent", "toggle_panic", show=False),
     ]
 
@@ -77,6 +82,9 @@ class FccApp(App):
         self._queue: list[Line] = []
         self._panic_rng = Random()
         self._save_error_shown = False
+        self._bookmarks: list[list[int]] = []
+        self._flash: str | None = None
+        self._flash_timer: Timer | None = None
 
     def compose(self) -> ComposeResult:
         yield self.feed
@@ -114,12 +122,16 @@ class FccApp(App):
             if last is None:
                 raise NoInput("no input files")
             path = Path(last[1].path)
-        book = load_book(path)
-        self._entry_path = str(path.resolve())
+        self._load(path, progress)
+
+    def _load(self, path: Path, progress: dict[str, Entry]) -> None:
+        book = load_book(path)  # raises before any state changes
         pos: Pos = (0, 0)
         entry = progress.get(book.id)
         if entry is not None:
             pos = _valid_pos(book, (entry.chapter, entry.paragraph))
+        self._entry_path = str(path.resolve())
+        self._bookmarks = [list(m) for m in entry.bookmarks] if entry is not None else []
         self.session = Session(book, self._mask, self.config.noise, self._width(), pos)
 
     # -- drawing ----------------------------------------------------------
@@ -149,12 +161,25 @@ class FccApp(App):
             else:
                 lines += s.lines_from(s.pos, self._view_height())
         self.feed.set_lines(lines)
+        self._update_status()
+
+    def _update_status(self) -> None:
         status = self.query_one("#status", Static)
-        if s is None:
+        s = self.session
+        if self._flash is not None:
+            status.update(self._flash)
+        elif s is None:
             status.update("")
         else:
             done, total = s.progress()
             status.update(s.mask.progress_label(done, total, self._width()))
+
+    def _clear_flash(self) -> None:
+        self._flash = None
+        if self._flash_timer is not None:
+            self._flash_timer.stop()
+            self._flash_timer = None
+        self._update_status()
 
     # -- actions ----------------------------------------------------------
 
@@ -211,6 +236,71 @@ class FccApp(App):
             )
         else:
             self._redraw()
+        self._restart_timer()
+
+    def action_bookmark(self) -> None:
+        s = self.session
+        if s is None or self.panic:
+            return
+        mark = list(s.pos)
+        if mark not in self._bookmarks:
+            self._bookmarks.append(mark)
+            self._try_save()
+        self._flash = _SAVED_MSG
+        if self._flash_timer is not None:
+            self._flash_timer.stop()
+        self._flash_timer = self.set_timer(FLASH_SECONDS, self._clear_flash)
+        self._update_status()
+
+    def action_open_menu(self) -> None:
+        if self.panic or isinstance(self.screen, MenuScreen):
+            return
+        s = self.session
+        marks = (
+            [(f"L{s.book.index_of(tuple(m)) + 1}", (m[0], m[1])) for m in self._bookmarks]
+            if s is not None
+            else []
+        )
+        self.push_screen(
+            MenuScreen(self._mask.name, self.config.lang, self.speed, self.config.noise, marks),
+            self._on_menu_result,
+        )
+
+    def _on_menu_result(self, result: MenuResult | None) -> None:
+        if isinstance(result, Panic):
+            if not self.panic:
+                self.action_toggle_panic()
+        elif isinstance(result, Apply):
+            self._apply_settings(result)
+        elif isinstance(result, OpenFile):
+            self._open_from_menu(Path(result.path).expanduser())
+        elif isinstance(result, Jump) and self.session is not None:
+            self.session.pos = _valid_pos(self.session.book, result.pos)
+            self._notice = []
+            self._redraw()
+
+    def _apply_settings(self, r: Apply) -> None:
+        self._mask = get_mask(r.mask, r.lang)
+        self.config.mask, self.config.lang = r.mask, r.lang
+        self.config.noise, self.config.speed = r.noise, r.speed
+        if self.session is not None:
+            self.session.mask = self._mask
+            self.session.noise = r.noise
+        self._persist_config()
+        self._set_speed(r.speed)
+        self._redraw()
+
+    def _open_from_menu(self, path: Path) -> None:
+        self._try_save()
+        try:
+            self._load(path, load_progress(self.state_dir))
+        except (FccError, OSError) as e:
+            err = e if isinstance(e, FccError) else FccError(str(e))
+            self._notice = self._mask.error(err, self._width())
+        else:
+            self._notice = []
+            self._queue = []
+        self._redraw()
         self._restart_timer()
 
     def action_cycle_mask(self) -> None:
@@ -288,7 +378,7 @@ class FccApp(App):
             path=self._entry_path,
             chapter=s.pos[0],
             paragraph=s.pos[1],
-            bookmarks=data[s.book.id].bookmarks if s.book.id in data else [],
+            bookmarks=[list(m) for m in self._bookmarks],
             updated_at=datetime.now().isoformat(timespec="seconds"),
         )
         save_progress(self.state_dir, data)
