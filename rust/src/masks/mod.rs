@@ -10,10 +10,13 @@ pub mod build;
 pub mod code;
 pub mod codegen;
 pub mod diff;
+pub mod docker;
+pub mod git;
 pub mod log;
 pub mod palette;
 pub mod snippets;
 pub mod test;
+pub mod time;
 
 pub use base::{Line, Segment};
 
