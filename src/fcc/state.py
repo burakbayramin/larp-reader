@@ -53,7 +53,11 @@ def _read_json(path: Path):
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError:
         return None
+    except UnicodeDecodeError:
+        text = None
     try:
+        if text is None:
+            raise ValueError("invalid UTF-8")
         obj = json.loads(text)
         if not isinstance(obj, dict):
             raise ValueError("expected a JSON object")

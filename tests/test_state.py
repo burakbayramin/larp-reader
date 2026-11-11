@@ -71,3 +71,14 @@ def test_state_dir_uses_appdata(monkeypatch, tmp_path):
     d = state_dir()
     assert d == tmp_path / "fcc"
     assert d.is_dir()
+
+
+def test_invalid_utf8_backed_up_and_defaults_returned(tmp_path):
+    (tmp_path / "config.json").write_bytes(b"\xff\xfe\x00")
+    (tmp_path / "progress.json").write_bytes(b"\xff\xfe\x00")
+    assert load_config(tmp_path) == Config()
+    assert load_progress(tmp_path) == {}
+    assert (tmp_path / "config.json.bak").read_bytes() == b"\xff\xfe\x00"
+    assert (tmp_path / "progress.json.bak").read_bytes() == b"\xff\xfe\x00"
+    assert not (tmp_path / "config.json").exists()
+    assert not (tmp_path / "progress.json").exists()
