@@ -62,7 +62,7 @@ def epub_file(tmp_path) -> Path:
 
 
 def test_registry_order():
-    assert [l.name for l in LOADERS] == ["text", "epub", "html", "azw3", "docx", "odt", "rtf", "mupdf"]
+    assert [l.name for l in LOADERS] == ["text", "epub", "html", "azw3", "docx", "odt", "rtf", "mupdf", "calibre"]
 
 
 def test_epub_spine_order_and_titles(epub_file):
