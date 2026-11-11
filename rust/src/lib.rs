@@ -3,6 +3,10 @@
 //! Ported from the Python version layer by layer; see
 //! `docs/superpowers/plans/2026-11-11-rust-port.md` for the map and order.
 
+pub mod book;
+pub mod errors;
+pub mod text;
+
 /// `fcc --version`: looks like a compiler's, never names what the program really is.
 pub fn version() -> String {
     let target = if cfg!(windows) {
