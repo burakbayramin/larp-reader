@@ -11,7 +11,7 @@ from textual.timer import Timer
 from textual.widgets import Static
 
 from fcc.book import Book, Pos
-from fcc.errors import FccError, NoInput
+from fcc.errors import FccError, InputUnavailable, NoInput
 from fcc.loaders import load_book
 from fcc.masks import MASK_NAMES, Mask, get_mask
 from fcc.masks.base import Line, plain_line
@@ -109,7 +109,7 @@ class FccApp(App):
         try:
             self._open()
         except (FccError, OSError) as e:
-            err = e if isinstance(e, FccError) else FccError(str(e))
+            err = e if isinstance(e, FccError) else InputUnavailable.from_os_error(e)
             self._notice += self._mask.error(err, self._width())
         self.set_interval(AUTOSAVE_SECONDS, self._autosave)
         if self.config.auto and self.session is not None:
@@ -311,7 +311,7 @@ class FccApp(App):
         try:
             self._load(path, load_progress(self.state_dir))
         except (FccError, OSError) as e:
-            err = e if isinstance(e, FccError) else FccError(str(e))
+            err = e if isinstance(e, FccError) else InputUnavailable.from_os_error(e)
             self._notice = self._mask.error(err, self._width())
         else:
             self._notice = []

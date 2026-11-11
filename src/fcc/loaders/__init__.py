@@ -37,7 +37,7 @@ def load_book(path: Path) -> Book:
         if book.paragraph_count() == 0:
             raise EmptyBook("dosyada okunabilir metin bulunamadı")
         return book
-    ext = path.suffix or path.name
+    ext = path.suffix or "(uzantısız)"  # never the file name: it may be the title
     msg = f'"{ext}" biçimi açılamadı'
     if shutil.which("ebook-convert") is None:
         msg += "; Calibre (ebook-convert) kurarak tekrar deneyin"
