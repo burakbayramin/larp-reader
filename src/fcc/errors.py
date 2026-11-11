@@ -18,3 +18,7 @@ class NoTextLayer(FccError):
 
 class EmptyBook(FccError):
     title = "empty input"
+
+
+class NoInput(FccError):
+    title = "no input files"
