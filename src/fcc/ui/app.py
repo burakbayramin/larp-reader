@@ -50,6 +50,7 @@ def resolve_mask(config: Config) -> tuple[Mask, FccError | None]:
 class FccApp(App):
     TITLE = "fcc"
     SUB_TITLE = ""
+    ENABLE_COMMAND_PALETTE = False  # a recognisable Textual popup; Esc would close it, not panic
     CSS = """
     Screen { layout: vertical; }
     #status { height: 1; dock: bottom; }
@@ -59,6 +60,7 @@ class FccApp(App):
         Binding("down,j", "step(1)", show=False),
         Binding("up,k", "step(-1)", show=False),
         Binding("q", "quit_and_save", show=False),
+        Binding("ctrl+q", "quit_and_save", show=False, priority=True),  # Textual's quit skips the save
         Binding("a", "toggle_auto", show=False),
         Binding("plus", "faster", show=False),
         Binding("minus", "slower", show=False),
@@ -384,7 +386,10 @@ class FccApp(App):
         if out:
             self.feed.append(out)
         if finished:
+            # end of text: back to manual mode so the paging keys work again
             self._stop_timer()
+            self.auto = False
+            self._redraw()
 
     def _save(self) -> None:
         s = self.session
