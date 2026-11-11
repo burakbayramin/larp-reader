@@ -1,6 +1,4 @@
 //! Reading speed in words per minute: auto-scroll delays and learning from manual paging (`pace.py`).
-//!
-//! `words_in` (words of text in rendered lines) arrives with the masks, which own `Line`.
 
 pub const DEFAULT_WPM: u32 = 220;
 pub const MIN_WPM: u32 = 60;
@@ -31,6 +29,17 @@ pub fn step_wpm(wpm: u32, direction: i32) -> u32 {
         1.0 / WPM_STEP
     };
     clamp_wpm(wpm as f64 * factor)
+}
+
+/// Words of text (not chrome or filler) in the given lines.
+pub fn words_in(lines: &[crate::masks::Line]) -> usize {
+    lines
+        .iter()
+        .filter(|l| l.is_book)
+        .flat_map(|l| &l.segments)
+        .filter(|(_, style)| style.split_whitespace().any(|t| t == "book"))
+        .map(|(text, _)| text.split_whitespace().count())
+        .sum()
 }
 
 /// Seconds to leave a line of `words` words before the next one appears.
@@ -71,6 +80,27 @@ mod tests {
         assert_eq!(step_wpm(220, -1), 200);
         assert_eq!(step_wpm(MAX_WPM, 1), MAX_WPM);
         assert_eq!(step_wpm(MIN_WPM, -1), MIN_WPM);
+    }
+
+    #[test]
+    fn words_in_counts_only_text_segments() {
+        use crate::masks::base::{Line, seg};
+        let lines = [
+            Line::book(
+                vec![seg("   1 ", "dim"), seg("iki kelime", "book #fff")],
+                (0, 0),
+            ),
+            Line {
+                segments: vec![seg("noise noise noise", "")],
+                is_book: false,
+                pos: None,
+            },
+            Line::book(
+                vec![seg("prefix ", ""), seg("üç kelime var", "book")],
+                (0, 0),
+            ),
+        ];
+        assert_eq!(words_in(&lines), 5);
     }
 
     #[test]

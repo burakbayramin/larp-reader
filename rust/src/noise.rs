@@ -1,8 +1,8 @@
 //! How much filler goes after a paragraph (`noise.py`).
-//!
-//! `noise_lines` (building the filler itself) arrives with the masks.
 
 use rand::Rng;
+
+use crate::masks::{Line, Mask};
 
 pub const MAX_NOISE: u8 = 5;
 
@@ -13,6 +13,22 @@ pub fn noise_count(level: u8, rng: &mut impl Rng) -> usize {
         "noise level must be 0..={MAX_NOISE}, got {level}"
     );
     rng.gen_range(0..=2 * level as usize)
+}
+
+/// The filler after one paragraph: `count` lines, or a count drawn for `level`.
+pub fn noise_lines(
+    mask: &mut dyn Mask,
+    level: u8,
+    rng: &mut crate::masks::Rng,
+    width: usize,
+    count: Option<usize>,
+) -> Vec<Line> {
+    let count = count.unwrap_or_else(|| noise_count(level, rng));
+    // masks whose filler only makes sense in whole units build the block themselves
+    if let Some(block) = mask.noise_block(count, rng, width) {
+        return block;
+    }
+    (0..count).map(|_| mask.noise(rng, width)).collect()
 }
 
 #[cfg(test)]
