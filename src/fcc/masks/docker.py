@@ -6,7 +6,7 @@ from fcc.book import Paragraph, Pos
 from fcc.errors import FccError
 from fcc.masks.base import Line, Segment, chrome, error_lines, progress_bar_label
 from fcc.masks.palette import BLUE, CONTROL, CYAN, DIM, FG, GREEN, YELLOW
-from fcc.text import wrap
+from fcc.text import ragged
 
 _BOOK_SVC = "worker-1"
 _SERVICES = {
@@ -79,7 +79,7 @@ class DockerMask:
         return chrome(width, *_prefix(svc, width), (rng.choice(_MESSAGES[svc]), FG))
 
     def line_count(self, para: Paragraph, width: int) -> int:
-        return len(wrap(para.text, max(1, width - _prefix_len(width))))
+        return len(ragged(para.text, max(1, width - _prefix_len(width))))
 
     def render(
         self,
@@ -91,7 +91,7 @@ class DockerMask:
     ) -> list[Line]:
         prefix = _prefix(_BOOK_SVC, width)
         body = max(1, width - _prefix_len(width))
-        return [Line((*prefix, (text, f"book {FG}")), True, pos) for text in wrap(para.text, body)]
+        return [Line((*prefix, (text, f"book {FG}")), True, pos) for text in ragged(para.text, body)]
 
     def error(self, err: FccError, width: int) -> list[Line]:
         return error_lines(err, width)

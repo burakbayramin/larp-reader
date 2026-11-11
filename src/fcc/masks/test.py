@@ -6,7 +6,7 @@ from fcc.book import Paragraph, Pos
 from fcc.errors import FccError
 from fcc.masks.base import Line, chrome, error_lines
 from fcc.masks.palette import DIM, FG, GREEN, RED
-from fcc.text import wrap
+from fcc.text import ragged
 
 _FILES = ("parser", "session", "render", "config", "index", "format", "cache")
 _CASES = ("parses_chunk", "handles_empty", "rejects_bad_input", "roundtrip", "caches_result", "wraps_lines")
@@ -35,7 +35,7 @@ class TestMask:
         )
 
     def line_count(self, para: Paragraph, width: int) -> int:
-        return len(wrap(para.text, max(1, width - 4))) + 5
+        return len(ragged(para.text, max(1, width - 4))) + 5
 
     def render(
         self,
@@ -53,7 +53,7 @@ class TestMask:
             chrome(width, (f"_____ test_{case} _____", fail)),
             chrome(width, ("E   ", fail), ("AssertionError:", fail)),
         ]
-        for t in wrap(para.text, max(1, width - 4)):
+        for t in ragged(para.text, max(1, width - 4)):
             out.append(Line((("E   ", fail), (t, f"book {FG}")), True, pos))
         out.append(
             chrome(width, (f"tests/test_{fname}.py", fail), (f":{line_no_start}: AssertionError", FG))

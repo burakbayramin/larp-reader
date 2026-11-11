@@ -6,7 +6,7 @@ from fcc.book import Paragraph, Pos
 from fcc.errors import FccError
 from fcc.masks.base import Line, chrome, error_lines, progress_bar_label
 from fcc.masks.palette import CYAN, DIM, FG, GREEN, RED, highlight
-from fcc.text import wrap
+from fcc.text import ragged
 
 _CONTEXT = [
     "    ctx = build_context(request)",
@@ -48,7 +48,7 @@ class DiffMask:
         return chrome(width, ("-", RED), (" " + rng.choice(_REMOVED), RED))
 
     def line_count(self, para: Paragraph, width: int) -> int:
-        return len(wrap(para.text, max(1, width - 2))) + 3
+        return len(ragged(para.text, max(1, width - 2))) + 3
 
     def render(
         self,
@@ -58,7 +58,7 @@ class DiffMask:
         rng: Random,
         line_no_start: int = 1,
     ) -> list[Line]:
-        texts = wrap(para.text, max(1, width - 2))
+        texts = ragged(para.text, max(1, width - 2))
         start = 100 + line_no_start
         out = [
             chrome(

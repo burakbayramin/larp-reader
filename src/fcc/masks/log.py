@@ -7,7 +7,7 @@ from fcc.book import Paragraph, Pos
 from fcc.errors import FccError
 from fcc.masks.base import Line, Segment, chrome, error_lines, progress_bar_label
 from fcc.masks.palette import BLUE, CYAN, DIM, FG, GREEN, YELLOW
-from fcc.text import wrap
+from fcc.text import ragged
 
 _EPOCH = datetime(2026, 11, 11, 9, 0, 0)
 _BOOK_SVC = "svc.worker"
@@ -94,7 +94,7 @@ class LogMask:
 
     def line_count(self, para: Paragraph, width: int) -> int:
         body = max(1, width - len(_prefix(_EPOCH, "INFO", _BOOK_SVC, width)))
-        return len(wrap(para.text, body)) + 2
+        return len(ragged(para.text, body)) + 2
 
     def render(
         self,
@@ -107,7 +107,7 @@ class LogMask:
         self._t = _EPOCH + timedelta(milliseconds=line_no_start * _LINE_MS)
         out = [self._entry(rng, self._tick(rng), width)]
         body = max(1, width - len(_prefix(self._t, "INFO", _BOOK_SVC, width)))
-        for text in wrap(para.text, body):
+        for text in ragged(para.text, body):
             prefix = _prefix_segments(self._tick(rng), "INFO", _BOOK_SVC, width)
             out.append(Line((*prefix, (text, f"book {FG}")), True, pos))
         out.append(self._entry(rng, self._tick(rng), width))

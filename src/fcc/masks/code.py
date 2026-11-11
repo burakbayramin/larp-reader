@@ -7,7 +7,7 @@ from fcc.errors import FccError
 from fcc.masks.base import Line, Segment, error_lines
 from fcc.masks.palette import COMMENT, GUTTER, crop, highlight
 from fcc.masks.snippets import BLOCKS, HEADERS, ITEMS
-from fcc.text import wrap
+from fcc.text import ragged
 
 LANGS = ("python", "typescript", "go", "rust", "java", "csharp")
 
@@ -104,7 +104,7 @@ class CodeMask:
     def line_count(self, para: Paragraph, width: int) -> int:
         prefix, opening, closing = _FRAMES[self.lang]
         body_width = max(1, width - _NUM_WIDTH - len(prefix))
-        return len(wrap(para.text, body_width)) + len(opening) + len(closing) + 2
+        return len(ragged(para.text, body_width)) + len(opening) + len(closing) + 2
 
     def render(
         self,
@@ -127,7 +127,7 @@ class CodeMask:
         emit(())
         for text in opening:
             emit(((text, COMMENT),))
-        for text in wrap(para.text, body_width):
+        for text in ragged(para.text, body_width):
             emit(((prefix, COMMENT), (text, f"book {COMMENT}")), book=True)
         for text in closing:
             emit(((text, COMMENT),))

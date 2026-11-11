@@ -7,7 +7,7 @@ from fcc.book import Paragraph, Pos
 from fcc.errors import FccError
 from fcc.masks.base import Line, chrome, error_lines
 from fcc.masks.palette import DIM, FG, GREEN, RED, YELLOW
-from fcc.text import wrap
+from fcc.text import ragged
 
 _EPOCH = datetime(2026, 11, 11, 18, 0, 0)
 _AUTHORS = (
@@ -71,7 +71,7 @@ class GitMask:
 
     def line_count(self, para: Paragraph, width: int) -> int:
         body = max(1, width - _indent(width))
-        return _HEADER_LINES + len(wrap(para.text, body)) + 1
+        return _HEADER_LINES + len(ragged(para.text, body)) + 1
 
     def render(
         self,
@@ -93,7 +93,7 @@ class GitMask:
             chrome(width, ("", FG)),
         ]
         ind = _indent(width)
-        for text in wrap(para.text, max(1, width - ind)):
+        for text in ragged(para.text, max(1, width - ind)):
             out.append(Line(((" " * ind, ""), (text, f"book {FG}")), True, pos))
         out.append(chrome(width, ("", FG)))
         return out

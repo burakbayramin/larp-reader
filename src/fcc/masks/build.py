@@ -6,7 +6,7 @@ from fcc.book import Paragraph, Pos
 from fcc.errors import FccError
 from fcc.masks.base import Line, chrome, error_lines, progress_bar_label
 from fcc.masks.palette import BLUE, FG, GREEN, YELLOW
-from fcc.text import wrap
+from fcc.text import ragged
 
 _CRATES = ("serde", "tokio", "regex", "anyhow", "hyper", "clap", "memchr", "once_cell", "bytes", "itoa")
 _FILES = ("parser", "index", "render", "config", "cache")
@@ -28,7 +28,7 @@ class BuildMask:
         return chrome(width, ("   Compiling", f"bold {GREEN}"), (f" {rng.choice(_CRATES)} v{ver}", FG))
 
     def line_count(self, para: Paragraph, width: int) -> int:
-        return len(wrap(para.text, max(1, width - len(_GUTTER)))) + 6
+        return len(ragged(para.text, max(1, width - len(_GUTTER)))) + 6
 
     def render(
         self,
@@ -50,7 +50,7 @@ class BuildMask:
             chrome(width, ("  --> ", rail), (where, FG)),
             chrome(width, ("   |", rail)),
         ]
-        for t in wrap(para.text, max(1, width - len(_GUTTER))):
+        for t in ragged(para.text, max(1, width - len(_GUTTER))):
             out.append(Line(((_GUTTER, rail), (t, f"book {FG}")), True, pos))
         out.append(chrome(width, ("   |", rail)))
         out.append(self.noise(rng, width))
