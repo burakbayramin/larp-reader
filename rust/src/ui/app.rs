@@ -77,6 +77,23 @@ fn wrap_msg(backward: bool) -> &'static str {
     }
 }
 
+/// The end of `line` that fits in `cols` cells: an input bar scrolls sideways
+/// like a terminal, so the typed text and the cursor stay in view.
+fn tail_fitting(line: &str, cols: usize) -> String {
+    use unicode_width::UnicodeWidthChar;
+    let mut kept = vec![];
+    let mut used = 0;
+    for c in line.chars().rev() {
+        let w = c.width().unwrap_or(0);
+        if used + w > cols {
+            break;
+        }
+        used += w;
+        kept.push(c);
+    }
+    kept.iter().rev().collect()
+}
+
 /// `line` with every match of `query` inside its text segments shown reversed (like grep --color).
 pub fn highlight(line: &Line, query: &str) -> Line {
     let mut segments = vec![];
@@ -426,9 +443,8 @@ impl App {
             _ => None,
         };
         if let Some(line) = bar {
-            let x = status.x
-                + (unicode_width::UnicodeWidthStr::width(line.as_str()) as u16)
-                    .min(status.width.saturating_sub(1));
+            let line = tail_fitting(&line, status.width.saturating_sub(1) as usize);
+            let x = status.x + unicode_width::UnicodeWidthStr::width(line.as_str()) as u16;
             frame.render_widget(Paragraph::new(line).style(style(FG)), status);
             frame.set_cursor_position((x, status.y));
         } else {
@@ -1909,6 +1925,27 @@ pub(crate) mod tests {
         assert!(!h.app.should_quit()); // q is just a letter at the prompt
         h.press(&["`"]);
         assert!(!h.app.panic && h.app.shell.is_none());
+    }
+
+    #[test]
+    fn a_long_prompt_scrolls_so_the_typed_text_stays_in_view() {
+        assert_eq!(
+            tail_fitting("runner@a-very-long-host-name:~/work$ ls", 12),
+            "e:~/work$ ls"
+        );
+        assert_eq!(tail_fitting("short$ ", 40), "short$ ");
+        let mut h = shell_harness();
+        h.app.prompt = format!("runner@{}:~/work/fcc$ ", "x".repeat(100));
+        h.press(&["`"]);
+        type_text(&mut h, "git status");
+        assert!(
+            h.screen()
+                .lines()
+                .last()
+                .unwrap()
+                .trim_end()
+                .ends_with("$ git status")
+        );
     }
 
     #[test]
