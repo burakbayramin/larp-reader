@@ -13,14 +13,18 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Constraint, Layout};
 use ratatui::widgets::Paragraph;
 
+use rand::SeedableRng;
+
 use super::feed::Feed;
+use super::input::{InputEvent, LineInput};
+use super::shell::{shell_output, shell_prompt};
 use super::style::style;
 use crate::book::{Book, Pos};
 use crate::errors::FccError;
 use crate::loaders::load_book;
 use crate::masks::base::{error_lines, plain_line};
 use crate::masks::time::civil;
-use crate::masks::{Line, Mask, get_mask, seeded};
+use crate::masks::{Line, Mask, Rng, get_mask, seeded};
 use crate::pace::{learn, line_delay, step_wpm, words_in};
 use crate::session::Session;
 use crate::state::{Config, Entry, last_entry, load_progress, save_config, save_progress};
@@ -28,8 +32,11 @@ use crate::state::{Config, Entry, last_entry, load_progress, save_config, save_p
 pub const MIN_WIDTH: usize = 40;
 pub const AUTOSAVE: Duration = Duration::from_secs(10);
 pub const FLASH: Duration = Duration::from_secs(2);
+/// Filler lines per second while hidden.
+pub const PANIC_RATE: f64 = 4.5;
 const WARNING: &str = "warning: window too narrow";
 const STATUS_FG: &str = "#858585";
+const FG: &str = "#d4d4d4";
 
 /// The configured mask, or the code mask plus the problem if it can't be built.
 pub fn resolve_mask(config: &Config) -> (Box<dyn Mask>, Option<FccError>) {
@@ -105,6 +112,11 @@ pub struct App {
     pub view_words: usize,
     /// The next redraw only scrolled by a line: keep timing the screen.
     line_step: bool,
+    /// Filler for the hidden screen: unseeded, it never needs to repeat.
+    panic_rng: Rng,
+    prompt: String,
+    /// The fake shell's input line, while it is up.
+    pub shell: Option<LineInput>,
 }
 
 impl App {
@@ -146,6 +158,14 @@ impl App {
             view_seen: HashMap::new(),
             view_words: 0,
             line_step: false,
+            panic_rng: Rng::seed_from_u64(
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .map(|d| d.as_nanos() as u64)
+                    .unwrap_or(1),
+            ),
+            prompt: shell_prompt(),
+            shell: None,
         };
         if let Some(e) = mask_error {
             app.notice.extend(error_lines(&e, app.width()));
@@ -311,10 +331,30 @@ impl App {
         let [feed, status] =
             Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(frame.area());
         frame.render_widget(&self.feed, feed);
-        frame.render_widget(
-            Paragraph::new(self.status_text()).style(style(STATUS_FG)),
-            status,
-        );
+        if let Some(field) = &self.shell {
+            let line = format!("{}{}", self.prompt, field.value);
+            let x = status.x
+                + (unicode_width::UnicodeWidthStr::width(line.as_str()) as u16)
+                    .min(status.width.saturating_sub(1));
+            frame.render_widget(Paragraph::new(line).style(style(FG)), status);
+            frame.set_cursor_position((x, status.y));
+        } else {
+            frame.render_widget(
+                Paragraph::new(self.status_text()).style(style(STATUS_FG)),
+                status,
+            );
+        }
+    }
+
+    /// The mask in use: the open session's, or the one kept for errors.
+    fn mask_mut(&mut self) -> &mut dyn Mask {
+        match self.session.as_mut() {
+            Some(s) => s.mask_mut(),
+            None => self
+                .spare_mask
+                .get_or_insert_with(|| resolve_mask(&self.config).0)
+                .as_mut(),
+        }
     }
 
     pub fn resize(&mut self, cols: u16, rows: u16) {
@@ -336,6 +376,20 @@ impl App {
     pub fn handle_key(&mut self, key: KeyEvent, now: Instant) {
         self.now = now;
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+        if key.code == KeyCode::Char('`') {
+            self.toggle_panic(); // works from anywhere, bars and menus included
+            return;
+        }
+        if ctrl && key.code == KeyCode::Char('q') {
+            self.quit_and_save();
+            return;
+        }
+        if let Some(field) = self.shell.as_mut() {
+            if let InputEvent::Submit(command) = field.handle(key) {
+                self.run_shell(&command);
+            }
+            return; // a shell takes every key: nothing here moves the text
+        }
         match key.code {
             KeyCode::Char('q') if ctrl => self.quit_and_save(),
             KeyCode::Char('q') => self.quit_and_save(),
@@ -390,6 +444,49 @@ impl App {
             }
         }
         self.scroll(self.page_rows as isize);
+    }
+
+    pub fn toggle_panic(&mut self) {
+        self.panic = !self.panic;
+        self.stop_timer();
+        self.feed.clear();
+        self.queue.clear();
+        self.view_key = None; // time spent hidden is not reading time
+        let shell = self.config.hide == "shell";
+        if self.panic {
+            self.feed.set_bottom_anchored(true);
+            let (width, rows) = (self.width(), self.view_height() - usize::from(shell));
+            let mut rng = self.panic_rng.clone();
+            let lines: Vec<Line> = (0..rows)
+                .map(|_| self.mask_mut().noise(&mut rng, width))
+                .collect();
+            self.panic_rng = rng;
+            self.feed.append(lines);
+            if shell {
+                self.shell = Some(LineInput::default());
+            }
+        } else {
+            self.shell = None;
+            self.redraw();
+        }
+        self.restart_timer();
+    }
+
+    /// Echo a command at the prompt and print something believable for it.
+    fn run_shell(&mut self, command: &str) {
+        let command = command.trim().to_string();
+        let width = self.width();
+        let mut rng = self.panic_rng.clone();
+        let out = shell_output(&command, self.mask_mut(), &mut rng, width);
+        self.panic_rng = rng;
+        match out {
+            None => self.feed.clear(),
+            Some(out) => {
+                let mut lines = vec![plain_line(format!("{}{command}", self.prompt), FG)];
+                lines.extend(out);
+                self.feed.append(lines);
+            }
+        }
     }
 
     fn toggle_auto(&mut self) {
@@ -470,7 +567,13 @@ impl App {
 
     fn restart_timer(&mut self) {
         self.stop_timer();
-        if self.auto && self.session.is_some() && !self.panic {
+        if self.panic {
+            if self.config.hide != "shell" {
+                self.next_tick = Some(self.now + Duration::from_secs_f64(1.0 / PANIC_RATE));
+            } // a shell waits for input
+            return;
+        }
+        if self.auto && self.session.is_some() {
             // the text already on screen gets its reading time before the next line
             self.next_tick = Some(
                 self.now + Duration::from_secs_f64(line_delay(self.last_words, self.config.wpm)),
@@ -481,6 +584,10 @@ impl App {
     fn timer_fired(&mut self) {
         self.next_tick = None;
         self.tick();
+        if self.panic {
+            self.restart_timer();
+            return;
+        }
         if self.auto && !self.panic && self.next_tick.is_none() {
             self.next_tick = Some(
                 self.now + Duration::from_secs_f64(line_delay(self.last_words, self.config.wpm)),
@@ -490,6 +597,14 @@ impl App {
 
     /// One stream step: the next line of text, with the filler before it.
     pub fn tick(&mut self) {
+        if self.panic {
+            let width = self.width();
+            let mut rng = self.panic_rng.clone();
+            let line = self.mask_mut().noise(&mut rng, width);
+            self.panic_rng = rng;
+            self.feed.append(vec![line]);
+            return;
+        }
         if !self.auto {
             return;
         }
@@ -1071,6 +1186,186 @@ pub(crate) mod tests {
         assert!(read >= before);
         h.press(&["space"]);
         assert_eq!(h.app.config.wpm, learn(200, read, 23.0).unwrap());
+    }
+
+    // -- test_app_auto_panic.py (panic) and test_navigate.py (shell) --
+
+    /// Distinctive words of the text (4+ letters), lower-cased.
+    fn text_words(h: &mut Harness) -> std::collections::HashSet<String> {
+        let book = h.session().book.clone();
+        book.chapters
+            .iter()
+            .flat_map(|c| &c.paragraphs)
+            .flat_map(|p| {
+                p.text
+                    .split(|c: char| !c.is_alphabetic())
+                    .map(str::to_lowercase)
+                    .collect::<Vec<_>>()
+            })
+            .filter(|w| w.chars().count() >= 4)
+            .collect()
+    }
+
+    fn shown(h: &Harness) -> String {
+        h.app
+            .feed
+            .history_lines()
+            .iter()
+            .map(Line::plain)
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase()
+    }
+
+    fn leaked(h: &Harness, words: &std::collections::HashSet<String>) -> Vec<String> {
+        let text = shown(h) + " " + &h.screen().to_lowercase();
+        let found: std::collections::HashSet<String> = text
+            .split(|c: char| !c.is_alphabetic())
+            .map(String::from)
+            .collect();
+        words
+            .iter()
+            .filter(|w| found.contains(*w))
+            .cloned()
+            .collect()
+    }
+
+    #[test]
+    fn panic_removes_every_word_of_the_text() {
+        let mut h = Harness::sample(80, 24);
+        let words = text_words(&mut h);
+        assert!(!leaked(&h, &words).is_empty()); // the text WAS visible
+        h.press(&["a"]);
+        for _ in 0..5 {
+            h.app.tick();
+        }
+        h.press(&["`"]);
+        assert!(h.app.panic);
+        assert!(h.app.feed.history_lines().len() >= 23); // a screenful before the first tick
+        for _ in 0..30 {
+            h.app.tick();
+        }
+        assert!(!shown(&h).trim().is_empty());
+        assert_eq!(leaked(&h, &words), Vec::<String>::new());
+        assert!(!h.app.feed.history_lines().iter().any(|l| l.is_book));
+    }
+
+    #[test]
+    fn panic_toggle_returns_to_the_same_place_and_mode() {
+        let mut h = Harness::sample(80, 24);
+        h.press(&["down", "down"]);
+        let pos = h.session().pos();
+        h.press(&["`"]);
+        for _ in 0..5 {
+            h.app.tick();
+        }
+        h.press(&["space", "down", "a"]); // manual keys do nothing while hidden
+        assert_eq!(h.session().pos(), pos);
+        assert!(!h.app.auto);
+        h.press(&["`"]);
+        assert!(!h.app.panic && !h.app.auto);
+        assert!(h.visible().iter().any(|l| l.pos == Some(pos)));
+        h.press(&["a", "`", "`"]);
+        assert!(h.app.auto && !h.app.panic);
+        assert_eq!(h.session().pos(), pos);
+    }
+
+    #[test]
+    fn hidden_stream_flows_on_a_timer() {
+        let mut h = Harness::sample(80, 24);
+        h.press(&["`"]);
+        let n = h.app.feed.history_lines().len();
+        let due = h.app.timer_due().unwrap();
+        h.now = due;
+        h.app.on_time(due);
+        assert_eq!(h.app.feed.history_lines().len(), n + 1);
+    }
+
+    #[test]
+    fn time_spent_hidden_is_not_reading_time() {
+        let mut h = paced(200);
+        let words = h.app.view_words;
+        h.press(&["`"]);
+        h.now += Duration::from_secs(120); // someone walked by
+        h.press(&["`"]);
+        h.now += Duration::from_secs(15);
+        h.press(&["space"]);
+        assert_eq!(h.app.config.wpm, learn(200, words, 15.0).unwrap());
+    }
+
+    fn shell_harness() -> Harness {
+        sample_with(
+            10,
+            Config {
+                hide: "shell".into(),
+                ..cfg()
+            },
+            80,
+            24,
+        )
+    }
+
+    fn type_text(h: &mut Harness, text: &str) {
+        for c in text.chars() {
+            h.app
+                .handle_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE), h.now);
+        }
+    }
+
+    #[test]
+    fn shell_hide_shows_a_prompt_that_takes_commands() {
+        let mut h = shell_harness();
+        let words = text_words(&mut h);
+        h.press(&["`"]);
+        assert!(h.app.panic && h.app.shell.is_some());
+        assert!(
+            h.app
+                .timer_due()
+                .is_none_or(|t| t > h.now + Duration::from_secs(5))
+        ); // a shell waits, it does not stream
+        let screen = h.screen();
+        assert!(
+            screen
+                .lines()
+                .last()
+                .unwrap()
+                .trim_end()
+                .ends_with(['$', '%', '>']),
+            "{screen}"
+        );
+        type_text(&mut h, "ls");
+        h.press(&["enter"]);
+        let lines: Vec<String> = h.app.feed.history_lines().iter().map(Line::plain).collect();
+        assert!(lines.iter().any(|l| l.ends_with(" ls")));
+        assert!(lines.join(" ").contains("src"));
+        assert_eq!(
+            leaked(&h, &words)
+                .into_iter()
+                .filter(|w| w != "number")
+                .count(),
+            0
+        );
+        type_text(&mut h, "jk q");
+        assert_eq!((h.session().pos(), h.session().line_offset), ((0, 0), 0));
+        assert!(!h.app.should_quit()); // q is just a letter at the prompt
+        h.press(&["`"]);
+        assert!(!h.app.panic && h.app.shell.is_none());
+    }
+
+    #[test]
+    fn shell_clear_and_unknown_commands() {
+        let mut h = shell_harness();
+        h.press(&["`"]);
+        type_text(&mut h, "clear");
+        h.press(&["enter"]);
+        assert!(h.app.feed.history_lines().is_empty());
+        type_text(&mut h, "frobnicate");
+        h.press(&["enter"]);
+        let text = shown(&h);
+        assert!(
+            text.contains("frobnicate")
+                && (text.contains("not found") || text.contains("not recognized"))
+        );
     }
 
     // -- test_no_filename_on_screen.py --
