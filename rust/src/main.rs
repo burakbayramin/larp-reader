@@ -1,6 +1,37 @@
+use std::io;
 use std::process::ExitCode;
+use std::time::{Duration, Instant};
 
 use fcc::cli::{Outcome, resolve};
+use fcc::ui::app::App;
+use ratatui::crossterm::event::{self, Event, KeyEventKind};
+
+/// Longest wait for input before timers are checked again.
+const MAX_WAIT: Duration = Duration::from_millis(250);
+
+fn run(app: &mut App, terminal: &mut ratatui::DefaultTerminal) -> io::Result<()> {
+    loop {
+        terminal.draw(|f| app.draw(f))?;
+        if app.should_quit() {
+            return Ok(());
+        }
+        let wait = app
+            .next_deadline()
+            .saturating_duration_since(Instant::now())
+            .min(MAX_WAIT);
+        if event::poll(wait)? {
+            match event::read()? {
+                // Windows reports releases too; act on presses only
+                Event::Key(k) if k.kind != KeyEventKind::Release => {
+                    app.handle_key(k, Instant::now())
+                }
+                Event::Resize(w, h) => app.resize(w, h),
+                _ => {}
+            }
+        }
+        app.on_time(Instant::now());
+    }
+}
 
 fn main() -> ExitCode {
     let state_dir = match fcc::state::state_dir() {
@@ -10,15 +41,37 @@ fn main() -> ExitCode {
             return ExitCode::from(1);
         }
     };
-    match resolve(std::env::args_os().skip(1), &state_dir) {
+    let (path, config) = match resolve(std::env::args_os().skip(1), &state_dir) {
         Err(e) => e.exit(), // --help, --version, or a bad flag (status 2)
         Ok(Outcome::Fail(err)) => {
             eprintln!("error: {}\n{err}", err.title());
-            ExitCode::from(1)
+            return ExitCode::from(1);
         }
-        Ok(Outcome::Run(_path, _config)) => {
-            // the terminal interface is ported in stage 6
-            eprintln!("error: interactive mode is not available in this build yet");
+        Ok(Outcome::Run(path, config)) => (path, config),
+    };
+
+    let mut terminal = ratatui::init(); // restores the terminal on a real panic
+    let restore_and_report = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        if !fcc::panic_is_quiet() {
+            restore_and_report(info);
+        }
+    }));
+    let size = terminal.size().unwrap_or_default();
+    let mut app = App::new(
+        Some(path),
+        config,
+        state_dir,
+        size.width,
+        size.height,
+        Instant::now(),
+    );
+    let result = run(&mut app, &mut terminal);
+    ratatui::restore();
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("error: terminal: {}", e.kind());
             ExitCode::from(1)
         }
     }

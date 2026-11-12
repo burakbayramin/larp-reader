@@ -29,7 +29,7 @@ fn unsupported(e: impl std::fmt::Display) -> FccError {
 /// The book's HTML, or why it could not be had. The parser is guarded: a
 /// malformed file must end in an error, never in a crash.
 fn content(data: Vec<u8>) -> Result<String, String> {
-    std::panic::catch_unwind(move || {
+    crate::quietly(move || {
         let m = mobi::Mobi::new(&data).map_err(|e| e.to_string())?;
         Ok(m.content_as_string_lossy())
     })

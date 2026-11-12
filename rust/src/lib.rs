@@ -13,6 +13,27 @@ pub mod pace;
 pub mod session;
 pub mod state;
 pub mod text;
+pub mod ui;
+
+thread_local! {
+    static QUIET: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Run `f`, turning a panic inside it into an `Err` without printing anything.
+///
+/// For parsers of untrusted files that may panic on malformed input: the
+/// screen must not be scribbled over, and the file just counts as unreadable.
+pub fn quietly<R>(f: impl FnOnce() -> R + std::panic::UnwindSafe) -> std::thread::Result<R> {
+    QUIET.with(|q| q.set(true));
+    let result = std::panic::catch_unwind(f);
+    QUIET.with(|q| q.set(false));
+    result
+}
+
+/// Whether a panic happening now is one `quietly` expects.
+pub fn panic_is_quiet() -> bool {
+    QUIET.with(|q| q.get())
+}
 
 /// `fcc --version`: looks like a compiler's, never names what the program really is.
 pub fn version() -> String {
