@@ -6,13 +6,21 @@ aracına baktığınızı sanır.
 
 ## Kurulum
 
+Windows, macOS (Apple Silicon ve Intel) ve Linux için hazır programlar
+[Releases](../../releases) sayfasında. Arşivi açıp `fcc` (Windows'ta `fcc.exe`)
+dosyasını PATH'teki bir klasöre koymanız yeterli; başka bir şey kurmak gerekmez.
+
+Kaynaktan derlemek için (Rust 1.88+):
+
 ```
-pipx install .
-# veya
-pip install .
+cargo install --path rust
 ```
 
-Python 3.11+ gerekir. Kurulumu doğrulamak için: `fcc --version`.
+Kurulumu doğrulamak için: `fcc --version`.
+
+Python sürümü (eski) hâlâ repoda; `pipx install .` ile kurulur, Python 3.11+ gerekir.
+İki sürüm aynı ayar ve ilerleme dosyalarını kullanır, biri bırakıldığı yerden
+öbüründe devam edilir.
 
 ## Kullanım
 
@@ -79,9 +87,9 @@ gerçek bir prompt çıkar (Windows'ta `PS C:\...>`, macOS/Linux'ta kullanıcı@
 
 ## Desteklenen biçimler
 
-EPUB, PDF (XPS, CBZ), MOBI/AZW/AZW3, FB2, DOCX, ODT, RTF, TXT/Markdown, HTML.
-Desteklenmeyen veya DRM'li bir biçim için Calibre kuruluysa `ebook-convert` ile
-EPUB'a çevirip onu açabilirsiniz (Calibre yedek yol olarak kullanılır).
+EPUB, PDF, MOBI/AZW/AZW3, FB2, DOCX, ODT, RTF, TXT/Markdown, HTML.
+Bunların dışındaki biçimler (XPS, CBZ, DJVU …) Calibre kuruluysa `ebook-convert` ile
+EPUB'a çevrilip açılır (Calibre yedek yol olarak kullanılır). DRM'li dosyalar açılmaz.
 
 ## Kapsam dışı
 
