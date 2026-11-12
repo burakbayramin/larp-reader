@@ -10,6 +10,7 @@ pub mod loaders;
 pub mod masks;
 pub mod noise;
 pub mod pace;
+pub mod session;
 pub mod state;
 pub mod text;
 
