@@ -18,9 +18,8 @@ cargo install --path rust
 
 Kurulumu doğrulamak için: `fcc --version`.
 
-Python sürümü (eski) hâlâ repoda; `pipx install .` ile kurulur, Python 3.11+ gerekir.
-İki sürüm aynı ayar ve ilerleme dosyalarını kullanır, biri bırakıldığı yerden
-öbüründe devam edilir.
+Daha önceki Python sürümünü kullandıysanız ayar ve ilerleme dosyalarınız aynen
+okunur; her kitap kaldığı yerden açılır.
 
 ## Kullanım
 

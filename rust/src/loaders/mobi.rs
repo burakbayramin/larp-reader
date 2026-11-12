@@ -87,7 +87,7 @@ mod tests {
     use std::path::PathBuf;
 
     fn fixture() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/sample.azw3")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/mobi/sample.azw3")
     }
 
     // -- test_azw3.py --
