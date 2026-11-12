@@ -39,6 +39,8 @@ pub struct Config {
     pub auto: bool,
     /// What the hide key shows: streaming output or a shell prompt.
     pub hide: String,
+    /// Colour theme.
+    pub theme: String,
 }
 
 impl Default for Config {
@@ -50,6 +52,7 @@ impl Default for Config {
             wpm: DEFAULT_WPM,
             auto: false,
             hide: "stream".into(),
+            theme: "dark".into(),
         }
     }
 }
@@ -156,6 +159,9 @@ fn valid_config(obj: &Map<String, Value>) -> Config {
     }
     if let Some(hide) = one_of(obj.get("hide"), HIDE_STYLES) {
         cfg.hide = hide;
+    }
+    if let Some(theme) = one_of(obj.get("theme"), THEMES) {
+        cfg.theme = theme;
     }
     cfg
 }
@@ -297,7 +303,7 @@ mod tests {
         let d = tmp();
         save_config(d.path(), &Config::default()).unwrap();
         let text = fs::read_to_string(d.path().join("config.json")).unwrap();
-        let keys: Vec<&str> = ["mask", "lang", "noise", "wpm", "auto", "hide"].to_vec();
+        let keys: Vec<&str> = ["mask", "lang", "noise", "wpm", "auto", "hide", "theme"].to_vec();
         let at: Vec<usize> = keys
             .iter()
             .map(|k| text.find(&format!("\"{k}\"")).unwrap())
@@ -470,6 +476,19 @@ mod tests {
                 "{raw}"
             );
         }
+    }
+
+    #[test]
+    fn theme_must_be_a_known_one() {
+        let d = tmp();
+        assert_eq!(
+            config_with(d.path(), json!({"theme": "light-ansi"})).theme,
+            "light-ansi"
+        );
+        assert_eq!(
+            config_with(d.path(), json!({"theme": "neon"})).theme,
+            "dark"
+        );
     }
 
     #[test]

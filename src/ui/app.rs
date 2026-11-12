@@ -20,6 +20,7 @@ use super::input::{InputEvent, LineInput};
 use super::menu::{Menu, MenuResult, section_label};
 use super::shell::{shell_output, shell_prompt};
 use super::style::style;
+use super::theme::{self, THEMES};
 use crate::book::{Book, Pos, match_spans};
 use crate::errors::FccError;
 use crate::loaders::{load_book, supported_extensions};
@@ -226,6 +227,7 @@ impl App {
         rows: u16,
         now: Instant,
     ) -> App {
+        theme::set(&config.theme, theme::current().1);
         let (mask, mask_error) = resolve_mask(&config);
         let mut app = App {
             path,
@@ -645,6 +647,7 @@ impl App {
             KeyCode::Char(c @ '1'..='9') => self.open_listed(c as usize - '0' as usize),
             KeyCode::Esc if !self.panic => self.panel = !self.panel,
             KeyCode::Char(':') => self.open_menu(),
+            KeyCode::Char('t') => self.cycle_theme(),
             KeyCode::Char('\'') => self.jump_mark(true),
             KeyCode::Char('"') => self.jump_mark(false),
             _ => {}
@@ -846,6 +849,24 @@ impl App {
         self.use_mask("code", next);
     }
 
+    fn use_theme(&mut self, name: &str) {
+        self.config.theme = name.to_string();
+        theme::set(name, theme::current().1);
+    }
+
+    fn cycle_theme(&mut self) {
+        if self.panic {
+            return;
+        }
+        let i = THEMES
+            .iter()
+            .position(|t| *t == self.config.theme)
+            .unwrap_or(0);
+        let next = THEMES[(i + 1) % THEMES.len()];
+        self.use_theme(next);
+        self.persist_config();
+    }
+
     fn change_noise(&mut self, delta: i32) {
         let level = (self.config.noise as i32 + delta).clamp(0, MAX_NOISE as i32) as u8;
         self.config.noise = level;
@@ -917,15 +938,7 @@ impl App {
             None => (vec![], vec![]),
         };
         let mask = self.current_mask_name();
-        self.menu = Some(Menu::new(
-            &mask,
-            &self.config.lang,
-            self.config.wpm,
-            self.config.noise,
-            &self.config.hide,
-            marks,
-            sections,
-        ));
+        self.menu = Some(Menu::new(&mask, &self.config, marks, sections));
     }
 
     fn on_menu_result(&mut self, result: MenuResult) {
@@ -942,10 +955,12 @@ impl App {
                 wpm,
                 noise,
                 hide,
+                theme,
             } => {
                 self.config.noise = noise;
                 self.config.wpm = wpm;
                 self.config.hide = hide;
+                self.use_theme(&theme);
                 if let Some(s) = self.session.as_mut() {
                     s.set_noise(noise);
                 }
@@ -2401,6 +2416,35 @@ pub(crate) mod tests {
                 .text
                 .starts_with("alpha")
         ); // still open
+    }
+
+    // -- themes --
+
+    #[test]
+    fn t_cycles_themes_and_saves_the_choice() {
+        let mut h = Harness::sample(80, 24);
+        assert_eq!(h.app.config.theme, "dark");
+        h.press(&["t"]);
+        assert_eq!(h.app.config.theme, "light");
+        assert_eq!(crate::state::load_config(&h.state_dir()).theme, "light");
+        h.press(&["t"; 5]);
+        assert_eq!(h.app.config.theme, "dark"); // round the six themes
+        h.press(&["`", "t"]);
+        assert_eq!(h.app.config.theme, "dark"); // not while hidden
+    }
+
+    #[test]
+    fn menu_sets_the_theme() {
+        let mut h = Harness::sample(100, 30);
+        h.press(&[":"]);
+        assert!(h.screen().contains("theme: < dark >"));
+        h.app.menu.as_mut().unwrap().focus("theme");
+        h.press(&["right", "right", "enter"]);
+        assert_eq!(h.app.config.theme, "dark-daltonized");
+        assert_eq!(
+            crate::state::load_config(&h.state_dir()).theme,
+            "dark-daltonized"
+        );
     }
 
     // -- test_no_filename_on_screen.py --

@@ -13,7 +13,7 @@ use ratatui::widgets::Paragraph;
 use super::input::{InputEvent, LineInput};
 use crate::book::Pos;
 use crate::masks::{LANGS, MASK_NAMES};
-use crate::state::HIDE_STYLES;
+use crate::state::{Config, HIDE_STYLES, THEMES};
 
 const WPMS: &[u32] = &[120, 160, 200, 240, 280, 320, 400, 500, 650, 800];
 const NOISE_LEVELS: &[u32] = &[0, 1, 2, 3, 4, 5];
@@ -30,6 +30,7 @@ pub enum MenuResult {
         wpm: u32,
         noise: u8,
         hide: String,
+        theme: String,
     },
     Open(String),
     Jump(Pos),
@@ -109,12 +110,10 @@ pub fn section_label(n: usize, title: Option<&str>) -> String {
 }
 
 impl Menu {
+    /// The settings screen for `config`, with `mask` as the view now shown.
     pub fn new(
         mask: &str,
-        lang: &str,
-        wpm: u32,
-        noise: u8,
-        hide: &str,
+        config: &Config,
         marks: Vec<(String, Pos)>,
         sections: Vec<(String, Pos)>,
     ) -> Menu {
@@ -123,10 +122,11 @@ impl Menu {
             path: LineInput::default(),
             choices: vec![
                 Choice::new("target", &names(MASK_NAMES), mask.to_string()),
-                Choice::new("lang", &names(LANGS), lang.to_string()),
-                Choice::new("rate", WPMS, wpm),
-                Choice::new("verbosity", NOISE_LEVELS, noise as u32),
-                Choice::new("on hide", &names(HIDE_STYLES), hide.to_string()),
+                Choice::new("lang", &names(LANGS), config.lang.clone()),
+                Choice::new("rate", WPMS, config.wpm),
+                Choice::new("verbosity", NOISE_LEVELS, config.noise as u32),
+                Choice::new("on hide", &names(HIDE_STYLES), config.hide.clone()),
+                Choice::new("theme", &names(THEMES), config.theme.clone()),
             ],
             marks: Pick {
                 entries: marks,
@@ -175,6 +175,7 @@ impl Menu {
             wpm: v(2).parse().unwrap_or(crate::pace::DEFAULT_WPM),
             noise: v(3).parse().unwrap_or(2),
             hide: v(4),
+            theme: v(5),
         }
     }
 
@@ -335,10 +336,10 @@ mod tests {
     fn menu() -> Menu {
         Menu::new(
             "code",
-            "python",
-            233,
-            2,
-            "stream",
+            &Config {
+                wpm: 233,
+                ..Config::default()
+            },
             vec![("L12".into(), (0, 3))],
             vec![("  1 Bir".into(), (0, 0)), ("  2 İki".into(), (1, 0))],
         )
@@ -347,7 +348,7 @@ mod tests {
     #[test]
     fn right_on_each_choice_then_enter_applies() {
         let mut m = menu();
-        for name in ["target", "lang", "rate", "verbosity", "on hide"] {
+        for name in ["target", "lang", "rate", "verbosity", "on hide", "theme"] {
             m.focus(name);
             m.handle(key(KeyCode::Right));
         }
@@ -359,7 +360,8 @@ mod tests {
                 lang: "typescript".into(),
                 wpm: 240,
                 noise: 3,
-                hide: "shell".into()
+                hide: "shell".into(),
+                theme: "light".into()
             }
         );
     }

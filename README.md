@@ -35,6 +35,7 @@ fcc build <dosya> --mask=code --lang=python --noise=2
 - `--auto`: otomatik akış
 - `--wpm`: okuma hızı, dakikada kelime (60-1500, varsayılan 220); otomatik akış buna göre ilerler
 - `--hide`: panik tuşu ne göstersin: `stream` (akan sahte çıktı) veya `shell` (komut yazılabilen sahte shell)
+- `--theme`: renk teması: `dark` (varsayılan), `light`, `dark-daltonized`, `light-daltonized` (renk körlüğüne uygun: yeşil/kırmızı yerine mavi/turuncu), `dark-ansi`, `light-ansi` (terminalin kendi 16 rengi)
 - Dosya verilmezse en son açılan kitaptan devam edilir.
 
 Windows Terminal'de ekranı bölmek için `Alt+Shift+D`: bir tarafta kitap, diğer tarafta
@@ -58,7 +59,8 @@ gerçek bir geliştirme oturumu.
 | `n` / `N` | gürültüyü artır / azalt |
 | `b` | yer imi ekle (`cache saved` mesajı) |
 | `'` / `"` | sonraki / önceki yer imine git |
-| `:` | ayar menüsü (dosya aç, görünüm, dil, okuma hızı, gürültü, panik biçimi, yer imleri, bölümler) |
+| `t` | renk temasını değiştir (dark, light, daltonized, ansi) |
+| `:` | ayar menüsü (dosya aç, görünüm, dil, okuma hızı, gürültü, panik biçimi, tema, yer imleri, bölümler) |
 | `o` / `O` | klasördeki sonraki / önceki kitaba geç (her kitabın yeri ayrı saklanır) |
 | `Esc` | yan panel: kısayollar ve klasördeki kitaplar; panel açıkken `1`-`9` ile listeden kitap aç |
 | `` ` `` | panik: anında sahte çıktı akışı ya da sahte shell (panel, menü veya arama açıksa onu da kapatır) |
@@ -85,6 +87,14 @@ gerçek bir prompt çıkar (Windows'ta `PS C:\...>`, macOS/Linux'ta kullanıcı@
 `ls`, `pwd`, `git status`, `clear` beklenen çıktıyı verir; `npm`, `pytest`, `cargo`,
 `docker` gibi araçlar o anki görünümün çıktısını basar; bilinmeyen komutlar
 `command not found` verir. Kitaba dönmek için yine `` ` ``.
+
+## Renkler
+
+Terminal 24 bit renk destekliyorsa (`COLORTERM=truecolor`; iTerm2, Windows Terminal,
+VS Code, WezTerm, Ghostty …) renkler olduğu gibi gösterilir. macOS 26 öncesindeki
+Terminal uygulaması gibi desteklemeyenlerde en yakın 256 renge, gerekirse 16 renge
+çevrilir. Terminalinizin kendi renk şemasıyla uyumlu olsun isterseniz `dark-ansi` /
+`light-ansi` temalarını deneyin.
 
 ## Desteklenen biçimler
 

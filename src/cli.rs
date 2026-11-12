@@ -13,7 +13,9 @@ use crate::errors::FccError;
 use crate::masks::{LANGS, MASK_NAMES};
 use crate::noise::MAX_NOISE;
 use crate::pace::{MAX_WPM, MIN_WPM};
-use crate::state::{Config, HIDE_STYLES, last_entry, load_config, load_progress, save_config};
+use crate::state::{
+    Config, HIDE_STYLES, THEMES, last_entry, load_config, load_progress, save_config,
+};
 
 #[derive(Parser, Debug)]
 #[command(name = "fcc", about = "fcc build tool", disable_version_flag = true)]
@@ -53,6 +55,9 @@ struct BuildArgs {
     /// what the hide key shows
     #[arg(long, value_parser = PossibleValuesParser::new(HIDE_STYLES))]
     hide: Option<String>,
+    /// colour theme
+    #[arg(long, value_parser = PossibleValuesParser::new(THEMES))]
+    theme: Option<String>,
 }
 
 fn command() -> clap::Command {
@@ -103,6 +108,9 @@ where
     }
     if let Some(h) = args.hide {
         config.hide = h;
+    }
+    if let Some(t) = args.theme {
+        config.theme = t;
     }
     let _ = save_config(state_dir, &config); // best effort: the flags still apply to this run
 
@@ -197,6 +205,18 @@ mod tests {
             ("code", "go", 4, true, 300)
         );
         assert_eq!(load_config(d.path()), config);
+    }
+
+    #[test]
+    fn theme_flag_is_saved() {
+        let (d, f) = setup();
+        let Outcome::Run(_, config) =
+            run(&["build", f.to_str().unwrap(), "--theme=light"], d.path())
+        else {
+            panic!()
+        };
+        assert_eq!(config.theme, "light");
+        assert_eq!(load_config(d.path()).theme, "light");
     }
 
     #[test]
