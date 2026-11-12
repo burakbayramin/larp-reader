@@ -30,7 +30,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     defaults:
       run:
-        working-directory: rust
         shell: bash
     steps:
       - uses: actions/checkout@v4
@@ -39,7 +38,6 @@ jobs:
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: rust
           key: ${{ matrix.target }}
       - run: cargo test --locked
         if: matrix.target != 'x86_64-apple-darwin' # cross-built on an arm runner: build only
@@ -50,7 +48,7 @@ jobs:
           mkdir -p "dist/$name"
           bin="target/${{ matrix.target }}/release/fcc"
           [ -f "$bin.exe" ] && bin="$bin.exe"
-          cp "$bin" ../README.md "dist/$name/"
+          cp "$bin" README.md "dist/$name/"
           cd dist
           if [ "${{ matrix.archive }}" = zip ]; then
             7z a "$name.zip" "$name" > /dev/null
@@ -60,7 +58,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}
-          path: rust/dist/*.${{ matrix.archive }}
+          path: dist/*.${{ matrix.archive }}
           if-no-files-found: error
 
   release:

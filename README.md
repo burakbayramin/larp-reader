@@ -13,7 +13,9 @@ dosyasını PATH'teki bir klasöre koymanız yeterli; başka bir şey kurmak ger
 Kaynaktan derlemek için (Rust 1.88+):
 
 ```
-cargo install --path rust
+cargo install --git https://github.com/burakbayramin/fcc
+# ya da repo klasöründe
+cargo install --path .
 ```
 
 Kurulumu doğrulamak için: `fcc --version`.
