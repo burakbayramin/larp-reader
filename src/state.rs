@@ -19,6 +19,15 @@ use crate::noise::MAX_NOISE;
 use crate::pace::{DEFAULT_WPM, clamp_wpm};
 
 pub const HIDE_STYLES: &[&str] = &["stream", "shell"];
+/// Colour themes, in the order `t` cycles through them.
+pub const THEMES: &[&str] = &[
+    "dark",
+    "light",
+    "dark-daltonized",
+    "light-daltonized",
+    "dark-ansi",
+    "light-ansi",
+];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Config {

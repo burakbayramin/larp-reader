@@ -6,3 +6,4 @@ pub mod input;
 pub mod menu;
 pub mod shell;
 pub mod style;
+pub mod theme;

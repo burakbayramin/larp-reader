@@ -359,7 +359,7 @@ impl App {
         if width < MIN_WIDTH {
             lines.push(plain_line(
                 WARNING.chars().take(width).collect::<String>(),
-                "yellow",
+                "#d29922",
             ));
         }
         lines.extend(self.notice.iter().cloned());
