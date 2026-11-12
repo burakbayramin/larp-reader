@@ -19,7 +19,7 @@ use super::feed::Feed;
 use super::input::{InputEvent, LineInput};
 use super::shell::{shell_output, shell_prompt};
 use super::style::style;
-use crate::book::{Book, Pos};
+use crate::book::{Book, Pos, match_spans};
 use crate::errors::FccError;
 use crate::loaders::load_book;
 use crate::masks::base::{error_lines, plain_line};
@@ -37,6 +37,53 @@ pub const PANIC_RATE: f64 = 4.5;
 const WARNING: &str = "warning: window too narrow";
 const STATUS_FG: &str = "#858585";
 const FG: &str = "#d4d4d4";
+const SAVED_MSG: &str = "cache saved";
+const NO_MARKS_MSG: &str = "cache empty";
+const NOT_FOUND_MSG: &str = "Pattern not found";
+const HIGHLIGHT: &str = "reverse";
+
+/// The flash after a search wrapped around the end (forward) or the start (backward).
+fn wrap_msg(backward: bool) -> &'static str {
+    if backward {
+        "search hit TOP, continuing at BOTTOM"
+    } else {
+        "search hit BOTTOM, continuing at TOP"
+    }
+}
+
+/// `line` with every match of `query` inside its text segments shown reversed (like grep --color).
+pub fn highlight(line: &Line, query: &str) -> Line {
+    let mut segments = vec![];
+    for (text, style) in &line.segments {
+        let spans = if style.split_whitespace().any(|t| t == "book") {
+            match_spans(text, query)
+        } else {
+            vec![]
+        };
+        if spans.is_empty() {
+            segments.push((text.clone(), style.clone()));
+            continue;
+        }
+        let chars: Vec<char> = text.chars().collect();
+        let piece = |a: usize, b: usize| chars[a..b].iter().collect::<String>();
+        let mut at = 0;
+        for (start, end) in spans {
+            if start > at {
+                segments.push((piece(at, start), style.clone()));
+            }
+            segments.push((piece(start, end), format!("{style} {HIGHLIGHT}")));
+            at = end;
+        }
+        if at < chars.len() {
+            segments.push((piece(at, chars.len()), style.clone()));
+        }
+    }
+    Line {
+        segments,
+        is_book: line.is_book,
+        pos: line.pos,
+    }
+}
 
 /// The configured mask, or the code mask plus the problem if it can't be built.
 pub fn resolve_mask(config: &Config) -> (Box<dyn Mask>, Option<FccError>) {
@@ -117,6 +164,10 @@ pub struct App {
     prompt: String,
     /// The fake shell's input line, while it is up.
     pub shell: Option<LineInput>,
+    /// The search input line, while it is up.
+    pub search: Option<LineInput>,
+    /// The last search; its matches are highlighted.
+    pub query: String,
 }
 
 impl App {
@@ -166,6 +217,8 @@ impl App {
             ),
             prompt: shell_prompt(),
             shell: None,
+            search: None,
+            query: String::new(),
         };
         if let Some(e) = mask_error {
             app.notice.extend(error_lines(&e, app.width()));
@@ -286,7 +339,7 @@ impl App {
         if let Some((key, shown)) = watched {
             self.watch_view(key, &shown);
         }
-        self.feed.set_lines(lines);
+        self.feed.set_lines(self.highlighted(lines));
     }
 
     /// Time a manual screen from when it first shows.
@@ -331,8 +384,12 @@ impl App {
         let [feed, status] =
             Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(frame.area());
         frame.render_widget(&self.feed, feed);
-        if let Some(field) = &self.shell {
-            let line = format!("{}{}", self.prompt, field.value);
+        let bar = match (&self.shell, &self.search) {
+            (Some(f), _) => Some(format!("{}{}", self.prompt, f.value)),
+            (None, Some(f)) => Some(format!("/{}", f.value)),
+            _ => None,
+        };
+        if let Some(line) = bar {
             let x = status.x
                 + (unicode_width::UnicodeWidthStr::width(line.as_str()) as u16)
                     .min(status.width.saturating_sub(1));
@@ -390,6 +447,21 @@ impl App {
             }
             return; // a shell takes every key: nothing here moves the text
         }
+        if let Some(field) = self.search.as_mut() {
+            match field.handle(key) {
+                InputEvent::Submit(query) => {
+                    self.search = None;
+                    self.query = query.trim().to_string();
+                    match self.session.as_ref().map(Session::pos) {
+                        Some(pos) if !self.query.is_empty() => self.find(pos, false, false),
+                        _ => self.redraw(),
+                    }
+                }
+                InputEvent::Ignored if key.code == KeyCode::Esc => self.search = None,
+                _ => {}
+            }
+            return;
+        }
         match key.code {
             KeyCode::Char('q') if ctrl => self.quit_and_save(),
             KeyCode::Char('q') => self.quit_and_save(),
@@ -400,6 +472,14 @@ impl App {
             KeyCode::Char('a') => self.toggle_auto(),
             KeyCode::Char('+') => self.set_wpm(step_wpm(self.config.wpm, 1)),
             KeyCode::Char('-') => self.set_wpm(step_wpm(self.config.wpm, -1)),
+            KeyCode::Char(']') => self.chapter(1),
+            KeyCode::Char('[') => self.chapter(-1),
+            KeyCode::Char('/') => self.open_search(),
+            KeyCode::Char('f') => self.find_next(false),
+            KeyCode::Char('F') => self.find_next(true),
+            KeyCode::Char('b') => self.bookmark(),
+            KeyCode::Char('\'') => self.jump_mark(true),
+            KeyCode::Char('"') => self.jump_mark(false),
             _ => {}
         }
     }
@@ -452,6 +532,7 @@ impl App {
         self.feed.clear();
         self.queue.clear();
         self.view_key = None; // time spent hidden is not reading time
+        self.search = None;
         let shell = self.config.hide == "shell";
         if self.panic {
             self.feed.set_bottom_anchored(true);
@@ -487,6 +568,152 @@ impl App {
                 self.feed.append(lines);
             }
         }
+    }
+
+    /// Mark the last search's matches inside the text.
+    fn highlighted(&self, lines: Vec<Line>) -> Vec<Line> {
+        if self.query.is_empty() {
+            return lines;
+        }
+        lines
+            .into_iter()
+            .map(|l| {
+                if l.is_book {
+                    highlight(&l, &self.query)
+                } else {
+                    l
+                }
+            })
+            .collect()
+    }
+
+    /// Show the text from the top of paragraph `pos`.
+    fn go(&mut self, pos: Pos) {
+        if let Some(s) = self.session.as_mut() {
+            s.set_pos(pos);
+        }
+        self.notice.clear();
+        self.redraw();
+    }
+
+    fn chapter(&mut self, step: i32) {
+        let Some(s) = self.session.as_ref() else {
+            return;
+        };
+        if self.panic {
+            return;
+        }
+        let pos = s.pos();
+        let target = if step > 0 {
+            s.book.next_chapter(pos)
+        } else if pos.1 == 0 && s.line_offset > 0 {
+            Some(pos) // back to the top of a section that starts here
+        } else {
+            s.book.prev_chapter(pos)
+        };
+        if let Some(t) = target {
+            self.go(t);
+        }
+    }
+
+    fn open_search(&mut self) {
+        if self.session.is_some() && !self.panic {
+            self.search = Some(LineInput::default());
+        }
+    }
+
+    fn find(&mut self, start: Pos, backward: bool, wrapped: bool) {
+        let Some(s) = self.session.as_ref() else {
+            return;
+        };
+        match s.book.find(&self.query, start, backward) {
+            None => {
+                self.redraw();
+                self.flash(NOT_FOUND_MSG, self.now);
+            }
+            Some((pos, wrapped_now)) => {
+                self.go(pos);
+                if wrapped || wrapped_now {
+                    self.flash(wrap_msg(backward), self.now);
+                }
+            }
+        }
+    }
+
+    fn find_next(&mut self, backward: bool) {
+        let Some(s) = self.session.as_ref() else {
+            return;
+        };
+        if self.panic || self.query.is_empty() {
+            return;
+        }
+        let book = &s.book;
+        let start = if backward {
+            book.prev_pos(s.pos())
+        } else {
+            book.next_pos(s.pos())
+        };
+        let wrapped = start.is_none();
+        let start = start.or_else(|| {
+            let chapters = book.chapter_list();
+            if backward {
+                let (last, _) = *chapters.last()?;
+                Some((last, book.chapters[last].paragraphs.len() - 1))
+            } else {
+                chapters.first().map(|(c, _)| (*c, 0))
+            }
+        });
+        if let Some(start) = start {
+            self.find(start, backward, wrapped);
+        }
+    }
+
+    fn bookmark(&mut self) {
+        let Some(s) = self.session.as_ref() else {
+            return;
+        };
+        if self.panic {
+            return;
+        }
+        let mark = [s.pos().0, s.pos().1];
+        if !self.bookmarks.contains(&mark) {
+            self.bookmarks.push(mark);
+            self.try_save();
+        }
+        self.flash(SAVED_MSG, self.now);
+    }
+
+    fn jump_mark(&mut self, forward: bool) {
+        let Some(s) = self.session.as_ref() else {
+            return;
+        };
+        if self.panic {
+            return;
+        }
+        let mut marks: Vec<(usize, Pos)> = self
+            .bookmarks
+            .iter()
+            .map(|m| (m[0], m[1]))
+            .filter(|p| valid_pos(&s.book, *p) == *p)
+            .map(|p| (s.book.index_of(p), p))
+            .collect();
+        if marks.is_empty() {
+            self.flash(NO_MARKS_MSG, self.now);
+            return;
+        }
+        marks.sort();
+        let here = s.book.index_of(s.pos());
+        let target = if forward {
+            marks.iter().find(|(i, _)| *i > here).unwrap_or(&marks[0]).1
+        } else {
+            marks
+                .iter()
+                .rev()
+                .find(|(i, _)| *i < here)
+                .unwrap_or(&marks[marks.len() - 1])
+                .1
+        };
+        self.go(target);
     }
 
     fn toggle_auto(&mut self) {
@@ -630,6 +857,7 @@ impl App {
         }
         self.last_words = words_in(&out);
         if !out.is_empty() {
+            let out = self.highlighted(out);
             self.feed.append(out);
         }
         if finished {
@@ -1365,6 +1593,158 @@ pub(crate) mod tests {
         assert!(
             text.contains("frobnicate")
                 && (text.contains("not found") || text.contains("not recognized"))
+        );
+    }
+
+    // -- test_navigate.py (sections, search, marks) and test_menu_bookmarks.py (b) --
+
+    fn sections_harness() -> Harness {
+        let d = tempfile::tempdir().unwrap();
+        let mut parts = vec![];
+        for c in 0..3 {
+            parts.push(format!("# Kısım {c}"));
+            parts.extend(
+                (0..4).map(|i| format!("chapter{c} para{i} {}", "lorem ipsum ".repeat(30))),
+            );
+        }
+        let p = d.path().join("parts.md");
+        std::fs::write(&p, parts.join("\n\n")).unwrap();
+        Harness::new(Some(p), cfg(), d, 80, 24)
+    }
+
+    #[test]
+    fn brackets_jump_between_sections() {
+        let mut h = sections_harness();
+        h.press(&["]"]);
+        assert_eq!(h.session().pos(), (1, 0));
+        h.press(&["]", "]"]);
+        assert_eq!(h.session().pos(), (2, 0)); // no section after the last
+        h.press(&["["]);
+        assert_eq!(h.session().pos(), (1, 0));
+        h.press(&["j", "j", "j"]);
+        assert_ne!((h.session().pos(), h.session().line_offset), ((1, 0), 0));
+        h.press(&["["]);
+        assert_eq!((h.session().pos(), h.session().line_offset), ((1, 0), 0));
+        h.press(&["["]);
+        assert_eq!(h.session().pos(), (0, 0));
+    }
+
+    #[test]
+    fn slash_searches_and_highlights() {
+        let mut h = Harness::sample(80, 24);
+        h.press(&["/"]);
+        assert!(h.app.search.is_some());
+        type_text(&mut h, "number 7");
+        assert!(h.screen().lines().last().unwrap().starts_with("/number 7"));
+        h.press(&["enter"]);
+        assert!(h.app.search.is_none());
+        assert_eq!(h.session().pos(), (0, 7));
+        let hits: Vec<String> = h
+            .visible()
+            .iter()
+            .flat_map(|l| l.segments.clone())
+            .filter(|(_, s)| s.split_whitespace().any(|t| t == "reverse"))
+            .map(|(t, _)| t)
+            .collect();
+        assert!(hits.contains(&"number 7".to_string()), "{hits:?}");
+    }
+
+    #[test]
+    fn f_and_shift_f_walk_matches_and_wrap() {
+        let mut h = Harness::sample(80, 24);
+        h.press(&["/"]);
+        type_text(&mut h, "LOREM");
+        h.press(&["enter"]);
+        assert_eq!(h.session().pos(), (0, 0));
+        h.press(&["f"]);
+        assert_eq!(h.session().pos(), (0, 1));
+        h.press(&["F", "F"]);
+        assert_eq!(h.session().pos(), (0, 9)); // wrapped to the end
+        assert!(h.status().contains("continuing"));
+    }
+
+    #[test]
+    fn missing_pattern_reports_and_stays() {
+        let mut h = Harness::sample(80, 24);
+        h.press(&["/"]);
+        type_text(&mut h, "zzz");
+        h.press(&["enter"]);
+        assert_eq!(h.session().pos(), (0, 0));
+        assert!(h.status().contains("Pattern not found"));
+    }
+
+    #[test]
+    fn escape_cancels_search_and_backtick_hides() {
+        let mut h = Harness::sample(80, 24);
+        h.press(&["/", "x", "escape"]);
+        assert!(h.app.search.is_none());
+        h.press(&["j"]);
+        assert!(h.session().line_offset == 1 || h.session().pos() != (0, 0));
+        h.press(&["/", "`"]);
+        assert!(h.app.panic && h.app.search.is_none());
+    }
+
+    #[test]
+    fn quote_keys_jump_between_marks() {
+        let mut h = Harness::sample(80, 24);
+        h.app.bookmarks = vec![[0, 6], [0, 2]];
+        h.press(&["'"]);
+        assert_eq!(h.session().pos(), (0, 2));
+        h.press(&["'"]);
+        assert_eq!(h.session().pos(), (0, 6));
+        h.press(&["'"]);
+        assert_eq!(h.session().pos(), (0, 2)); // wraps
+        h.press(&["\""]);
+        assert_eq!(h.session().pos(), (0, 6));
+    }
+
+    #[test]
+    fn quote_without_marks_says_so() {
+        let mut h = Harness::sample(80, 24);
+        h.press(&["'"]);
+        assert_eq!(h.session().pos(), (0, 0));
+        assert!(h.status().contains("cache"));
+    }
+
+    #[test]
+    fn bookmark_is_added_once_saved_and_flashed() {
+        let mut h = Harness::sample(100, 24);
+        h.press(&["space", "b", "b"]);
+        let pos = h.session().pos();
+        assert_eq!(h.app.bookmarks, vec![[pos.0, pos.1]]);
+        assert_eq!(h.status(), "cache saved");
+        let id = h.session().book.id.clone();
+        assert_eq!(
+            load_progress(&h.state_dir())[&id].bookmarks,
+            vec![[pos.0, pos.1]]
+        );
+        h.advance(FLASH + Duration::from_millis(1));
+        assert_ne!(h.status(), "cache saved");
+    }
+
+    #[test]
+    fn highlight_splits_only_text_segments() {
+        let line = Line::book(
+            vec![
+                ("  12 ".into(), "#858585".into()),
+                ("Alfa beta ALFA".into(), "book #d4d4d4".into()),
+            ],
+            (0, 0),
+        );
+        let out = highlight(&line, "alfa");
+        let texts: Vec<(&str, bool)> = out
+            .segments
+            .iter()
+            .map(|(t, s)| (t.as_str(), s.ends_with("reverse")))
+            .collect();
+        assert_eq!(
+            texts,
+            vec![
+                ("  12 ", false),
+                ("Alfa", true),
+                (" beta ", false),
+                ("ALFA", true)
+            ]
         );
     }
 
