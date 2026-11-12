@@ -17,14 +17,16 @@ use rand::SeedableRng;
 
 use super::feed::Feed;
 use super::input::{InputEvent, LineInput};
+use super::menu::{Menu, MenuResult, section_label};
 use super::shell::{shell_output, shell_prompt};
 use super::style::style;
 use crate::book::{Book, Pos, match_spans};
 use crate::errors::FccError;
-use crate::loaders::load_book;
+use crate::loaders::{load_book, supported_extensions};
 use crate::masks::base::{error_lines, plain_line};
 use crate::masks::time::civil;
-use crate::masks::{Line, Mask, Rng, get_mask, seeded};
+use crate::masks::{LANGS, Line, MASK_NAMES, Mask, Rng, get_mask, seeded};
+use crate::noise::MAX_NOISE;
 use crate::pace::{learn, line_delay, step_wpm, words_in};
 use crate::session::Session;
 use crate::state::{Config, Entry, last_entry, load_progress, save_config, save_progress};
@@ -41,6 +43,30 @@ const SAVED_MSG: &str = "cache saved";
 const NO_MARKS_MSG: &str = "cache empty";
 const NOT_FOUND_MSG: &str = "Pattern not found";
 const HIGHLIGHT: &str = "reverse";
+/// One per digit key.
+const LISTED_INPUTS: usize = 9;
+const PANEL_WIDTH: u16 = 38;
+const KEYS: &[(&str, &str)] = &[
+    ("space", "page down"),
+    ("u, pgup", "page up"),
+    ("j / k", "line down / up"),
+    ("] / [", "next / prev section"),
+    ("/", "find"),
+    ("f / F", "find next / prev"),
+    ("a", "auto scroll"),
+    ("+ / -", "reading rate"),
+    ("m / M", "next / prev view"),
+    ("l / L", "next / prev language"),
+    ("n / N", "more / less filler"),
+    ("o / O", "next / prev input"),
+    ("1-9", "open listed input"),
+    ("b", "mark this place"),
+    ("' / \"", "next / prev mark"),
+    (":", "config"),
+    ("`", "hide / unhide"),
+    ("esc", "this panel"),
+    ("q", "quit"),
+];
 
 /// The flash after a search wrapped around the end (forward) or the start (backward).
 fn wrap_msg(backward: bool) -> &'static str {
@@ -168,6 +194,10 @@ pub struct App {
     pub search: Option<LineInput>,
     /// The last search; its matches are highlighted.
     pub query: String,
+    /// The settings screen, while it is up.
+    pub menu: Option<Menu>,
+    /// The side panel with the keys and the folder's files.
+    pub panel: bool,
 }
 
 impl App {
@@ -219,6 +249,8 @@ impl App {
             shell: None,
             search: None,
             query: String::new(),
+            menu: None,
+            panel: false,
         };
         if let Some(e) = mask_error {
             app.notice.extend(error_lines(&e, app.width()));
@@ -381,6 +413,10 @@ impl App {
     }
 
     pub fn draw(&self, frame: &mut Frame) {
+        if let Some(menu) = &self.menu {
+            menu.draw(frame);
+            return;
+        }
         let [feed, status] =
             Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(frame.area());
         frame.render_widget(&self.feed, feed);
@@ -401,6 +437,102 @@ impl App {
                 status,
             );
         }
+        if self.panel {
+            self.draw_panel(frame);
+        }
+    }
+
+    fn draw_panel(&self, frame: &mut Frame) {
+        use ratatui::widgets::{Block, Borders, Clear, Padding};
+        let area = frame.area();
+        let width = PANEL_WIDTH.min(area.width);
+        let rect = ratatui::layout::Rect {
+            x: area.x + area.width - width,
+            y: area.y,
+            width,
+            height: area.height,
+        };
+        let block = Block::default()
+            .borders(Borders::LEFT)
+            .border_style(style("#3c3c3c"))
+            .padding(Padding::new(2, 2, 1, 1))
+            .style(style("#cccccc on #252526"));
+        frame.render_widget(Clear, rect);
+        frame.render_widget(Paragraph::new(self.panel_text()).block(block), rect);
+    }
+
+    /// The side panel's text: the keys, then the folder's openable files.
+    pub fn panel_text(&self) -> Vec<ratatui::text::Line<'static>> {
+        use ratatui::text::{Line as TLine, Span};
+        let (bold, key_style, text_style, dim) = (
+            style("bold #d4d4d4"),
+            style("#dcdcaa"),
+            style("#cccccc"),
+            style("#858585"),
+        );
+        let mut out = vec![TLine::styled("keys", bold)];
+        for (k, what) in KEYS {
+            out.push(TLine::from(vec![
+                Span::styled(format!("{k:<9}"), key_style),
+                Span::styled(*what, text_style),
+            ]));
+        }
+        let files = self.inputs();
+        if !files.is_empty() {
+            out.push(TLine::raw(""));
+            out.push(TLine::styled("inputs", bold));
+            let current = self.entry_path.as_deref().map(PathBuf::from);
+            for (n, f) in files.iter().take(LISTED_INPUTS).enumerate() {
+                let here = Some(f) == current.as_ref();
+                let name = f
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                let mark = if here {
+                    ">".to_string()
+                } else {
+                    (n + 1).to_string()
+                };
+                out.push(TLine::from(vec![
+                    Span::styled(format!("{mark} "), key_style),
+                    Span::styled(name, if here { bold } else { text_style }),
+                ]));
+            }
+            if files.len() > LISTED_INPUTS {
+                out.push(TLine::styled(
+                    format!("  +{} more (o / O)", files.len() - LISTED_INPUTS),
+                    dim,
+                ));
+            }
+        }
+        out
+    }
+
+    /// The openable files next to the current one, in name order.
+    pub fn inputs(&self) -> Vec<PathBuf> {
+        let Some(current) = self.entry_path.as_deref().map(PathBuf::from) else {
+            return vec![];
+        };
+        let known = supported_extensions();
+        let mut found: Vec<PathBuf> = current
+            .parent()
+            .and_then(|d| std::fs::read_dir(d).ok())
+            .map(|entries| {
+                entries
+                    .filter_map(|e| e.ok().map(|e| e.path()))
+                    .filter(|p| p.is_file() && known.contains(&crate::loaders::suffix(p).as_str()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        if !found.contains(&current) {
+            found.push(current);
+        }
+        found.sort_by_key(|f| {
+            f.file_name()
+                .map(|n| n.to_string_lossy().to_lowercase())
+                .unwrap_or_default()
+        });
+        found
     }
 
     /// The mask in use: the open session's, or the one kept for errors.
@@ -447,6 +579,14 @@ impl App {
             }
             return; // a shell takes every key: nothing here moves the text
         }
+        if let Some(menu) = self.menu.as_mut() {
+            let result = menu.handle(key);
+            if result != MenuResult::Stay {
+                self.menu = None;
+                self.on_menu_result(result);
+            }
+            return;
+        }
         if let Some(field) = self.search.as_mut() {
             match field.handle(key) {
                 InputEvent::Submit(query) => {
@@ -478,6 +618,17 @@ impl App {
             KeyCode::Char('f') => self.find_next(false),
             KeyCode::Char('F') => self.find_next(true),
             KeyCode::Char('b') => self.bookmark(),
+            KeyCode::Char('m') => self.cycle_mask(1),
+            KeyCode::Char('M') => self.cycle_mask(-1),
+            KeyCode::Char('l') => self.cycle_lang(1),
+            KeyCode::Char('L') => self.cycle_lang(-1),
+            KeyCode::Char('n') => self.change_noise(1),
+            KeyCode::Char('N') => self.change_noise(-1),
+            KeyCode::Char('o') => self.cycle_input(1),
+            KeyCode::Char('O') => self.cycle_input(-1),
+            KeyCode::Char(c @ '1'..='9') => self.open_listed(c as usize - '0' as usize),
+            KeyCode::Esc if !self.panic => self.panel = !self.panel,
+            KeyCode::Char(':') => self.open_menu(),
             KeyCode::Char('\'') => self.jump_mark(true),
             KeyCode::Char('"') => self.jump_mark(false),
             _ => {}
@@ -533,6 +684,8 @@ impl App {
         self.queue.clear();
         self.view_key = None; // time spent hidden is not reading time
         self.search = None;
+        self.menu = None;
+        self.panel = false;
         let shell = self.config.hide == "shell";
         if self.panic {
             self.feed.set_bottom_anchored(true);
@@ -618,7 +771,185 @@ impl App {
 
     fn open_search(&mut self) {
         if self.session.is_some() && !self.panic {
+            self.panel = false;
             self.search = Some(LineInput::default());
+        }
+    }
+
+    // -- views, filler, files and the menu ---------------------------------------
+
+    /// Switch the disguise in place, staying on the current paragraph.
+    fn use_mask(&mut self, name: &str, lang: &str) {
+        let Ok(mask) = get_mask(name, lang) else {
+            return;
+        };
+        if let Some(s) = self.session.as_mut() {
+            s.set_mask(mask);
+            let pos = s.pos();
+            s.set_pos(pos); // new layout: restart at the paragraph's top
+        } else {
+            self.spare_mask = Some(mask);
+        }
+        self.config.mask = name.to_string();
+        self.config.lang = lang.to_string();
+        self.persist_config();
+        self.redraw();
+    }
+
+    fn current_mask_name(&self) -> String {
+        match &self.session {
+            Some(s) => s.mask().name().to_string(),
+            None => self
+                .spare_mask
+                .as_ref()
+                .map(|m| m.name().to_string())
+                .unwrap_or_else(|| self.config.mask.clone()),
+        }
+    }
+
+    fn cycle_mask(&mut self, step: isize) {
+        let name = self.current_mask_name();
+        let i = MASK_NAMES
+            .iter()
+            .position(|n| *n == name)
+            .map(|i| i as isize)
+            .unwrap_or(-1);
+        let next = MASK_NAMES[(i + step).rem_euclid(MASK_NAMES.len() as isize) as usize];
+        let lang = self.config.lang.clone();
+        self.use_mask(next, &lang);
+    }
+
+    /// Next source language; only the code mask has one, so this also returns to it.
+    fn cycle_lang(&mut self, step: isize) {
+        let i = LANGS
+            .iter()
+            .position(|l| *l == self.config.lang)
+            .map(|i| i as isize)
+            .unwrap_or(-1);
+        let next = LANGS[(i + step).rem_euclid(LANGS.len() as isize) as usize];
+        self.use_mask("code", next);
+    }
+
+    fn change_noise(&mut self, delta: i32) {
+        let level = (self.config.noise as i32 + delta).clamp(0, MAX_NOISE as i32) as u8;
+        self.config.noise = level;
+        if let Some(s) = self.session.as_mut() {
+            s.set_noise(level);
+        }
+        self.persist_config();
+        self.redraw();
+    }
+
+    fn cycle_input(&mut self, step: isize) {
+        let files = self.inputs();
+        if self.panic || files.len() < 2 {
+            return;
+        }
+        let current = self.entry_path.as_deref().map(PathBuf::from);
+        let i = files
+            .iter()
+            .position(|f| Some(f) == current.as_ref())
+            .unwrap_or(0) as isize;
+        let next = files[(i + step).rem_euclid(files.len() as isize) as usize].clone();
+        self.open_from_menu(&next);
+    }
+
+    fn open_listed(&mut self, n: usize) {
+        let files = self.inputs();
+        if self.panic || !self.panel || n > files.len().min(LISTED_INPUTS) {
+            return;
+        }
+        let target = files[n - 1].clone();
+        if Some(target.to_string_lossy().as_ref()) != self.entry_path.as_deref() {
+            self.open_from_menu(&target);
+        }
+    }
+
+    /// Open another file, keeping this one's place saved first.
+    fn open_from_menu(&mut self, path: &Path) {
+        self.try_save();
+        match self.load(path) {
+            Err(e) => self.notice = error_lines(&e, self.width()),
+            Ok(()) => {
+                self.notice.clear();
+                self.queue.clear();
+            }
+        }
+        self.redraw();
+        self.restart_timer();
+    }
+
+    fn open_menu(&mut self) {
+        if self.panic {
+            return;
+        }
+        let (marks, sections) = match &self.session {
+            Some(s) => (
+                self.bookmarks
+                    .iter()
+                    .map(|m| (m[0], m[1]))
+                    .filter(|p| valid_pos(&s.book, *p) == *p)
+                    .map(|p| (format!("L{}", s.book.index_of(p) + 1), p))
+                    .collect(),
+                s.book
+                    .chapter_list()
+                    .into_iter()
+                    .enumerate()
+                    .map(|(n, (ci, title))| (section_label(n + 1, title), (ci, 0)))
+                    .collect(),
+            ),
+            None => (vec![], vec![]),
+        };
+        let mask = self.current_mask_name();
+        self.menu = Some(Menu::new(
+            &mask,
+            &self.config.lang,
+            self.config.wpm,
+            self.config.noise,
+            &self.config.hide,
+            marks,
+            sections,
+        ));
+    }
+
+    fn on_menu_result(&mut self, result: MenuResult) {
+        match result {
+            MenuResult::Stay | MenuResult::Close => {}
+            MenuResult::Panic => {
+                if !self.panic {
+                    self.toggle_panic();
+                }
+            }
+            MenuResult::Apply {
+                mask,
+                lang,
+                wpm,
+                noise,
+                hide,
+            } => {
+                self.config.noise = noise;
+                self.config.wpm = wpm;
+                self.config.hide = hide;
+                if let Some(s) = self.session.as_mut() {
+                    s.set_noise(noise);
+                }
+                self.use_mask(&mask, &lang); // saves the config and redraws
+                self.restart_timer();
+            }
+            MenuResult::Open(p) => {
+                let path = PathBuf::from(p);
+                let path = match (path.strip_prefix("~"), std::env::var_os("HOME")) {
+                    (Ok(rest), Some(home)) => PathBuf::from(home).join(rest),
+                    _ => path,
+                };
+                self.open_from_menu(&path);
+            }
+            MenuResult::Jump(pos) => {
+                if let Some(s) = self.session.as_ref() {
+                    let pos = valid_pos(&s.book, pos);
+                    self.go(pos);
+                }
+            }
         }
     }
 
@@ -1746,6 +2077,293 @@ pub(crate) mod tests {
                 ("ALFA", true)
             ]
         );
+    }
+
+    // -- test_app_switch.py, test_help_and_inputs.py, test_menu_bookmarks.py --
+
+    #[test]
+    fn m_and_shift_m_cycle_views_keeping_the_place() {
+        let mut h = Harness::sample(100, 24);
+        h.press(&["space"]);
+        let pos = h.session().pos();
+        let mut seen = vec![h.session().mask().name().to_string()];
+        for _ in 0..MASK_NAMES.len() {
+            h.press(&["m"]);
+            seen.push(h.session().mask().name().to_string());
+            assert_eq!(h.session().pos(), pos);
+            assert!(h.visible().iter().any(|l| l.pos == Some(pos)));
+            assert_eq!(
+                crate::state::load_config(&h.state_dir()).mask,
+                *seen.last().unwrap()
+            );
+        }
+        assert_eq!(
+            seen,
+            [
+                "code", "log", "diff", "test", "build", "git", "docker", "agent", "code"
+            ]
+        );
+        h.press(&["M"]);
+        assert_eq!(h.session().mask().name(), "agent");
+    }
+
+    #[test]
+    fn l_cycles_languages_and_returns_to_code() {
+        let mut h = Harness::sample(100, 24);
+        h.press(&["m", "l"]);
+        assert_eq!(
+            (h.session().mask().name(), h.app.config.lang.as_str()),
+            ("code", "typescript")
+        );
+        h.press(&["L", "L"]);
+        assert_eq!(h.app.config.lang, "csharp");
+        assert_eq!(crate::state::load_config(&h.state_dir()).lang, "csharp");
+    }
+
+    #[test]
+    fn n_and_shift_n_change_filler_within_bounds() {
+        let mut h = Harness::sample(100, 24);
+        h.press(&["n", "n"]);
+        assert_eq!((h.app.config.noise, h.session().noise()), (2, 2));
+        h.press(&["n"; 9]);
+        assert_eq!(h.app.config.noise, 5);
+        h.press(&["N"; 9]);
+        assert_eq!(h.app.config.noise, 0);
+        assert_eq!(crate::state::load_config(&h.state_dir()).noise, 0);
+    }
+
+    fn shelf() -> Harness {
+        let d = tempfile::tempdir().unwrap();
+        let folder = d.path().join("shelf");
+        std::fs::create_dir(&folder).unwrap();
+        for name in ["alpha", "beta", "gamma"] {
+            let paras: Vec<String> = (0..10)
+                .map(|i| {
+                    format!(
+                        "{name} paragraph {i} {}",
+                        "lorem ipsum dolor sit amet ".repeat(8)
+                    )
+                })
+                .collect();
+            std::fs::write(folder.join(format!("{name}.txt")), paras.join("\n\n")).unwrap();
+        }
+        std::fs::write(folder.join("cover.jpg"), b"\xff\xd8\xff").unwrap();
+        std::fs::create_dir(folder.join("notes")).unwrap();
+        Harness::new(Some(folder.join("beta.txt")), cfg(), d, 100, 30)
+    }
+
+    fn panel(h: &Harness) -> String {
+        h.app
+            .panel_text()
+            .iter()
+            .map(|l| {
+                l.spans
+                    .iter()
+                    .map(|s| s.content.as_ref())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    #[test]
+    fn escape_toggles_a_side_panel_with_keys_and_files() {
+        let mut h = shelf();
+        h.press(&["escape"]);
+        assert!(h.app.panel);
+        let text = panel(&h);
+        assert!(text.contains("page down") && text.contains("hide / unhide"));
+        assert!(
+            text.contains("alpha.txt") && text.contains("> beta.txt") && text.contains("gamma.txt")
+        );
+        assert!(!text.contains("cover.jpg") && !text.contains("notes"));
+        assert!(h.screen().contains("page down")); // drawn over the text
+        h.press(&["escape"]);
+        assert!(!h.app.panel);
+    }
+
+    #[test]
+    fn backtick_hides_the_panel_too_and_escape_does_not_undo_it() {
+        let mut h = shelf();
+        h.press(&["escape", "`"]);
+        assert!(h.app.panic && !h.app.panel);
+        h.press(&["escape"]);
+        assert!(h.app.panic && !h.app.panel);
+    }
+
+    #[test]
+    fn o_and_shift_o_walk_the_folder_and_keep_each_place() {
+        let mut h = shelf();
+        h.press(&["space"]);
+        let beta_pos = h.session().pos();
+        h.press(&["o"]);
+        assert!(
+            h.session()
+                .book
+                .paragraph((0, 0))
+                .unwrap()
+                .text
+                .starts_with("gamma")
+        );
+        h.press(&["o"]);
+        assert!(
+            h.session()
+                .book
+                .paragraph((0, 0))
+                .unwrap()
+                .text
+                .starts_with("alpha")
+        );
+        h.press(&["O", "O"]);
+        assert!(
+            h.session()
+                .book
+                .paragraph((0, 0))
+                .unwrap()
+                .text
+                .starts_with("beta")
+        );
+        assert_eq!(h.session().pos(), beta_pos);
+        assert_eq!(load_progress(&h.state_dir()).len(), 3);
+    }
+
+    #[test]
+    fn digits_open_a_listed_file_only_while_the_panel_is_open() {
+        let mut h = shelf();
+        h.press(&["1"]);
+        assert!(
+            h.session()
+                .book
+                .paragraph((0, 0))
+                .unwrap()
+                .text
+                .starts_with("beta")
+        );
+        h.press(&["escape", "1"]);
+        assert!(
+            h.session()
+                .book
+                .paragraph((0, 0))
+                .unwrap()
+                .text
+                .starts_with("alpha")
+        );
+        assert!(panel(&h).contains("> alpha.txt"));
+    }
+
+    #[test]
+    fn switching_files_is_ignored_while_hidden() {
+        let mut h = shelf();
+        h.press(&["`", "o"]);
+        h.press(&["`"]);
+        assert!(
+            h.session()
+                .book
+                .paragraph((0, 0))
+                .unwrap()
+                .text
+                .starts_with("beta")
+        );
+    }
+
+    #[test]
+    fn menu_changes_settings_and_saves_them() {
+        let mut h = Harness::sample(100, 30);
+        h.press(&[":"]);
+        assert!(h.app.menu.is_some());
+        let screen = h.screen().to_lowercase();
+        assert!(screen.contains("fcc config") && screen.contains("target: < code >"));
+        for w in ["book", "reader", "okuyucu"] {
+            assert!(!screen.contains(w));
+        }
+        for name in ["target", "lang", "rate", "verbosity", "on hide"] {
+            h.app.menu.as_mut().unwrap().focus(name);
+            h.press(&["right"]);
+        }
+        h.press(&["enter"]);
+        assert!(h.app.menu.is_none());
+        assert_eq!(h.session().mask().name(), "log");
+        assert_eq!(h.session().noise(), 1);
+        let saved = crate::state::load_config(&h.state_dir());
+        assert_eq!(
+            (
+                saved.mask.as_str(),
+                saved.lang.as_str(),
+                saved.noise,
+                saved.wpm,
+                saved.hide.as_str()
+            ),
+            ("log", "typescript", 1, 240, "shell")
+        );
+    }
+
+    #[test]
+    fn menu_lists_sections_and_jumps_to_one() {
+        let mut h = sections_harness();
+        h.press(&[":"]);
+        let menu = h.app.menu.as_mut().unwrap();
+        assert_eq!(menu.sections().len(), 3);
+        assert!(menu.sections()[2].0.contains("Kısım 2"));
+        menu.focus("sections");
+        h.press(&["down", "down", "enter"]);
+        assert!(h.app.menu.is_none());
+        assert_eq!(h.session().pos(), (2, 0));
+    }
+
+    #[test]
+    fn menu_escape_closes_backtick_hides_and_marks_jump() {
+        let mut h = Harness::sample(100, 30);
+        h.press(&["space", "space", "b", "u", "u"]);
+        let mark = h.app.bookmarks[0];
+        h.press(&[":"]);
+        h.app.menu.as_mut().unwrap().focus("marks");
+        h.press(&["enter"]);
+        assert_eq!(h.session().pos(), (mark[0], mark[1]));
+        h.press(&[":", "escape"]);
+        assert!(h.app.menu.is_none() && !h.app.panic);
+        h.press(&[":", "`"]);
+        assert!(h.app.menu.is_none() && h.app.panic);
+    }
+
+    #[test]
+    fn menu_path_opens_a_file_and_a_bad_one_hides_its_name() {
+        let mut h = shelf();
+        let alpha = h.dir.join("shelf").join("alpha.txt");
+        h.press(&[":"]);
+        type_text(&mut h, alpha.to_str().unwrap());
+        h.press(&["enter"]);
+        assert!(
+            h.session()
+                .book
+                .paragraph((0, 0))
+                .unwrap()
+                .text
+                .starts_with("alpha")
+        );
+        let missing = h.dir.join("Suç ve Ceza.epub");
+        h.press(&[":"]);
+        type_text(&mut h, missing.to_str().unwrap());
+        h.press(&["enter"]);
+        let text = h
+            .visible()
+            .iter()
+            .map(Line::plain)
+            .collect::<Vec<_>>()
+            .join("\n")
+            .to_lowercase()
+            + &h.status();
+        assert!(text.contains("error:"));
+        for part in ["suç", "suc", "ceza", "epub"] {
+            assert!(!text.contains(part), "{part}");
+        }
+        assert!(
+            h.session()
+                .book
+                .paragraph((0, 0))
+                .unwrap()
+                .text
+                .starts_with("alpha")
+        ); // still open
     }
 
     // -- test_no_filename_on_screen.py --
