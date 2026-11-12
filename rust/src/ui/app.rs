@@ -4,6 +4,7 @@
 //! and `resize`; `draw` paints the current state. Time is always passed in, so
 //! tests can drive the app without a terminal and without waiting.
 
+use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -20,8 +21,9 @@ use crate::loaders::load_book;
 use crate::masks::base::{error_lines, plain_line};
 use crate::masks::time::civil;
 use crate::masks::{Line, Mask, get_mask, seeded};
+use crate::pace::{learn, line_delay, step_wpm, words_in};
 use crate::session::Session;
-use crate::state::{Config, Entry, last_entry, load_progress, save_progress};
+use crate::state::{Config, Entry, last_entry, load_progress, save_config, save_progress};
 
 pub const MIN_WIDTH: usize = 40;
 pub const AUTOSAVE: Duration = Duration::from_secs(10);
@@ -88,6 +90,21 @@ pub struct App {
     next_autosave: Instant,
     save_error_shown: bool,
     quit: bool,
+    /// The time of the event being handled.
+    now: Instant,
+    /// Auto mode: lines of the paragraph being streamed, not yet shown.
+    queue: VecDeque<Line>,
+    /// Words of the newest text on screen, still to be read.
+    last_words: usize,
+    /// When the stream shows its next line.
+    next_tick: Option<Instant>,
+    /// Reading pace: which manual screen is up, since when, and the text lines seen on it.
+    view_key: Option<(String, Pos, usize)>,
+    view_since: Instant,
+    view_seen: HashMap<(Option<Pos>, String), usize>,
+    pub view_words: usize,
+    /// The next redraw only scrolled by a line: keep timing the screen.
+    line_step: bool,
 }
 
 impl App {
@@ -120,6 +137,15 @@ impl App {
             next_autosave: now + AUTOSAVE,
             save_error_shown: false,
             quit: false,
+            now,
+            queue: VecDeque::new(),
+            last_words: 0,
+            next_tick: None,
+            view_key: None,
+            view_since: now,
+            view_seen: HashMap::new(),
+            view_words: 0,
+            line_step: false,
         };
         if let Some(e) = mask_error {
             app.notice.extend(error_lines(&e, app.width()));
@@ -127,7 +153,11 @@ impl App {
         if let Err(e) = app.open() {
             app.notice.extend(error_lines(&e, app.width()));
         }
+        if app.config.auto && app.session.is_some() {
+            app.auto = true;
+        }
         app.redraw();
+        app.restart_timer();
         app
     }
 
@@ -201,6 +231,7 @@ impl App {
             return;
         }
         self.feed.set_bottom_anchored(self.auto);
+        self.queue.clear();
         let width = self.width();
         let mut lines = vec![];
         if width < MIN_WIDTH {
@@ -211,6 +242,7 @@ impl App {
         }
         lines.extend(self.notice.iter().cloned());
         let view = self.view_height();
+        let mut watched = None;
         if let Some(s) = self.session.as_mut() {
             let at_top = s.book.index_of(s.pos()) == 0 && (self.auto || s.line_offset == 0);
             if at_top {
@@ -218,16 +250,48 @@ impl App {
                 lines.extend(s.mask_mut().header(&mut seeded(&id), width));
             }
             if self.auto {
-                lines.extend(s.paragraph_lines(s.pos()));
+                let para = s.paragraph_lines(s.pos());
+                self.last_words = words_in(&para);
+                lines.extend(para);
             } else {
                 let rows = view.saturating_sub(lines.len());
                 let text = s.window(rows + 1);
                 self.more_below = text.len() > rows;
                 self.page_rows = rows.min(text.len());
-                lines.extend(text.into_iter().take(rows));
+                let shown: Vec<Line> = text.into_iter().take(rows).collect();
+                watched = Some(((s.book.id.clone(), s.pos(), s.line_offset), shown.clone()));
+                lines.extend(shown);
             }
         }
+        if let Some((key, shown)) = watched {
+            self.watch_view(key, &shown);
+        }
         self.feed.set_lines(lines);
+    }
+
+    /// Time a manual screen from when it first shows.
+    ///
+    /// Scrolling by a line keeps the clock running and adds the lines it brings
+    /// in, so a page turn afterwards still divides everything read by the time
+    /// it really took.
+    fn watch_view(&mut self, key: (String, Pos, usize), shown: &[Line]) {
+        let step = std::mem::take(&mut self.line_step);
+        if self.view_key.as_ref() == Some(&key) {
+            return;
+        }
+        let seen: HashMap<(Option<Pos>, String), usize> = shown
+            .iter()
+            .filter(|l| l.is_book)
+            .map(|l| ((l.pos, l.plain()), words_in(std::slice::from_ref(l))))
+            .collect();
+        if step && self.view_key.is_some() {
+            self.view_seen.extend(seen);
+        } else {
+            self.view_since = self.now;
+            self.view_seen = seen;
+        }
+        self.view_key = Some(key);
+        self.view_words = self.view_seen.values().sum();
     }
 
     pub fn status_text(&self) -> String {
@@ -270,17 +334,26 @@ impl App {
     // -- keys ----------------------------------------------------------------
 
     pub fn handle_key(&mut self, key: KeyEvent, now: Instant) {
+        self.now = now;
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
         match key.code {
             KeyCode::Char('q') if ctrl => self.quit_and_save(),
             KeyCode::Char('q') => self.quit_and_save(),
             KeyCode::Char(' ') | KeyCode::PageDown => self.page(),
             KeyCode::Char('u') | KeyCode::PageUp => self.page_back(),
-            KeyCode::Char('j') | KeyCode::Down => self.scroll(1),
-            KeyCode::Char('k') | KeyCode::Up => self.scroll(-1),
+            KeyCode::Char('j') | KeyCode::Down => self.step(1),
+            KeyCode::Char('k') | KeyCode::Up => self.step(-1),
+            KeyCode::Char('a') => self.toggle_auto(),
+            KeyCode::Char('+') => self.set_wpm(step_wpm(self.config.wpm, 1)),
+            KeyCode::Char('-') => self.set_wpm(step_wpm(self.config.wpm, -1)),
             _ => {}
         }
-        let _ = now;
+    }
+
+    fn step(&mut self, n: isize) {
+        self.line_step = true;
+        self.scroll(n);
+        self.line_step = false; // in case nothing was redrawn
     }
 
     /// Move the manual view by `n` rendered lines; never past the last screen.
@@ -303,7 +376,43 @@ impl App {
 
     /// The next screen starts at the first line this one did not show.
     fn page(&mut self) {
+        if self.session.is_some() && !self.auto && !self.panic && self.more_below {
+            // paging on means the screen was read: let it tune the reading rate
+            let read = self
+                .now
+                .saturating_duration_since(self.view_since)
+                .as_secs_f64();
+            if let Some(rate) = learn(self.config.wpm, self.view_words, read)
+                && rate != self.config.wpm
+            {
+                self.config.wpm = rate;
+                self.persist_config();
+            }
+        }
         self.scroll(self.page_rows as isize);
+    }
+
+    fn toggle_auto(&mut self) {
+        if self.session.is_none() || self.panic {
+            return;
+        }
+        self.auto = !self.auto;
+        self.notice.clear();
+        self.redraw();
+        self.restart_timer();
+    }
+
+    fn set_wpm(&mut self, wpm: u32) {
+        self.config.wpm = wpm;
+        self.persist_config();
+        if !self.panic {
+            self.flash(&format!("throttle {wpm}/min"), self.now);
+        }
+        self.restart_timer();
+    }
+
+    fn persist_config(&self) {
+        let _ = save_config(&self.state_dir, &self.config); // best effort: the choice still applies now
     }
 
     /// The screen that ends just above this one (or the first screen).
@@ -330,6 +439,9 @@ impl App {
     /// The next moment `on_time` has something to do.
     pub fn next_deadline(&self) -> Instant {
         let mut at = self.next_autosave;
+        if let Some(t) = self.next_tick {
+            at = at.min(t);
+        }
         if let Some((_, until)) = &self.flash {
             at = at.min(*until);
         }
@@ -337,6 +449,10 @@ impl App {
     }
 
     pub fn on_time(&mut self, now: Instant) {
+        self.now = now;
+        if self.next_tick.is_some_and(|t| now >= t) {
+            self.timer_fired();
+        }
         if let Some((_, until)) = &self.flash
             && now >= *until
         {
@@ -346,6 +462,71 @@ impl App {
             self.try_save();
             self.next_autosave = now + AUTOSAVE;
         }
+    }
+
+    fn stop_timer(&mut self) {
+        self.next_tick = None;
+    }
+
+    fn restart_timer(&mut self) {
+        self.stop_timer();
+        if self.auto && self.session.is_some() && !self.panic {
+            // the text already on screen gets its reading time before the next line
+            self.next_tick = Some(
+                self.now + Duration::from_secs_f64(line_delay(self.last_words, self.config.wpm)),
+            );
+        }
+    }
+
+    fn timer_fired(&mut self) {
+        self.next_tick = None;
+        self.tick();
+        if self.auto && !self.panic && self.next_tick.is_none() {
+            self.next_tick = Some(
+                self.now + Duration::from_secs_f64(line_delay(self.last_words, self.config.wpm)),
+            );
+        }
+    }
+
+    /// One stream step: the next line of text, with the filler before it.
+    pub fn tick(&mut self) {
+        if !self.auto {
+            return;
+        }
+        let Some(s) = self.session.as_mut() else {
+            return;
+        };
+        let mut out = vec![];
+        let mut finished = false;
+        loop {
+            if self.queue.is_empty() {
+                if !s.advance(1) {
+                    finished = true;
+                    break;
+                }
+                self.queue = s.paragraph_lines(s.pos()).into();
+            }
+            let line = self.queue.pop_front().expect("refilled above");
+            let is_book = line.is_book;
+            out.push(line);
+            if is_book {
+                break;
+            }
+        }
+        self.last_words = words_in(&out);
+        if !out.is_empty() {
+            self.feed.append(out);
+        }
+        if finished {
+            // end of text: back to manual mode so the paging keys work again
+            self.stop_timer();
+            self.auto = false;
+            self.redraw();
+        }
+    }
+
+    pub fn timer_due(&self) -> Option<Instant> {
+        self.next_tick
     }
 
     pub fn flash(&mut self, msg: &str, now: Instant) {
@@ -720,6 +901,176 @@ pub(crate) mod tests {
         assert!(load_progress(&h.state_dir()).is_empty());
         h.advance(Duration::from_secs(11));
         assert_eq!(load_progress(&h.state_dir()).len(), 1);
+    }
+
+    // -- test_app_auto_panic.py (auto) and test_app_hardening.py --
+
+    fn sample_with(n: usize, config: Config, cols: u16, rows: u16) -> Harness {
+        let d = tempfile::tempdir().unwrap();
+        let p = make_txt(d.path(), n);
+        Harness::new(Some(p), config, d, cols, rows)
+    }
+
+    fn noisy() -> Config {
+        Config { noise: 3, ..cfg() }
+    }
+
+    fn book_count(h: &Harness) -> usize {
+        h.app
+            .feed
+            .history_lines()
+            .iter()
+            .filter(|l| l.is_book)
+            .count()
+    }
+
+    #[test]
+    fn auto_tick_appends_one_book_line_plus_filler() {
+        let mut h = sample_with(10, noisy(), 80, 24);
+        h.press(&["a"]);
+        assert!(h.app.auto);
+        for _ in 0..6 {
+            let (books, all) = (book_count(&h), h.app.feed.history_lines().len());
+            h.app.tick();
+            assert_eq!(book_count(&h), books + 1);
+            assert!(h.app.feed.history_lines().len() > all);
+        }
+    }
+
+    #[test]
+    fn auto_is_bottom_anchored_and_capped() {
+        let mut h = sample_with(400, noisy(), 80, 24);
+        h.press(&["a"]);
+        for _ in 0..40 {
+            h.app.tick();
+        }
+        let hist = h.app.feed.history_lines().to_vec();
+        assert_eq!(h.visible(), hist[hist.len() - h.visible().len()..].to_vec());
+        for _ in 0..1500 {
+            h.app.tick();
+        }
+        assert_eq!(h.app.feed.history_lines().len(), crate::ui::feed::MAX_LINES);
+    }
+
+    #[test]
+    fn wpm_is_clamped_stepped_shown_and_saved() {
+        let mut h = sample_with(10, Config { wpm: 200, ..cfg() }, 80, 24);
+        h.press(&["+"]);
+        assert_eq!(h.app.config.wpm, 220);
+        assert!(h.status().contains("220/min"));
+        h.press(&["-"]);
+        assert_eq!(h.app.config.wpm, 200);
+        assert_eq!(crate::state::load_config(&h.state_dir()).wpm, 200);
+        h.press(&["+"; 60]);
+        assert_eq!(h.app.config.wpm, 1500);
+        h.press(&["-"; 80]);
+        assert_eq!(h.app.config.wpm, 60);
+        h.advance(FLASH + Duration::from_millis(1));
+        assert!(!h.status().contains("/min"));
+    }
+
+    #[test]
+    fn config_auto_and_wpm_apply_at_startup() {
+        let h = sample_with(
+            10,
+            Config {
+                auto: true,
+                wpm: 400,
+                ..cfg()
+            },
+            80,
+            24,
+        );
+        assert!(h.app.auto);
+        assert_eq!(h.app.config.wpm, 400);
+        assert!(h.app.timer_due().is_some());
+    }
+
+    #[test]
+    fn auto_reaches_the_end_stops_and_manual_keys_work_again() {
+        let mut h = sample_with(3, cfg(), 80, 24);
+        h.press(&["a"]);
+        for _ in 0..200 {
+            h.app.tick();
+        }
+        assert_eq!(h.session().progress(), (3, 3));
+        assert_eq!(h.session().pos(), (0, 2));
+        assert!(!h.app.auto && h.app.timer_due().is_none());
+        let n = h.app.feed.history_lines().len();
+        h.app.tick();
+        assert_eq!(h.app.feed.history_lines().len(), n);
+        let top = h.visible()[0].clone();
+        h.press(&["k"]);
+        assert_ne!(h.visible()[0], top);
+    }
+
+    // -- test_pacing.py --
+
+    fn paced(wpm: u32) -> Harness {
+        sample_with(
+            30,
+            Config {
+                mask: "log".into(),
+                wpm,
+                ..cfg()
+            },
+            80,
+            24,
+        )
+    }
+
+    #[test]
+    fn auto_waits_by_the_words_on_screen_then_by_each_line() {
+        let mut h = paced(300);
+        h.press(&["a"]);
+        let first = words_in(&h.session().paragraph_lines((0, 0)));
+        let due = h.app.timer_due().unwrap();
+        assert_eq!(due, h.now + Duration::from_secs_f64(line_delay(first, 300)));
+        let before = h.app.feed.history_lines().len();
+        h.now = due;
+        h.app.on_time(due);
+        let new = h.app.feed.history_lines()[before..].to_vec();
+        assert!(words_in(&new) > 0);
+        assert_eq!(
+            h.app.timer_due().unwrap(),
+            due + Duration::from_secs_f64(line_delay(words_in(&new), 300))
+        );
+    }
+
+    #[test]
+    fn paging_learns_the_reading_rate() {
+        let mut h = paced(200);
+        let words = h.app.view_words;
+        assert!(words > 20);
+        h.now += Duration::from_secs(20);
+        h.press(&["space"]);
+        let want = learn(200, words, 20.0).unwrap();
+        assert!(want != 200 && h.app.config.wpm == want);
+        assert_eq!(crate::state::load_config(&h.state_dir()).wpm, want);
+    }
+
+    #[test]
+    fn quick_paging_and_line_scrolling_do_not_learn() {
+        let mut h = paced(200);
+        h.now += Duration::from_millis(500);
+        h.press(&["space"]); // skimmed
+        h.now += Duration::from_secs(30);
+        h.press(&["j", "j"]);
+        assert_eq!(h.app.config.wpm, 200);
+    }
+
+    #[test]
+    fn line_scrolling_keeps_the_clock_and_counts_the_new_lines() {
+        // a screen read for 20 s, a line scrolled, then paged 3 s later: 23 s of reading
+        let mut h = paced(200);
+        let before = h.app.view_words;
+        h.now += Duration::from_secs(20);
+        h.press(&["j", "j"]);
+        h.now += Duration::from_secs(3);
+        let read = h.app.view_words;
+        assert!(read >= before);
+        h.press(&["space"]);
+        assert_eq!(h.app.config.wpm, learn(200, read, 23.0).unwrap());
     }
 
     // -- test_no_filename_on_screen.py --
