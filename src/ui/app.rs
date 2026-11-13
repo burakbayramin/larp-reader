@@ -32,6 +32,7 @@ use crate::noise::MAX_NOISE;
 use crate::pace::{learn, line_delay, step_wpm, words_in};
 use crate::session::Session;
 use crate::state::{Config, Entry, last_entry, load_progress, save_config, save_progress};
+use crate::text::truncate_cells;
 
 pub const MIN_WIDTH: usize = 40;
 pub const AUTOSAVE: Duration = Duration::from_secs(10);
@@ -360,10 +361,7 @@ impl App {
         let width = self.width();
         let mut lines = vec![];
         if width < MIN_WIDTH {
-            lines.push(plain_line(
-                WARNING.chars().take(width).collect::<String>(),
-                "#d29922",
-            ));
+            lines.push(plain_line(truncate_cells(WARNING, width), "#d29922"));
         }
         lines.extend(self.notice.iter().cloned());
         let view = self.view_height();
@@ -1526,7 +1524,11 @@ pub(crate) mod tests {
         assert_eq!(h.session().width(), 50);
         let lines = h.visible();
         assert!(!lines.is_empty());
-        assert!(lines.iter().all(|l| l.plain().chars().count() <= 50));
+        assert!(
+            lines
+                .iter()
+                .all(|l| unicode_width::UnicodeWidthStr::width(l.plain().as_str()) <= 50)
+        );
         assert!(lines.iter().any(|l| l.pos == Some(pos)));
     }
 
@@ -1541,7 +1543,11 @@ pub(crate) mod tests {
                 .count(),
             1
         );
-        assert!(lines.iter().all(|l| l.plain().chars().count() <= 38));
+        assert!(
+            lines
+                .iter()
+                .all(|l| unicode_width::UnicodeWidthStr::width(l.plain().as_str()) <= 38)
+        );
         assert!(
             !Harness::sample(80, 24)
                 .visible()

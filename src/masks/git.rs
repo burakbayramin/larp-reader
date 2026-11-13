@@ -7,7 +7,7 @@ use super::palette::{DIM, FG, GREEN, RED, YELLOW};
 use super::time::{EPOCH_DAY, civil, month, weekday};
 use super::{Mask, Rng, pick, randint};
 use crate::book::{Paragraph, Pos};
-use crate::text::ragged;
+use crate::text::{pad_cells, ragged};
 
 /// 2026-11-11 18:00, in minutes since 1970: history counts back from here.
 const EPOCH_MIN: i64 = EPOCH_DAY * 1440 + 18 * 60;
@@ -65,7 +65,7 @@ fn stat(rng: &mut Rng, width: usize) -> Line {
     }
     let name = format!(" {path}");
     let name = if width >= 60 {
-        format!("{:<STAT_WIDTH$.STAT_WIDTH$}", name)
+        pad_cells(&name, STAT_WIDTH)
     } else {
         name
     };

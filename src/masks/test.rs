@@ -5,6 +5,7 @@ use super::palette::{DIM, FG, GREEN, RED};
 use super::{Mask, Rng, pick, randint};
 use crate::book::{Paragraph, Pos};
 use crate::text::ragged;
+use unicode_width::UnicodeWidthStr;
 
 const FILES: &[&str] = &[
     "parser", "session", "render", "config", "index", "format", "cache",
@@ -20,7 +21,7 @@ const CASES: &[&str] = &[
 
 /// Python's `str.center(width, fill)`: the odd pad goes where CPython puts it.
 fn center(text: &str, width: usize, fill: char) -> String {
-    let len = text.chars().count();
+    let len = text.width();
     if width <= len {
         return text.to_string();
     }

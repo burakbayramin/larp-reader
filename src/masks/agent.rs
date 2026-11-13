@@ -16,6 +16,7 @@ use super::palette::{DIM, FG, GREEN, RED, highlight};
 use super::{Mask, Rng, pick, randint, random};
 use crate::book::{Paragraph, Pos};
 use crate::text::ragged;
+use unicode_width::UnicodeWidthStr;
 
 pub const BULLET: &str = if cfg!(windows) { "●" } else { "⏺" };
 /// First line of a tool result, and its following lines.
@@ -89,7 +90,7 @@ fn body_width(width: usize) -> usize {
 
 /// Fill the line out to `width` with the background colour.
 fn pad(mut segments: Vec<Segment>, width: usize, bg: &str) -> Vec<Segment> {
-    let used: usize = segments.iter().map(|(t, _)| t.chars().count()).sum();
+    let used: usize = segments.iter().map(|(t, _)| t.width()).sum();
     if used < width {
         segments.push(seg(" ".repeat(width - used), bg));
     }
@@ -660,13 +661,36 @@ mod tests {
     fn lines_fit_and_diff_background_spans_the_width() {
         let lines =
             AgentMask::default().render(&para_of_kind(Kind::Edit, 0), (0, 0), 80, &mut rng(1), 40);
-        assert!(lines.iter().all(|l| l.plain().chars().count() <= 80));
+        assert!(lines.iter().all(|l| l.plain().width() <= 80));
         assert!(
             lines
                 .iter()
                 .filter(|l| l.is_book)
-                .all(|l| l.plain().chars().count() == 80)
+                .all(|l| l.plain().width() == 80)
         );
+    }
+
+    #[test]
+    fn wide_text_diff_background_spans_the_width() {
+        let text = |i: usize| {
+            format!("{i} 漢字かな交じり文の例です。🙂 これは幅の広い文字を含みます。").repeat(4)
+        };
+        let para = (0..500)
+            .map(text)
+            .find(|t| layout(t).kind == Kind::Edit)
+            .map(Paragraph::new)
+            .expect("found");
+        for width in [40, 60, 80] {
+            let lines = AgentMask::default().render(&para, (0, 0), width, &mut rng(1), 40);
+            assert!(lines.iter().all(|l| l.plain().width() <= width));
+            assert!(
+                lines
+                    .iter()
+                    .filter(|l| l.is_book)
+                    .all(|l| l.plain().width() == width),
+                "{width}"
+            );
+        }
     }
 
     #[test]

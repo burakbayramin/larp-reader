@@ -72,6 +72,29 @@ fn take_cols(word: &str, cols: usize) -> (&str, &str) {
     (word, "")
 }
 
+/// The leading part of `s` that fits in `cells` cells (a wide char is never split).
+pub fn truncate_cells(s: &str, cells: usize) -> String {
+    let mut used = 0;
+    let mut out = String::new();
+    for c in s.chars() {
+        let w = c.width().unwrap_or(0);
+        if used + w > cells {
+            break;
+        }
+        used += w;
+        out.push(c);
+    }
+    out
+}
+
+/// `s` cut to `cells` cells and padded with spaces on the right to exactly that.
+pub fn pad_cells(s: &str, cells: usize) -> String {
+    let mut out = truncate_cells(s, cells);
+    let used = out.width();
+    out.push_str(&" ".repeat(cells - used));
+    out
+}
+
 /// Greedy word wrap; words longer than a line are cut.
 pub fn wrap(text: &str, width: usize) -> Vec<String> {
     let width = width.max(1);
@@ -156,6 +179,15 @@ pub fn ragged(text: &str, width: usize) -> Vec<String> {
 mod tests {
     use super::*;
     use std::collections::HashSet;
+
+    #[test]
+    fn truncate_and_pad_count_cells() {
+        assert_eq!(truncate_cells("漢字かな", 5), "漢字");
+        assert_eq!(truncate_cells("abc", 5), "abc");
+        assert_eq!(pad_cells("漢字かな", 5), "漢字 ");
+        assert_eq!(pad_cells("ab", 4), "ab  ");
+        assert_eq!(pad_cells("🙂ab", 4).width(), 4);
+    }
 
     fn words(s: &str) -> Vec<&str> {
         s.split_whitespace().collect()

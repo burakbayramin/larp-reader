@@ -7,6 +7,7 @@ use super::palette::{COMMENT, GUTTER, highlight};
 use super::{LANGS, Mask, Rng, snippets};
 use crate::book::{Paragraph, Pos};
 use crate::text::ragged;
+use unicode_width::UnicodeWidthStr;
 
 /// "%4d " gutter.
 const NUM_WIDTH: usize = 5;
@@ -88,7 +89,7 @@ impl CodeMask {
 
     fn body_width(&self, width: usize) -> usize {
         width
-            .saturating_sub(NUM_WIDTH + frame(self.lang).0.chars().count())
+            .saturating_sub(NUM_WIDTH + frame(self.lang).0.width())
             .max(1)
     }
 }

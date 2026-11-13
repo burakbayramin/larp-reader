@@ -6,6 +6,7 @@ use super::time::{EPOCH_DAY, civil};
 use super::{Mask, Rng, pick, randint, weighted};
 use crate::book::{Paragraph, Pos};
 use crate::text::ragged;
+use unicode_width::UnicodeWidthStr;
 
 /// Milliseconds of 2026-11-11 09:00:00 after that day's midnight: the log's first moment.
 const EPOCH_MS: u64 = 9 * 3_600_000;
@@ -117,7 +118,7 @@ fn prefix_segments(t: Time, level: &str, svc: &str, width: usize) -> Vec<Segment
 fn prefix_len(width: usize) -> usize {
     prefix_segments(Time(EPOCH_MS), "INFO", BOOK_SVC, width)
         .iter()
-        .map(|(t, _)| t.chars().count())
+        .map(|(t, _)| t.width())
         .sum()
 }
 
@@ -157,7 +158,7 @@ impl Mask for LogMask {
 
     fn header(&mut self, _rng: &mut Rng, width: usize) -> Vec<Line> {
         let mut text = "-- Logs begin at Wed 2026-11-11 09:00:00 UTC --";
-        if text.len() > width {
+        if text.width() > width {
             text = "-- Logs begin at 2026-11-11 09:00:00 --";
         }
         vec![chrome(width, &[(text, DIM)])]

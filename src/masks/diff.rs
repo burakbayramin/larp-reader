@@ -5,6 +5,7 @@ use super::palette::{CYAN, DIM, FG, GREEN, RED, highlight};
 use super::{Mask, Rng, pick, random};
 use crate::book::{Paragraph, Pos};
 use crate::text::ragged;
+use unicode_width::UnicodeWidthStr;
 
 const CONTEXT: &[&str] = &[
     "    ctx = build_context(request)",
@@ -32,7 +33,7 @@ impl Mask for DiffMask {
     fn header(&mut self, _rng: &mut Rng, width: usize) -> Vec<Line> {
         // a shorter path in narrow panes, rather than a cut-off `diff --git` line
         let full = "diff --git a/src/handler.py b/src/handler.py";
-        let path = if full.len() <= width {
+        let path = if full.width() <= width {
             "src/handler.py"
         } else {
             "handler.py"

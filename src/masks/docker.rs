@@ -5,6 +5,7 @@ use super::palette::{BLUE, CONTROL, CYAN, DIM, FG, GREEN, YELLOW};
 use super::{Mask, Rng, pick};
 use crate::book::{Paragraph, Pos};
 use crate::text::ragged;
+use unicode_width::UnicodeWidthStr;
 
 const BOOK_SVC: &str = "worker-1";
 /// (container, colour), in the order compose lists them when attaching.
@@ -60,7 +61,7 @@ fn prefix(svc: &str, colour: &str, width: usize) -> Segment {
 }
 
 fn prefix_len(width: usize) -> usize {
-    prefix(BOOK_SVC, CYAN, width).0.chars().count()
+    prefix(BOOK_SVC, CYAN, width).0.width()
 }
 
 #[derive(Default)]

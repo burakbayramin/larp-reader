@@ -9,11 +9,13 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::Line as TLine;
 use ratatui::widgets::Paragraph;
+use unicode_width::UnicodeWidthStr;
 
 use super::input::{InputEvent, LineInput};
 use crate::book::Pos;
 use crate::masks::{LANGS, MASK_NAMES};
 use crate::state::{Config, HIDE_STYLES, THEMES};
+use crate::text::truncate_cells;
 
 const WPMS: &[u32] = &[120, 160, 200, 240, 280, 320, 400, 500, 650, 800];
 const NOISE_LEVELS: &[u32] = &[0, 1, 2, 3, 4, 5];
@@ -102,10 +104,10 @@ pub fn section_label(n: usize, title: Option<&str>) -> String {
         .collect::<Vec<_>>()
         .join(" ");
     let label = format!("{n:>3} {title}");
-    if label.chars().count() <= 48 {
+    if label.width() <= 48 {
         label
     } else {
-        format!("{}~", label.chars().take(47).collect::<String>())
+        format!("{}~", truncate_cells(&label, 47))
     }
 }
 
@@ -333,6 +335,14 @@ impl Menu {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn section_label_cuts_wide_titles_to_cells() {
+        let label = section_label(7, Some(&"漢字かな交じり文🙂".repeat(5)));
+        assert!(label.width() <= 48, "{label}");
+        assert!(label.width() >= 46 && label.ends_with('~'), "{label}");
+        assert_eq!(section_label(7, Some("Short")), "  7 Short");
+    }
 
     fn key(code: KeyCode) -> KeyEvent {
         KeyEvent::new(code, KeyModifiers::NONE)

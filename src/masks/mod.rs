@@ -127,11 +127,16 @@ mod contract {
     use super::*;
     use crate::errors::FccError;
     use rand::SeedableRng;
+    use unicode_width::UnicodeWidthStr;
 
     const FORBIDDEN: &[&str] = &["book", "reader", "okuyucu"];
 
     fn para() -> Paragraph {
         Paragraph::new("Raskolnikov o sabah erkenden uyandı. Oda dar ve basıktı, ".repeat(3))
+    }
+
+    fn wide_para() -> Paragraph {
+        Paragraph::new("漢字かな交じり文の例です。🙂 これは幅の広い文字を含みます。".repeat(4))
     }
 
     fn rng(seed: u64) -> Rng {
@@ -171,12 +176,41 @@ mod contract {
             let lines = m.render(&para(), (0, 0), 60, &mut rng(1), 1);
             assert!(!lines.is_empty());
             for l in &lines {
-                assert!(
-                    unicode_width::UnicodeWidthStr::width(l.plain().as_str()) <= 60,
-                    "{}: {}",
-                    m.name(),
-                    l.plain()
+                assert!(l.plain().width() <= 60, "{}: {}", m.name(), l.plain());
+            }
+        }
+    }
+
+    fn squeezed(lines: &[Line]) -> String {
+        text_words(lines).concat()
+    }
+
+    #[test]
+    fn wide_text_fits_width_and_keeps_every_word_in_order() {
+        let want: String = wide_para().text.split_whitespace().collect();
+        for width in [40, 60] {
+            for name in MASK_NAMES {
+                let mut m = get_mask(name, "python").unwrap();
+                let lines = m.render(&wide_para(), (0, 0), width, &mut rng(1), 1);
+                assert!(!lines.is_empty());
+                for l in &lines {
+                    assert!(
+                        l.plain().width() <= width,
+                        "{name} at {width}: {}",
+                        l.plain()
+                    );
+                }
+                // wide runs have no spaces to break at, so they are cut mid-word
+                assert_eq!(squeezed(&lines), want, "{name} at {width}");
+                assert_eq!(m.line_count(&wide_para(), width), lines.len(), "{name}");
+                let again = get_mask(name, "python").unwrap().render(
+                    &wide_para(),
+                    (0, 0),
+                    width,
+                    &mut rng(1),
+                    1,
                 );
+                assert_eq!(lines, again, "{name} is deterministic");
             }
         }
     }
@@ -244,7 +278,7 @@ mod contract {
                 assert!(
                     lines
                         .iter()
-                        .all(|l| l.plain().chars().count() <= width && !l.is_book),
+                        .all(|l| l.plain().width() <= width && !l.is_book),
                     "{}",
                     m.name()
                 );

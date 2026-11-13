@@ -5,6 +5,7 @@ use super::palette::{BLUE, FG, GREEN, YELLOW};
 use super::{Mask, Rng, pick, randint};
 use crate::book::{Paragraph, Pos};
 use crate::text::ragged;
+use unicode_width::UnicodeWidthStr;
 
 const CRATES: &[&str] = &[
     "serde",
@@ -55,7 +56,7 @@ impl Mask for BuildMask {
     }
 
     fn line_count(&self, para: &Paragraph, width: usize) -> usize {
-        ragged(&para.text, width.saturating_sub(GUTTER.len()).max(1)).len() + 6
+        ragged(&para.text, width.saturating_sub(GUTTER.width()).max(1)).len() + 6
     }
 
     fn render(
@@ -91,7 +92,7 @@ impl Mask for BuildMask {
             ),
             chrome(width, &[("   |", &rail)]),
         ];
-        for t in ragged(&para.text, width.saturating_sub(GUTTER.len()).max(1)) {
+        for t in ragged(&para.text, width.saturating_sub(GUTTER.width()).max(1)) {
             out.push(Line::book(
                 vec![seg(GUTTER, rail.clone()), seg(t, format!("book {FG}"))],
                 pos,
