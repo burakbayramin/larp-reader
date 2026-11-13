@@ -265,6 +265,11 @@ impl Menu {
     }
 
     pub fn draw(&self, frame: &mut Frame) {
+        self.draw_with(frame, super::style::base());
+    }
+
+    /// Draw on a screen painted with `base` (the theme's background and text).
+    pub fn draw_with(&self, frame: &mut Frame, base: Style) {
         let focused = Style::default().add_modifier(Modifier::REVERSED);
         let line = |text: String, on: bool| {
             if on {
@@ -317,7 +322,7 @@ impl Menu {
             self.focus == Focus::Sections,
             self.sections.entries.len() > 1,
         );
-        frame.render_widget(Paragraph::new(lines), frame.area());
+        frame.render_widget(Paragraph::new(lines).style(base), frame.area());
         if self.focus == Focus::Path {
             let x = 7 + unicode_width::UnicodeWidthStr::width(self.path.value.as_str()) as u16;
             frame.set_cursor_position((x.min(frame.area().width.saturating_sub(1)), 1));

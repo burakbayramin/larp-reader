@@ -11,6 +11,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use ratatui::Frame;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Constraint, Layout};
+use ratatui::style::Style;
 use ratatui::widgets::Paragraph;
 
 use rand::SeedableRng;
@@ -19,7 +20,7 @@ use super::feed::Feed;
 use super::input::{InputEvent, LineInput};
 use super::menu::{Menu, MenuResult, section_label};
 use super::shell::{shell_output, shell_prompt};
-use super::style::style;
+use super::style::{base, style};
 use super::theme::{self, THEMES};
 use crate::book::{Book, Pos, match_spans};
 use crate::errors::FccError;
@@ -432,10 +433,16 @@ impl App {
     }
 
     pub fn draw(&self, frame: &mut Frame) {
+        self.draw_with(frame, base());
+    }
+
+    /// Draw on a screen painted with `base` (the theme's background and text).
+    pub fn draw_with(&self, frame: &mut Frame, base: Style) {
         if let Some(menu) = &self.menu {
-            menu.draw(frame);
+            menu.draw_with(frame, base);
             return;
         }
+        frame.render_widget(ratatui::widgets::Block::default().style(base), frame.area());
         let [feed, status] =
             Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(frame.area());
         frame.render_widget(&self.feed, feed);
@@ -447,11 +454,11 @@ impl App {
         if let Some(line) = bar {
             let line = tail_fitting(&line, status.width.saturating_sub(1) as usize);
             let x = status.x + unicode_width::UnicodeWidthStr::width(line.as_str()) as u16;
-            frame.render_widget(Paragraph::new(line).style(style(FG)), status);
+            frame.render_widget(Paragraph::new(line).style(base.patch(style(FG))), status);
             frame.set_cursor_position((x, status.y));
         } else {
             frame.render_widget(
-                Paragraph::new(self.status_text()).style(style(STATUS_FG)),
+                Paragraph::new(self.status_text()).style(base.patch(style(STATUS_FG))),
                 status,
             );
         }
@@ -1411,6 +1418,15 @@ pub(crate) mod tests {
                 .join("\n")
         }
 
+        /// The screen's cells drawn with the base style of `theme`.
+        pub fn cells(&self, theme: &str) -> ratatui::buffer::Buffer {
+            let base = crate::ui::style::base_in(theme, theme::Depth::TrueColor);
+            let mut t = Terminal::new(TestBackend::new(self.app.cols as u16, self.app.rows as u16))
+                .unwrap();
+            t.draw(|f| self.app.draw_with(f, base)).unwrap();
+            t.backend().buffer().clone()
+        }
+
         pub fn session(&mut self) -> &mut Session {
             self.app.session.as_mut().expect("a book is open")
         }
@@ -1569,6 +1585,25 @@ pub(crate) mod tests {
                 .any(|l| l.plain().starts_with("error:"))
         );
         assert!(h.visible().iter().any(|l| l.is_book));
+    }
+
+    #[test]
+    fn every_cell_gets_the_themes_background() {
+        use ratatui::style::Color;
+        let h = Harness::sample(80, 24);
+        for (name, bg) in [
+            ("light", Color::Rgb(0xff, 0xff, 0xff)),
+            ("dark", Color::Rgb(0x1e, 0x1e, 0x1e)),
+            ("dark-ansi", Color::Reset),
+            ("light-ansi", Color::Reset),
+        ] {
+            let buf = h.cells(name);
+            for y in 0..buf.area.height {
+                for x in 0..buf.area.width {
+                    assert_eq!(buf[(x, y)].bg, bg, "{name} at {x},{y}");
+                }
+            }
+        }
     }
 
     #[test]
