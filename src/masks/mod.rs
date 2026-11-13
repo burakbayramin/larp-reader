@@ -104,6 +104,19 @@ pub trait Mask {
     }
 
     fn progress_label(&self, done: usize, total: usize, width: usize) -> String;
+
+    /// A status label that moves with time, for masks that look like a live
+    /// session; `elapsed` is how long the session has been up. None means the
+    /// still `progress_label`. The app redraws often while this is Some.
+    fn animated_label(
+        &self,
+        _done: usize,
+        _total: usize,
+        _width: usize,
+        _elapsed: std::time::Duration,
+    ) -> Option<String> {
+        None
+    }
 }
 
 /// A fresh mask by name; `lang` matters only to the code mask.

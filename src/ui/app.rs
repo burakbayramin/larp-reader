@@ -39,6 +39,8 @@ pub const AUTOSAVE: Duration = Duration::from_secs(10);
 pub const FLASH: Duration = Duration::from_secs(2);
 /// Filler lines per second while hidden.
 pub const PANIC_RATE: f64 = 4.5;
+/// Redraw interval while the status label animates.
+pub const ANIMATION_FRAME: Duration = Duration::from_millis(120);
 const WARNING: &str = "warning: window too narrow";
 const STATUS_FG: &str = "#858585";
 const FG: &str = "#d4d4d4";
@@ -218,6 +220,8 @@ pub struct App {
     pub menu: Option<Menu>,
     /// The side panel with the keys and the folder's files.
     pub panel: bool,
+    /// When the current disguise came up: animated status labels count from here.
+    started: Instant,
 }
 
 impl App {
@@ -272,6 +276,7 @@ impl App {
             query: String::new(),
             menu: None,
             panel: false,
+            started: now,
         };
         if let Some(e) = mask_error {
             app.notice.extend(error_lines(&e, app.width()));
@@ -424,10 +429,32 @@ impl App {
         match &self.session {
             Some(s) => {
                 let (done, total) = s.progress();
-                s.mask().progress_label(done, total, self.width())
+                let elapsed = self.now.saturating_duration_since(self.started);
+                s.mask()
+                    .animated_label(done, total, self.width(), elapsed)
+                    .unwrap_or_else(|| s.mask().progress_label(done, total, self.width()))
             }
             None => String::new(),
         }
+    }
+
+    /// The status line shows a label that moves on its own, so the screen needs
+    /// redrawing often. Never while hidden: the hidden screen redraws on its own
+    /// timer (or waits at a prompt) and keeps idle use low.
+    pub fn animating(&self) -> bool {
+        if self.panic
+            || self.flash.is_some()
+            || self.menu.is_some()
+            || self.shell.is_some()
+            || self.search.is_some()
+        {
+            return false;
+        }
+        self.session.as_ref().is_some_and(|s| {
+            s.mask()
+                .animated_label(0, 0, self.width(), Duration::ZERO)
+                .is_some()
+        })
     }
 
     pub fn draw(&self, frame: &mut Frame) {
@@ -816,6 +843,7 @@ impl App {
         }
         self.config.mask = name.to_string();
         self.config.lang = lang.to_string();
+        self.started = self.now; // a new session: its clock starts at zero
         self.persist_config();
         self.redraw();
     }
@@ -1135,6 +1163,9 @@ impl App {
         }
         if let Some((_, until)) = &self.flash {
             at = at.min(*until);
+        }
+        if self.animating() {
+            at = at.min(self.now + ANIMATION_FRAME);
         }
         at
     }
@@ -2518,5 +2549,54 @@ pub(crate) mod tests {
                 assert!(!text.contains(part), "{part} in {text}");
             }
         }
+    }
+
+    // -- a live-looking agent session --
+
+    fn agent() -> Config {
+        Config {
+            mask: "agent".into(),
+            ..cfg()
+        }
+    }
+
+    #[test]
+    fn agent_status_spins_and_counts_seconds() {
+        let mut h = sample_with(10, agent(), 80, 24);
+        let first = h.status();
+        assert!(first.starts_with("· "), "{first}");
+        assert!(first.contains("(0s · 1/10 · "), "{first}");
+        h.advance(ANIMATION_FRAME);
+        let next = h.status();
+        assert_ne!(next, first);
+        assert!(next.starts_with("✢ "), "{next}");
+        h.advance(Duration::from_secs(12));
+        assert!(h.status().contains("(12s · "), "{}", h.status());
+        assert!(h.screen().contains("(12s · "));
+        for w in ["book", "reader", "okuyucu", "esc to"] {
+            assert!(!h.status().to_lowercase().contains(w), "{w}");
+        }
+        h.press(&["m"]); // another view: a still label again
+        assert!(h.status().contains(" 1/10"));
+        assert!(!h.app.animating());
+    }
+
+    #[test]
+    fn deadline_is_near_only_while_the_label_animates() {
+        let mut h = sample_with(10, agent(), 80, 24);
+        assert!(h.app.animating());
+        assert!(h.app.next_deadline() <= h.now + ANIMATION_FRAME);
+        h.press(&["`"]); // hidden: its own timer only
+        assert!(!h.app.animating());
+        assert!(h.app.next_deadline() > h.now + ANIMATION_FRAME);
+        h.press(&["`", "+"]); // a flash replaces the label for a while
+        assert!(!h.app.animating());
+        h.advance(FLASH);
+        assert!(h.app.animating());
+        let mut code = Harness::sample(80, 24);
+        assert!(!code.app.animating());
+        assert!(code.app.next_deadline() >= code.now + Duration::from_secs(1));
+        code.advance(Duration::from_secs(1));
+        assert!(code.app.next_deadline() >= code.now + Duration::from_secs(1));
     }
 }

@@ -7,6 +7,7 @@
 //! of the pools, and redrawing a paragraph gives the same lines.
 
 use std::collections::VecDeque;
+use std::time::Duration;
 
 use rand::Rng as _;
 
@@ -501,6 +502,96 @@ impl Mask for AgentMask {
             tokens / 1000.0
         )
     }
+
+    fn animated_label(
+        &self,
+        done: usize,
+        total: usize,
+        width: usize,
+        elapsed: Duration,
+    ) -> Option<String> {
+        let head = format!("{} {}…", spinner_frame(elapsed), verb(elapsed));
+        let time = elapsed_text(elapsed);
+        let tokens = tokens_text(done, elapsed);
+        // drop the least useful parts first when the window is narrow
+        let tries = [
+            format!("{head} ({time} · {done}/{total} · ↓ {tokens} tokens)"),
+            format!("{head} ({time} · {done}/{total})"),
+            format!("{head} ({done}/{total})"),
+        ];
+        let fits = |s: &&String| s.chars().count() <= width;
+        Some(tries.iter().find(fits).unwrap_or(&tries[2]).clone())
+    }
+}
+
+/// Spinner glyphs, grown then shrunk again like Claude Code's.
+pub const SPINNER: &[&str] = &["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"];
+/// How long each spinner glyph shows.
+pub const SPIN_FRAME: Duration = Duration::from_millis(120);
+/// What the agent says it is doing; one at a time, a few seconds each.
+pub const VERBS: &[&str] = &[
+    "Working",
+    "Thinking",
+    "Brewing",
+    "Reticulating",
+    "Pondering",
+    "Computing",
+    "Cogitating",
+    "Crafting",
+    "Mulling",
+    "Percolating",
+    "Synthesizing",
+    "Noodling",
+    "Tinkering",
+    "Forging",
+    "Deliberating",
+    "Ruminating",
+    "Conjuring",
+    "Simmering",
+    "Untangling",
+    "Wrangling",
+    "Calibrating",
+    "Assembling",
+    "Distilling",
+    "Refactoring",
+];
+/// How long one verb stays.
+pub const VERB_SPAN: Duration = Duration::from_secs(4);
+/// Tokens "received" per second, on top of the ones the progress accounts for.
+const TOKENS_PER_SEC: f64 = 42.0;
+const TOKENS_PER_PARA: f64 = 117.0;
+
+/// The spinner glyph `elapsed` into the session.
+pub fn spinner_frame(elapsed: Duration) -> &'static str {
+    let n = elapsed.as_millis() / SPIN_FRAME.as_millis();
+    SPINNER[(n % SPINNER.len() as u128) as usize]
+}
+
+/// The verb `elapsed` into the session: a step coprime with the list length
+/// visits every verb and never repeats one twice in a row.
+pub fn verb(elapsed: Duration) -> &'static str {
+    let slot = (elapsed.as_secs() / VERB_SPAN.as_secs()) as usize;
+    VERBS[(slot * 7 + 2) % VERBS.len()]
+}
+
+/// `12s`, `3m 4s`, `1h 2m`.
+fn elapsed_text(elapsed: Duration) -> String {
+    let s = elapsed.as_secs();
+    match s {
+        0..60 => format!("{s}s"),
+        60..3600 => format!("{}m {}s", s / 60, s % 60),
+        _ => format!("{}h {}m", s / 3600, s / 60 % 60),
+    }
+}
+
+/// Tokens so far: they grow with the paragraphs passed and with time.
+fn tokens_text(done: usize, elapsed: Duration) -> String {
+    let n = done as f64 * TOKENS_PER_PARA + elapsed.as_secs_f64() * TOKENS_PER_SEC;
+    if n < 1000.0 {
+        format!("{}", n as u64)
+    } else {
+        format!("{:.1}k", n / 1000.0)
+    }
 }
 
 #[cfg(test)]
@@ -698,5 +789,71 @@ mod tests {
         let mut m = AgentMask::default();
         assert!(m.header(&mut rng(1), 80)[0].plain().starts_with('>'));
         assert!(m.progress_label(142, 380, 80).contains("142/380"));
+    }
+
+    #[test]
+    fn spinner_frames_change_with_time() {
+        let at = |ms| spinner_frame(Duration::from_millis(ms));
+        assert_eq!(at(0), "·");
+        assert_eq!(at(119), "·");
+        assert_eq!(at(120), "✢");
+        let cycle: Vec<&str> = (0..SPINNER.len() as u64).map(|i| at(i * 120)).collect();
+        assert_eq!(cycle, SPINNER);
+        assert_eq!(at(SPINNER.len() as u64 * 120), "·"); // and round again
+        let m = AgentMask::default();
+        let label = |ms| {
+            m.animated_label(3, 10, 80, Duration::from_millis(ms))
+                .unwrap()
+        };
+        assert_ne!(label(0), label(120));
+        assert!(label(0).starts_with("· "));
+    }
+
+    #[test]
+    fn verbs_are_deterministic_and_change_every_few_seconds() {
+        let at = |s| verb(Duration::from_secs(s));
+        assert_eq!(at(0), at(3));
+        assert_eq!(at(0), verb(Duration::from_millis(3999)));
+        let mut seen = std::collections::HashSet::new();
+        for slot in 0..VERBS.len() as u64 {
+            let (here, next) = (at(slot * 4), at(slot * 4 + 4));
+            assert_ne!(here, next);
+            seen.insert(here);
+        }
+        assert_eq!(seen.len(), VERBS.len()); // every verb comes up
+        let again: Vec<&str> = (0..50).map(at).collect();
+        assert_eq!(again, (0..50).map(at).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn animated_label_counts_seconds_and_tokens_and_fits() {
+        let m = AgentMask::default();
+        let l = m
+            .animated_label(5, 380, 80, Duration::from_secs(12))
+            .unwrap();
+        assert!(l.contains("(12s · 5/380 · ↓ "), "{l}");
+        assert!(l.ends_with(" tokens)"), "{l}");
+        let tokens = |secs| {
+            let l = m
+                .animated_label(5, 380, 200, Duration::from_secs(secs))
+                .unwrap();
+            let t = l.split("↓ ").nth(1).unwrap().split(' ').next().unwrap();
+            let k = t
+                .strip_suffix('k')
+                .map(|n| n.parse::<f64>().unwrap() * 1000.0);
+            k.unwrap_or_else(|| t.parse().unwrap())
+        };
+        assert!(tokens(60) > tokens(1));
+        assert!(
+            m.animated_label(5, 380, 80, Duration::from_secs(185))
+                .unwrap()
+                .contains("(3m 5s ·")
+        );
+        let narrow = m
+            .animated_label(5, 380, 30, Duration::from_secs(1))
+            .unwrap();
+        assert!(narrow.chars().count() <= 30, "{narrow}");
+        assert!(narrow.contains("5/380"));
+        assert!(!l.contains("esc"));
     }
 }
