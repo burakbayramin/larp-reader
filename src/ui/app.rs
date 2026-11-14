@@ -18,6 +18,7 @@ use rand::SeedableRng;
 use super::feed::{Feed, text_chars};
 use super::input::{InputEvent, LineInput};
 use super::menu::{Menu, MenuResult, section_label};
+use super::panel;
 use super::search::{self, Search};
 use super::shell::{shell_output, shell_prompt};
 use super::style::{base, style};
@@ -25,7 +26,7 @@ use super::theme::{self, THEMES};
 use super::timer::{Clock, Pacer};
 use crate::book::{Book, Pos};
 use crate::errors::FccError;
-use crate::loaders::{load_book, supported_extensions};
+use crate::loaders::load_book;
 use crate::masks::base::{error_lines, plain_line};
 use crate::masks::time::civil;
 use crate::masks::{LANGS, Line, MASK_NAMES, Mask, Rng, get_mask, seeded};
@@ -48,30 +49,6 @@ const STATUS_FG: &str = "#858585";
 const FG: &str = "#d4d4d4";
 const SAVED_MSG: &str = "cache saved";
 const NO_MARKS_MSG: &str = "cache empty";
-/// One per digit key.
-const LISTED_INPUTS: usize = 9;
-const PANEL_WIDTH: u16 = 38;
-const KEYS: &[(&str, &str)] = &[
-    ("space", "page down"),
-    ("u, pgup", "page up"),
-    ("j / k", "line down / up"),
-    ("] / [", "next / prev section"),
-    ("/", "find"),
-    ("f / F", "find next / prev"),
-    ("a", "auto scroll"),
-    ("+ / -", "reading rate"),
-    ("m / M", "next / prev view"),
-    ("l / L", "next / prev language"),
-    ("n / N", "more / less filler"),
-    ("o / O", "next / prev input"),
-    ("1-9", "open listed input"),
-    ("b", "mark this place"),
-    ("' / \"", "next / prev mark"),
-    (":", "config"),
-    ("`", "hide / unhide"),
-    ("esc", "this panel"),
-    ("q", "quit"),
-];
 
 /// The end of `line` that fits in `cols` cells: an input bar scrolls sideways
 /// like a terminal, so the typed text and the cursor stay in view.
@@ -429,101 +406,13 @@ impl App {
             );
         }
         if self.panel {
-            self.draw_panel(frame);
+            panel::draw_panel(frame, self.entry_path.as_deref());
         }
-    }
-
-    fn draw_panel(&self, frame: &mut Frame) {
-        use ratatui::widgets::{Block, Borders, Clear, Padding};
-        let area = frame.area();
-        let width = PANEL_WIDTH.min(area.width);
-        let rect = ratatui::layout::Rect {
-            x: area.x + area.width - width,
-            y: area.y,
-            width,
-            height: area.height,
-        };
-        let block = Block::default()
-            .borders(Borders::LEFT)
-            .border_style(style("#3c3c3c"))
-            .padding(Padding::new(2, 2, 1, 1))
-            .style(style("#cccccc on #252526"));
-        frame.render_widget(Clear, rect);
-        frame.render_widget(Paragraph::new(self.panel_text()).block(block), rect);
     }
 
     /// The side panel's text: the keys, then the folder's openable files.
     pub fn panel_text(&self) -> Vec<ratatui::text::Line<'static>> {
-        use ratatui::text::{Line as TLine, Span};
-        let (bold, key_style, text_style, dim) = (
-            style("bold #d4d4d4"),
-            style("#dcdcaa"),
-            style("#cccccc"),
-            style("#858585"),
-        );
-        let mut out = vec![TLine::styled("keys", bold)];
-        for (k, what) in KEYS {
-            out.push(TLine::from(vec![
-                Span::styled(format!("{k:<9}"), key_style),
-                Span::styled(*what, text_style),
-            ]));
-        }
-        let files = self.inputs();
-        if !files.is_empty() {
-            out.push(TLine::raw(""));
-            out.push(TLine::styled("inputs", bold));
-            let current = self.entry_path.as_deref().map(PathBuf::from);
-            for (n, f) in files.iter().take(LISTED_INPUTS).enumerate() {
-                let here = Some(f) == current.as_ref();
-                let name = f
-                    .file_name()
-                    .map(|n| n.to_string_lossy().into_owned())
-                    .unwrap_or_default();
-                let mark = if here {
-                    ">".to_string()
-                } else {
-                    (n + 1).to_string()
-                };
-                out.push(TLine::from(vec![
-                    Span::styled(format!("{mark} "), key_style),
-                    Span::styled(name, if here { bold } else { text_style }),
-                ]));
-            }
-            if files.len() > LISTED_INPUTS {
-                out.push(TLine::styled(
-                    format!("  +{} more (o / O)", files.len() - LISTED_INPUTS),
-                    dim,
-                ));
-            }
-        }
-        out
-    }
-
-    /// The openable files next to the current one, in name order.
-    pub fn inputs(&self) -> Vec<PathBuf> {
-        let Some(current) = self.entry_path.as_deref().map(PathBuf::from) else {
-            return vec![];
-        };
-        let known = supported_extensions();
-        let mut found: Vec<PathBuf> = current
-            .parent()
-            .and_then(|d| std::fs::read_dir(d).ok())
-            .map(|entries| {
-                entries
-                    .filter_map(|e| e.ok().map(|e| e.path()))
-                    .filter(|p| p.is_file() && known.contains(&crate::loaders::suffix(p).as_str()))
-                    .collect()
-            })
-            .unwrap_or_default();
-        if !found.contains(&current) {
-            found.push(current);
-        }
-        found.sort_by_key(|f| {
-            f.file_name()
-                .map(|n| n.to_string_lossy().to_lowercase())
-                .unwrap_or_default()
-        });
-        found
+        panel::panel_text(self.entry_path.as_deref())
     }
 
     /// The mask in use: the open session's, or the one kept for errors.
@@ -828,26 +717,19 @@ impl App {
     }
 
     fn cycle_input(&mut self, step: isize) {
-        let files = self.inputs();
-        if self.panic || files.len() < 2 {
+        if self.panic {
             return;
         }
-        let current = self.entry_path.as_deref().map(PathBuf::from);
-        let i = files
-            .iter()
-            .position(|f| Some(f) == current.as_ref())
-            .unwrap_or(0) as isize;
-        let next = files[(i + step).rem_euclid(files.len() as isize) as usize].clone();
-        self.open_from_menu(&next);
+        if let Some(next) = panel::cycle_target(self.entry_path.as_deref(), step) {
+            self.open_from_menu(&next);
+        }
     }
 
     fn open_listed(&mut self, n: usize) {
-        let files = self.inputs();
-        if self.panic || !self.panel || n > files.len().min(LISTED_INPUTS) {
+        if self.panic || !self.panel {
             return;
         }
-        let target = files[n - 1].clone();
-        if Some(target.to_string_lossy().as_ref()) != self.entry_path.as_deref() {
+        if let Some(target) = panel::listed_target(self.entry_path.as_deref(), n) {
             self.open_from_menu(&target);
         }
     }

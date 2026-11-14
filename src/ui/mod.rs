@@ -4,6 +4,7 @@ pub mod app;
 pub mod feed;
 pub mod input;
 pub mod menu;
+pub mod panel;
 pub mod search;
 pub mod shell;
 pub mod style;
