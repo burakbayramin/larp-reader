@@ -4,7 +4,8 @@
 //! blank bands, each strip is split into columns at a vertical gutter (lines
 //! crossing the gutter, such as titles, stay in place between the column
 //! stretches), and each column is read top to bottom, left to right. A column's
-//! lines become blocks at vertical gaps. Images sit
+//! lines become paragraphs at vertical gaps, at first-line indents and after
+//! lines that stop short of the column's edge on a sentence end. Images sit
 //! among the blocks by position, and the rest follows the Python version:
 //! - a block that opens or closes at least half the pages (digits ignored) is a
 //!   running header or footer and is dropped, once there are 3 pages or more;
@@ -40,6 +41,11 @@ const MIN_COLUMN_LINES: usize = 3;
 const MIN_COLUMN_SHARE: f32 = 0.2;
 /// Columns inside columns are looked for down to this depth.
 const MAX_DEPTH: usize = 4;
+/// A line starting this many line heights right of its column's edge opens a paragraph.
+const INDENT: f32 = 0.8;
+/// A line ending this share of the column width short of its edge, on sentence
+/// punctuation, closes a paragraph.
+const SHORT_LINE: f32 = 0.15;
 /// Slack for comparing coordinates, in points.
 const EPS: f32 = 0.5;
 
@@ -136,6 +142,13 @@ fn median_height(pieces: &[Piece]) -> f32 {
     let mut hs: Vec<f32> = pieces.iter().map(Piece::height).collect();
     hs.sort_by(f32::total_cmp);
     hs.get(hs.len() / 2).copied().unwrap_or(0.0)
+}
+
+/// The value at share `q` of the way through `xs` once sorted.
+fn quantile(mut xs: Vec<f32>, q: f32) -> f32 {
+    xs.sort_by(f32::total_cmp);
+    let i = (xs.len().saturating_sub(1) as f32 * q) as usize;
+    xs.get(i).copied().unwrap_or(0.0)
 }
 
 /// Horizontal strips, top to bottom, cut where a tall blank band runs across
@@ -323,22 +336,42 @@ fn layout(pieces: Vec<Piece>, depth: usize) -> Vec<Vec<Piece>> {
     out
 }
 
+/// Whether a line closes a sentence (closing quotes and brackets aside).
+fn ends_sentence(text: &str) -> bool {
+    text.trim_end()
+        .trim_end_matches(['"', '\'', '”', '’', '»', ')', ']'])
+        .ends_with(['.', '!', '?', '…', ':'])
+}
+
 /// Whether a line ends on a hyphen, i.e. its last word goes on in the next line.
 fn ends_hyphen(text: &str) -> bool {
     text.trim_end().ends_with(['-', '\u{ad}'])
 }
 
-/// One column's lines (top to bottom) as blocks, cut at vertical gaps.
+/// One column's lines (top to bottom) as blocks: a new one starts at a vertical
+/// gap, at a first-line indent, and after a line that stops well short of the
+/// column's right edge on a sentence end; never after a hyphenated line end.
 fn column_blocks(lines: &[Piece]) -> Vec<Placed> {
+    // quantiles, so a stray wide or outdented line does not move the edges
+    let left = quantile(lines.iter().map(Piece::x0).collect(), 0.25);
+    let right = quantile(lines.iter().map(Piece::x1).collect(), 0.75);
+    let indented = |p: &Piece| p.x0() - left >= INDENT * p.height();
     let mut out = vec![];
     let mut cur: Option<(Placed, Vec<String>)> = None;
-    let mut prev: Option<&Piece> = None;
+    let mut prev: Option<(&Piece, String)> = None;
     for line in lines {
         let text = line.text();
-        if let Some(p) = prev {
+        if let Some((p, p_text)) = &prev {
             let h = p.height().max(line.height());
             let gap = p.bottom - line.top > BLOCK_GAP * h;
-            if gap && let Some((placed, texts)) = cur.take() {
+            // a piece beside the previous one (same row) goes on with it
+            let new_row = line.top - p.bottom < BLOCK_GAP * h;
+            let same_indent = indented(p) && (line.x0() - p.x0()).abs() < INDENT * h / 2.0;
+            let indent = indented(line) && !same_indent;
+            let short_end = right - p.x1() >= SHORT_LINE * (right - left) && ends_sentence(p_text);
+            if (gap || (new_row && !ends_hyphen(p_text) && (indent || short_end)))
+                && let Some((placed, texts)) = cur.take()
+            {
                 out.push(Placed {
                     block: Block::Text(texts.join("\n")),
                     ..placed
@@ -361,7 +394,7 @@ fn column_blocks(lines: &[Piece]) -> Vec<Placed> {
                 cur = Some((placed, vec![text.clone()]));
             }
         }
-        prev = Some(line);
+        prev = Some((line, text));
     }
     if let Some((placed, texts)) = cur {
         out.push(Placed {
@@ -927,6 +960,84 @@ mod tests {
         let t = load_generated(&pages);
         assert_eq!(t.len(), 9, "{t:?}");
         assert_eq!(t[..3], [TITLE, LEFT_PARA, RIGHT_PARA]);
+    }
+
+    #[test]
+    fn indented_paragraphs_without_spacing_split() {
+        let mut page = rows(92.0, 700.0, &["First paragraph starts with an indent and"]);
+        page.extend(rows(
+            72.0,
+            686.0,
+            &[
+                "runs on over a second line without any",
+                "extra space below it",
+            ],
+        ));
+        page.extend(rows(
+            92.0,
+            644.0,
+            &["Second paragraph is indented the same way"],
+        ));
+        page.extend(rows(72.0, 630.0, &["and also ends without a gap"]));
+        page.extend(rows(92.0, 616.0, &["Third one closes the page."]));
+        assert_eq!(
+            load_generated(&[page]),
+            vec![
+                "First paragraph starts with an indent and runs on over a second line without \
+                 any extra space below it",
+                "Second paragraph is indented the same way and also ends without a gap",
+                "Third one closes the page.",
+            ]
+        );
+    }
+
+    #[test]
+    fn short_line_on_sentence_end_closes_paragraph() {
+        let page = rows(
+            72.0,
+            700.0,
+            &[
+                "A block paragraph with no indent at all",
+                "ends on a short line.",
+                "The next one starts flush left and runs",
+                "across the whole width of the column",
+                "and its lines are evenly spaced too",
+                "until it stops.",
+            ],
+        );
+        assert_eq!(
+            load_generated(&[page]),
+            vec![
+                "A block paragraph with no indent at all ends on a short line.",
+                "The next one starts flush left and runs across the whole width of the column \
+                 and its lines are evenly spaced too until it stops.",
+            ]
+        );
+    }
+
+    #[test]
+    fn hyphen_joining_survives_paragraph_splits() {
+        let mut page = rows(92.0, 700.0, &["Indented paragraphs keep their hyph-"]);
+        page.extend(rows(72.0, 686.0, &["enated words whole across line ends."]));
+        page.extend(rows(
+            92.0,
+            672.0,
+            &["So does a soft hyphen at the end of a com\u{ad}"],
+        ));
+        page.extend(rows(
+            72.0,
+            658.0,
+            &["plete line, even when the next line is in\u{ad}"],
+        ));
+        page.extend(rows(92.0, 644.0, &["dented by mistake."]));
+        assert_eq!(
+            load_generated(&[page]),
+            vec![
+                "Indented paragraphs keep their hyphenated words whole across line ends.",
+                "So does a soft hyphen at the end of a complete line, even when the next line \
+                 is indented by mistake.",
+            ]
+        );
     }
 
     #[test]
