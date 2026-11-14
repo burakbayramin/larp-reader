@@ -28,12 +28,27 @@ pub type Rng = rand_pcg::Pcg32;
 
 /// A generator seeded from text (FNV-1a), like Python's `Random("book:pos:mask:noise")`.
 pub fn seeded(seed: &str) -> Rng {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    for b in seed.bytes() {
-        h ^= b as u64;
-        h = h.wrapping_mul(0x0000_0100_0000_01b3);
+    seeded_fmt(format_args!("{seed}"))
+}
+
+/// FNV-1a over everything written, so a seed can be hashed without being built.
+struct Fnv(u64);
+
+impl std::fmt::Write for Fnv {
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        for b in s.bytes() {
+            self.0 ^= b as u64;
+            self.0 = self.0.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+        Ok(())
     }
-    Rng::seed_from_u64(h)
+}
+
+/// `seeded(&format!(..))` without the string: the same seed, no allocation.
+pub fn seeded_fmt(seed: std::fmt::Arguments) -> Rng {
+    let mut h = Fnv(0xcbf2_9ce4_8422_2325);
+    std::fmt::Write::write_fmt(&mut h, seed).expect("hashing cannot fail");
+    Rng::seed_from_u64(h.0)
 }
 
 /// `random.choice`.
@@ -385,6 +400,14 @@ mod contract {
                 assert_eq!(m.transition(3, 80, start).len(), a.len(), "{label}");
             }
         }
+    }
+
+    #[test]
+    fn seeded_fmt_gives_the_seed_of_the_built_string() {
+        let mut a = seeded("bk:(1, 2):code:3:filler");
+        let mut b = seeded_fmt(format_args!("bk:({}, {}):{}:{}:filler", 1, 2, "code", 3));
+        assert_eq!(random(&mut a), random(&mut b));
+        assert_eq!(random(&mut a), random(&mut b));
     }
 
     #[test]

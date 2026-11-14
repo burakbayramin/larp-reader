@@ -5,7 +5,7 @@
 //! `pos` puts the view at the top of that paragraph.
 
 use crate::book::{Book, Pos};
-use crate::masks::{Line, Mask, seeded};
+use crate::masks::{Line, Mask, seeded, seeded_fmt};
 use crate::noise::{noise_count, noise_lines};
 
 /// Running line numbers: valid for one (mask, noise, width).
@@ -96,7 +96,14 @@ impl Session {
     fn noise_count(&self, pos: Pos) -> usize {
         noise_count(
             self.noise,
-            &mut seeded(&format!("{}:filler", self.seed(pos))),
+            &mut seeded_fmt(format_args!(
+                "{}:({}, {}):{}:{}:filler",
+                self.book.id,
+                pos.0,
+                pos.1,
+                self.mask.name(),
+                self.noise
+            )),
         )
     }
 
@@ -735,5 +742,57 @@ mod tests {
         }
         assert!(times.len() > 40);
         assert!(times.windows(2).all(|w| w[0] < w[1]));
+    }
+
+    // -- deep jumps do not wrap the whole book again and again --
+
+    #[test]
+    fn deep_jumps_wrap_each_paragraph_once_per_room() {
+        use crate::text::WRAPS;
+        let wraps = || WRAPS.with(|c| c.get());
+        let n = 300;
+        let last = (0, n - 1);
+        let mut s = Session::new(
+            make_book(n),
+            get_mask("code", "python").unwrap(),
+            3,
+            130,
+            last,
+        );
+
+        let before = wraps();
+        let first = s.paragraph_lines(last);
+        let cold = wraps() - before;
+        assert!(
+            cold <= n,
+            "a deep jump wraps at most every paragraph: {cold}"
+        );
+
+        // the same jump, scrolling around the end: nothing is counted again
+        let before = wraps();
+        assert_eq!(s.paragraph_lines(last), first);
+        s.set_pos(last);
+        s.back(5);
+        s.window(40);
+        assert_eq!(wraps(), before, "a repeated jump recounts nothing");
+
+        // numbering is rebuilt after these, but no paragraph is wrapped again
+        // (the body is as wide as the code mask allows, so the room is the same)
+        s.set_width(140);
+        s.paragraph_lines(last);
+        s.set_mask(get_mask("code", "python").unwrap());
+        s.paragraph_lines(last);
+        s.set_noise(1);
+        s.paragraph_lines(last);
+        assert_eq!(wraps(), before, "same room, same wrapping");
+
+        // a narrower room really does change the wrapping
+        s.set_width(60);
+        s.paragraph_lines(last);
+        let narrow = wraps() - before;
+        assert!(
+            (1..=n).contains(&narrow),
+            "wrapped {narrow} paragraphs for a new room"
+        );
     }
 }
