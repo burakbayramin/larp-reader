@@ -2,7 +2,7 @@
 
 use super::base::{Line, chrome, progress_bar_label, seg};
 use super::palette::{BLUE, FG, GREEN, YELLOW};
-use super::{Mask, Rng, pick, randint};
+use super::{Mask, Rng, pick, randint, section};
 use crate::book::{Paragraph, Pos};
 use crate::text::ragged;
 use unicode_width::UnicodeWidthStr;
@@ -101,6 +101,38 @@ impl Mask for BuildMask {
         out.push(chrome(width, &[("   |", &rail)]));
         out.push(self.noise(rng, width));
         out
+    }
+
+    /// A crate boundary in the workspace: the last crate's warning tally, the next one compiling.
+    fn transition(&self, chapter: usize, width: usize, _line_no_start: usize) -> Vec<Line> {
+        let prev = section::name(chapter.saturating_sub(1), 2);
+        let next = section::name(chapter, 2);
+        let n = 2 + chapter % 5;
+        vec![
+            chrome(
+                width,
+                &[
+                    ("warning", &format!("bold {YELLOW}")),
+                    (
+                        &format!(": `core-{prev}` (lib) generated {n} warnings"),
+                        &format!("bold {FG}"),
+                    ),
+                ],
+            ),
+            chrome(
+                width,
+                &[
+                    ("   Compiling", &format!("bold {GREEN}")),
+                    (
+                        &format!(
+                            " core-{next} v{} (/home/dev/project/crates/{next})",
+                            section::version(chapter)
+                        ),
+                        FG,
+                    ),
+                ],
+            ),
+        ]
     }
 
     fn progress_label(&self, done: usize, total: usize, _width: usize) -> String {

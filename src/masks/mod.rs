@@ -15,6 +15,7 @@ pub mod docker;
 pub mod git;
 pub mod log;
 pub mod palette;
+pub mod section;
 pub mod snippets;
 pub mod test;
 pub mod time;
@@ -89,6 +90,15 @@ pub trait Mask {
 
     /// How many lines `render` gives for this paragraph, without building them.
     fn line_count(&self, para: &Paragraph, width: usize) -> usize;
+
+    /// Lines marking the start of chapter `chapter`, in the mask's own idiom (a new
+    /// file, a merge commit, a container restart...). The session puts them above the
+    /// first paragraph of every chapter but the first, as part of that paragraph.
+    ///
+    /// Names come from `section`, chosen by `chapter`: never the chapter's title.
+    /// `line_no_start` is the number of the first of these lines, as in `render`;
+    /// how many lines there are must not depend on it.
+    fn transition(&self, chapter: usize, width: usize, line_no_start: usize) -> Vec<Line>;
 
     /// One line of filler.
     fn noise(&mut self, rng: &mut Rng, width: usize) -> Line;
@@ -306,6 +316,72 @@ mod contract {
                     "{}",
                     m.name()
                 );
+            }
+        }
+    }
+
+    /// Every mask, every language of the code mask.
+    fn all_masks() -> Vec<(String, Box<dyn Mask>)> {
+        MASK_NAMES
+            .iter()
+            .flat_map(|name| {
+                let langs: &[&str] = if *name == "code" { LANGS } else { &["python"] };
+                langs
+                    .iter()
+                    .map(move |lang| (format!("{name}/{lang}"), get_mask(name, lang).unwrap()))
+            })
+            .collect()
+    }
+
+    #[test]
+    fn transitions_are_chrome_that_fits_and_names_nothing_forbidden() {
+        for (label, m) in all_masks() {
+            for width in [3, 40, 60, 120] {
+                for chapter in 1..20 {
+                    let lines = m.transition(chapter, width, 57);
+                    assert!(!lines.is_empty(), "{label}");
+                    for l in &lines {
+                        let p = l.plain();
+                        assert!(!l.is_book && l.pos.is_none(), "{label}: {p}");
+                        assert!(
+                            unicode_width::UnicodeWidthStr::width(p.as_str()) <= width.max(1),
+                            "{label} at {width}: {p}"
+                        );
+                        let low = p.to_lowercase();
+                        assert!(!FORBIDDEN.iter().any(|w| low.contains(w)), "{label}: {p}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn transitions_speak_each_masks_idiom() {
+        let want: &[(&str, &str)] = &[
+            ("code", "# --- "),
+            ("log", "INFO  svc.worker"),
+            ("diff", "diff --git a/"),
+            ("test", "tests/test_"),
+            ("build", "   Compiling core-"),
+            ("git", "Merge branch '"),
+            ("docker", "worker-1 exited with code"),
+            ("agent", "> "),
+        ];
+        for (name, marker) in want {
+            let m = get_mask(name, "python").unwrap();
+            let text: Vec<String> = m.transition(2, 120, 40).iter().map(Line::plain).collect();
+            assert!(text.iter().any(|l| l.contains(marker)), "{name}: {text:?}");
+        }
+    }
+
+    #[test]
+    fn transitions_are_stable_vary_by_chapter_and_keep_their_length() {
+        for (label, m) in all_masks() {
+            let a = m.transition(3, 80, 100);
+            assert_eq!(a, m.transition(3, 80, 100), "{label}");
+            assert_ne!(a, m.transition(4, 80, 100), "{label}");
+            for start in [1, 100, 9_999] {
+                assert_eq!(m.transition(3, 80, start).len(), a.len(), "{label}");
             }
         }
     }

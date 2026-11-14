@@ -2,7 +2,7 @@
 
 use super::base::{Line, chrome, seg};
 use super::palette::{DIM, FG, GREEN, RED};
-use super::{Mask, Rng, pick, randint};
+use super::{Mask, Rng, pick, randint, section};
 use crate::book::{Paragraph, Pos};
 use crate::text::ragged;
 use unicode_width::UnicodeWidthStr;
@@ -102,6 +102,15 @@ impl Mask for TestMask {
         ));
         out.push(self.noise(rng, width));
         out
+    }
+
+    /// The run reaching another test module: its progress line of dots.
+    fn transition(&self, chapter: usize, width: usize, _line_no_start: usize) -> Vec<Line> {
+        let name = format!("tests/test_{}.py ", section::name(chapter, 0));
+        let mut dots = ".".repeat(4 + chapter * 7 % 17);
+        dots.push('F');
+        let pct = format!(" [{:3}%]", 3 + chapter * 29 % 95);
+        vec![chrome(width, &[(&name, FG), (&dots, GREEN), (&pct, DIM)])]
     }
 
     fn progress_label(&self, done: usize, total: usize, _width: usize) -> String {

@@ -2,7 +2,7 @@
 
 use super::base::{Line, chrome, chrome_owned, progress_bar_label, seg};
 use super::palette::{CYAN, DIM, FG, GREEN, RED, highlight};
-use super::{Mask, Rng, pick, random};
+use super::{Mask, Rng, pick, random, section};
 use crate::book::{Paragraph, Pos};
 use crate::text::ragged;
 use unicode_width::UnicodeWidthStr;
@@ -84,6 +84,29 @@ impl Mask for DiffMask {
         }
         out.push(self.noise(rng, width));
         out
+    }
+
+    /// The next file of the diff: its own `diff --git` preamble.
+    fn transition(&self, chapter: usize, width: usize, _line_no_start: usize) -> Vec<Line> {
+        let name = section::name(chapter, 0);
+        let full = format!("src/{}/{name}.py", section::name(chapter, 1));
+        let path = if 2 * full.len() + 17 <= width {
+            full
+        } else {
+            format!("{name}.py")
+        };
+        let head = format!("bold {FG}");
+        let index = format!(
+            "index {}..{} 100644",
+            section::hex(chapter, "diff-old", 7),
+            section::hex(chapter, "diff-new", 7)
+        );
+        vec![
+            chrome(width, &[(&format!("diff --git a/{path} b/{path}"), &head)]),
+            chrome(width, &[(&index, DIM)]),
+            chrome(width, &[(&format!("--- a/{path}"), &head)]),
+            chrome(width, &[(&format!("+++ b/{path}"), &head)]),
+        ]
     }
 
     fn progress_label(&self, done: usize, total: usize, _width: usize) -> String {

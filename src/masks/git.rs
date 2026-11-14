@@ -5,7 +5,7 @@ use rand::Rng as _;
 use super::base::{Line, chrome, seg};
 use super::palette::{DIM, FG, GREEN, RED, YELLOW};
 use super::time::{EPOCH_DAY, civil, month, weekday};
-use super::{Mask, Rng, pick, randint};
+use super::{Mask, Rng, pick, randint, section};
 use crate::book::{Paragraph, Pos};
 use crate::text::{pad_cells, ragged};
 
@@ -88,7 +88,7 @@ impl Mask for GitMask {
     }
 
     fn header(&mut self, _rng: &mut Rng, width: usize) -> Vec<Line> {
-        vec![chrome(width, &[("git log --stat --no-merges", DIM)])]
+        vec![chrome(width, &[("git log --stat --first-parent", DIM)])]
     }
 
     fn noise(&mut self, rng: &mut Rng, width: usize) -> Line {
@@ -128,6 +128,45 @@ impl Mask for GitMask {
         }
         out.push(chrome(width, &[("", FG)]));
         out
+    }
+
+    /// A merge commit: the branch whose commits follow.
+    fn transition(&self, chapter: usize, width: usize, line_no_start: usize) -> Vec<Line> {
+        let (author, mail) = section::choose(AUTHORS, chapter);
+        // newer than the commits below it, older than those above
+        let when = EPOCH_MIN - line_no_start as i64 * 7;
+        let kind = section::choose(&["feature", "fix", "chore", "feature", "refactor"], chapter);
+        let branch = format!(
+            "{kind}/{}-{}",
+            section::name(chapter, 0),
+            section::name(chapter, 1)
+        );
+        let ind = " ".repeat(indent(width));
+        vec![
+            chrome(
+                width,
+                &[(
+                    &format!("commit {}", section::hex(chapter, "merge", 40)),
+                    YELLOW,
+                )],
+            ),
+            chrome(
+                width,
+                &[(
+                    &format!(
+                        "Merge: {} {}",
+                        section::hex(chapter, "parent-1", 7),
+                        section::hex(chapter, "parent-2", 7)
+                    ),
+                    FG,
+                )],
+            ),
+            chrome(width, &[(&format!("Author: {author} <{mail}>"), FG)]),
+            chrome(width, &[(&format!("Date:   {}", git_date(when)), FG)]),
+            chrome(width, &[("", FG)]),
+            chrome(width, &[(&format!("{ind}Merge branch '{branch}'"), FG)]),
+            chrome(width, &[("", FG)]),
+        ]
     }
 
     fn progress_label(&self, done: usize, total: usize, _width: usize) -> String {

@@ -2,7 +2,7 @@
 
 use super::base::{Line, Segment, chrome, chrome_owned, progress_bar_label, seg};
 use super::palette::{BLUE, CONTROL, CYAN, DIM, FG, GREEN, YELLOW};
-use super::{Mask, Rng, pick};
+use super::{Mask, Rng, pick, section};
 use crate::book::{Paragraph, Pos};
 use crate::text::ragged;
 use unicode_width::UnicodeWidthStr;
@@ -118,6 +118,24 @@ impl Mask for DockerMask {
                 )
             })
             .collect()
+    }
+
+    /// The worker container restarting.
+    fn transition(&self, chapter: usize, width: usize, _line_no_start: usize) -> Vec<Line> {
+        let name = section::name(chapter, 0);
+        let code = section::choose(&[0, 0, 137, 0, 1], chapter);
+        let start = match chapter % 3 {
+            0 => format!("[entrypoint] starting worker queue={name}"),
+            1 => format!("[tasks] worker ready, consuming from {name}"),
+            _ => format!("[entrypoint] migrations applied, serving {name}"),
+        };
+        vec![
+            chrome(
+                width,
+                &[(&format!("{BOOK_SVC} exited with code {code}"), DIM)],
+            ),
+            chrome_owned(width, vec![prefix(BOOK_SVC, CYAN, width), seg(start, FG)]),
+        ]
     }
 
     fn progress_label(&self, done: usize, total: usize, _width: usize) -> String {

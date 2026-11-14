@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 
 use super::base::{Line, Segment, crop, seg};
 use super::palette::{COMMENT, GUTTER, highlight};
-use super::{LANGS, Mask, Rng, snippets};
+use super::{LANGS, Mask, Rng, section, snippets};
 use crate::book::{Paragraph, Pos};
 use crate::text::ragged;
 use unicode_width::UnicodeWidthStr;
@@ -200,6 +200,27 @@ impl Mask for CodeMask {
         emit(&mut out, self, item, false);
         self.next_no = n;
         out
+    }
+
+    /// The next file of a concatenated listing: a gap, then the file's banner comment.
+    fn transition(&self, chapter: usize, width: usize, line_no_start: usize) -> Vec<Line> {
+        let name = section::name(chapter, 0);
+        let pkg = section::name(chapter, 1);
+        let banner = match self.lang {
+            "typescript" => format!("// --- src/{pkg}/{name}.ts ---"),
+            "go" => format!("// --- {pkg}/{name}.go ---"),
+            "rust" => format!("// --- src/{pkg}/{name}.rs ---"),
+            "java" => format!(
+                "// --- src/main/java/{pkg}/{}.java ---",
+                section::capitalised(name)
+            ),
+            "csharp" => format!("// --- src/{}.cs ---", section::capitalised(name)),
+            _ => format!("# --- {pkg}/{name}.py ---"),
+        };
+        vec![
+            self.line(line_no_start, vec![], width, None),
+            self.line(line_no_start + 1, vec![seg(banner, COMMENT)], width, None),
+        ]
     }
 
     /// An editor status line: file, position, how far down.

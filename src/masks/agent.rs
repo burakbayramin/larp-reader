@@ -14,7 +14,7 @@ use rand::Rng as _;
 use super::base::{Line, Segment, chrome, chrome_owned, crop, seg};
 use super::codegen::{commands_deck, files_deck, signatures_deck, statements_deck, tasks_deck};
 use super::palette::{DIM, FG, GREEN, RED, highlight};
-use super::{Mask, Rng, pick, randint, random};
+use super::{Mask, Rng, pick, randint, random, section};
 use crate::book::{Paragraph, Pos};
 use crate::text::ragged;
 use unicode_width::UnicodeWidthStr;
@@ -493,6 +493,20 @@ impl Mask for AgentMask {
             self.stream_n += 1;
         }
         self.stream.pop_front().expect("a unit is never empty")
+    }
+
+    /// The user asking for the next thing.
+    fn transition(&self, chapter: usize, width: usize, _line_no_start: usize) -> Vec<Line> {
+        let a = section::name(chapter, 0);
+        let b = section::name(chapter, 1);
+        let ask = match chapter % 5 {
+            0 => format!("> next, add retries to the {a} client"),
+            1 => format!("> now move {a} parsing into its own module"),
+            2 => format!("> next, write tests for {a} and {b}"),
+            3 => format!("> ok, now clean up the {a} config"),
+            _ => format!("> next, make {a} handle an empty {b}"),
+        };
+        vec![chrome(width, &[(&ask, DIM)]), blank(width)]
     }
 
     fn progress_label(&self, done: usize, total: usize, _width: usize) -> String {

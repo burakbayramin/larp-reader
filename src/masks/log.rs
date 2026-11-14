@@ -3,7 +3,7 @@
 use super::base::{Line, Segment, chrome, chrome_owned, progress_bar_label, seg};
 use super::palette::{BLUE, CYAN, DIM, FG, GREEN, YELLOW};
 use super::time::{EPOCH_DAY, civil};
-use super::{Mask, Rng, pick, randint, weighted};
+use super::{Mask, Rng, pick, randint, section, weighted};
 use crate::book::{Paragraph, Pos};
 use crate::text::ragged;
 use unicode_width::UnicodeWidthStr;
@@ -192,6 +192,23 @@ impl Mask for LogMask {
         let t = self.tick(rng);
         out.push(self.entry(rng, t, width));
         out
+    }
+
+    /// The worker moving on to a new batch, or its log being rotated.
+    fn transition(&self, chapter: usize, width: usize, line_no_start: usize) -> Vec<Line> {
+        // on the line's own time slot: after the paragraph above, before the one below
+        let t = Time(EPOCH_MS + line_no_start as u64 * LINE_MS);
+        let name = section::name(chapter, 0);
+        let n = chapter + 1;
+        let text = match chapter % 4 {
+            0 => format!("starting batch {n} queue={name}"),
+            1 => format!("log rotated: worker.log.{n} -> worker.log.{}", n + 1),
+            2 => format!("picked up job set {name} (batch {n})"),
+            _ => format!("consumer rebalanced: partition={n} topic={name}"),
+        };
+        let mut segs = prefix_segments(t, "INFO", BOOK_SVC, width);
+        segs.push(seg(text, format!("bold {FG}")));
+        vec![chrome_owned(width, segs)]
     }
 
     fn progress_label(&self, done: usize, total: usize, _width: usize) -> String {

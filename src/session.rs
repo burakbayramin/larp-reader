@@ -100,11 +100,26 @@ impl Session {
         )
     }
 
+    /// Whether `pos` opens a chapter after the first one with text: such a
+    /// paragraph starts with the mask's transition lines.
+    fn opens_chapter(&self, pos: Pos) -> bool {
+        pos.1 == 0 && self.book.prev_pos(pos).is_some()
+    }
+
     fn render(&mut self, pos: Pos, start: usize) -> Vec<Line> {
         let mut rng = seeded(&self.seed(pos));
         let count = self.noise_count(pos);
+        let mut lines = if self.opens_chapter(pos) {
+            self.mask.transition(pos.0, self.width, start)
+        } else {
+            vec![]
+        };
+        let body_start = start + lines.len();
         let para = self.book.paragraph(pos).expect("a valid position");
-        let mut lines = self.mask.render(para, pos, self.width, &mut rng, start);
+        lines.extend(
+            self.mask
+                .render(para, pos, self.width, &mut rng, body_start),
+        );
         lines.extend(noise_lines(
             self.mask.as_mut(),
             self.noise,
@@ -117,7 +132,12 @@ impl Session {
 
     fn line_count(&self, pos: Pos) -> usize {
         let para = self.book.paragraph(pos).expect("a valid position");
-        self.mask.line_count(para, self.width) + self.noise_count(pos)
+        let transition = if self.opens_chapter(pos) {
+            self.mask.transition(pos.0, self.width, 0).len()
+        } else {
+            0
+        };
+        transition + self.mask.line_count(para, self.width) + self.noise_count(pos)
     }
 
     /// Number of the paragraph's first line, counted from the top of the text.
@@ -493,24 +513,103 @@ mod tests {
         }
     }
 
+    const TITLE: &str = "Zehirli Elmanin Sirri";
+
+    /// `chapters` chapters of `per` paragraphs each, titled so a leak would show,
+    /// behind an empty chapter (front matter) that has no text.
+    fn chaptered_book(chapters: usize, per: usize, width_words: usize) -> Book {
+        let mut all = vec![Chapter {
+            title: Some("Kapak".into()),
+            paragraphs: vec![],
+        }];
+        all.extend((0..chapters).map(|c| {
+            Chapter {
+                title: Some(format!("{TITLE} {c}")),
+                paragraphs: (0..per)
+                    .map(|i| {
+                        Paragraph::new(format!(
+                            "Paragraf {c}.{i} {}",
+                            "kelime ".repeat(width_words)
+                        ))
+                    })
+                    .collect(),
+            }
+        }));
+        Book {
+            id: "bk".into(),
+            chapters: all,
+        }
+    }
+
+    /// Every position in reading order.
+    fn positions(book: &Book) -> Vec<Pos> {
+        let first = book.chapter_list()[0].0;
+        std::iter::successors(Some((first, 0)), |p| book.next_pos(*p)).collect()
+    }
+
     #[test]
     fn every_code_line_has_a_gutter_including_filler() {
         for lang in crate::masks::LANGS {
-            let mut s = Session::new(
-                sample_book(40),
-                get_mask("code", lang).unwrap(),
-                3,
-                60,
-                (0, 0),
-            );
-            for i in 0..6 {
-                let block = s.paragraph_lines((0, i));
-                let numbers = gutter(&block);
+            let book = chaptered_book(3, 3, 40);
+            let order = positions(&book);
+            let mut s = Session::new(book, get_mask("code", lang).unwrap(), 3, 60, (1, 0));
+            let mut all = vec![];
+            for p in order {
+                let block = s.paragraph_lines(p);
                 assert!(block.iter().all(|l| l.plain().chars().count() <= 60));
-                let mut sorted = numbers.clone();
-                sorted.sort();
-                sorted.dedup();
-                assert_eq!(numbers, sorted, "{lang}");
+                all.extend(gutter(&block));
+            }
+            // continuous across paragraphs, filler and chapter transitions alike
+            assert!(all.windows(2).all(|w| w[1] == w[0] + 1), "{lang}: {all:?}");
+        }
+    }
+
+    #[test]
+    fn chapter_starts_after_the_first_open_with_the_masks_transition() {
+        for name in crate::masks::MASK_NAMES {
+            let langs: &[&str] = if *name == "code" {
+                crate::masks::LANGS
+            } else {
+                &["python"]
+            };
+            for lang in langs {
+                for width in [40, 60, 120] {
+                    let book = chaptered_book(3, 3, 25);
+                    let order = positions(&book);
+                    let mut s = Session::new(book, get_mask(name, lang).unwrap(), 2, width, (1, 0));
+                    for p in order {
+                        let start = s.line_no_start(p);
+                        let lines = s.paragraph_lines(p);
+                        let tr = s.mask().transition(p.0, width, start);
+                        let has = lines.len() >= tr.len() && lines[..tr.len()] == tr[..];
+                        // chapter 1 is the first with text: the header opens it instead
+                        let want = p.1 == 0 && p.0 > 1;
+                        assert_eq!(has, want, "{name}/{lang} at {width}, {p:?}");
+                        let para = s.book.paragraph(p).unwrap();
+                        let bare = s.mask().line_count(para, width) + s.noise_count(p);
+                        let extra = if want { tr.len() } else { 0 };
+                        assert_eq!(lines.len(), bare + extra, "{name}/{lang} {p:?}");
+                        assert_eq!(s.line_count(p), lines.len(), "{name}/{lang} {p:?}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn transitions_never_show_a_chapter_title() {
+        for name in crate::masks::MASK_NAMES {
+            let book = chaptered_book(4, 2, 10);
+            let order = positions(&book);
+            let mut s = Session::new(book, get_mask(name, "python").unwrap(), 3, 120, (1, 0));
+            for p in order {
+                for l in s.paragraph_lines(p).iter().filter(|l| !l.is_book) {
+                    let low = l.plain().to_lowercase();
+                    assert!(
+                        !low.contains("zehirli") && !low.contains("elma"),
+                        "{name}: {low}"
+                    );
+                }
             }
         }
     }
@@ -580,12 +679,17 @@ mod tests {
             .iter()
             .flat_map(|p| p.text.split_whitespace().map(String::from))
             .collect();
+        // three chapters, so pages cross chapter transitions too
+        let mut paras = paras.into_iter();
         let book = Book {
             id: "bk".into(),
-            chapters: vec![Chapter {
-                title: None,
-                paragraphs: paras,
-            }],
+            chapters: [3, 2, 3]
+                .iter()
+                .map(|n| Chapter {
+                    title: None,
+                    paragraphs: paras.by_ref().take(*n).collect(),
+                })
+                .collect(),
         };
         let rows = 23;
         for name in crate::masks::MASK_NAMES {
@@ -617,16 +721,13 @@ mod tests {
 
     #[test]
     fn log_time_never_runs_backwards_across_text_and_filler() {
-        let mut s = Session::new(
-            sample_book(30),
-            get_mask("log", "python").unwrap(),
-            5,
-            120,
-            (0, 0),
-        );
+        // chapters, so the transition lines are checked between them too
+        let book = chaptered_book(3, 3, 30);
+        let order = positions(&book);
+        let mut s = Session::new(book, get_mask("log", "python").unwrap(), 5, 120, (1, 0));
         let mut times = vec![];
-        for i in 0..8 {
-            for l in s.paragraph_lines((0, i)) {
+        for pos in order {
+            for l in s.paragraph_lines(pos) {
                 let p = l.plain();
                 assert_eq!(&p[23..25], "Z ", "{p}");
                 times.push(p[..23].to_string());
