@@ -47,6 +47,11 @@ pub const TYPING_FRAME: Duration = Duration::from_millis(30);
 pub const TYPING_RATE: f64 = 180.0;
 /// A line is fully typed within this share of its reading time.
 pub const TYPING_SHARE: f64 = 0.4;
+/// Rows of the input box some views draw above the status line.
+pub const BOX_ROWS: usize = 3;
+/// Shorter windows keep every row for the text.
+const BOX_MIN_ROWS: usize = 10;
+const BOX_BORDER: &str = "#5a5a5a";
 const WARNING: &str = "warning: window too narrow";
 const STATUS_FG: &str = "#858585";
 const FG: &str = "#d4d4d4";
@@ -361,7 +366,21 @@ impl App {
     }
 
     fn view_height(&self) -> usize {
-        self.rows.saturating_sub(1).max(1)
+        let input = if self.prompt_box().is_some() {
+            BOX_ROWS
+        } else {
+            0
+        };
+        self.rows.saturating_sub(1 + input).max(1)
+    }
+
+    /// The input box's placeholder, when the box is drawn: only for views that
+    /// have one, never while hidden, and not in small windows.
+    fn prompt_box(&self) -> Option<&'static str> {
+        if self.panic || self.cols < MIN_WIDTH || self.rows < BOX_MIN_ROWS {
+            return None;
+        }
+        self.session.as_ref().and_then(|s| s.mask().prompt_box())
     }
 
     /// Lay the screen out again from the session: warning, notices, header and text.
@@ -478,9 +497,28 @@ impl App {
             return;
         }
         frame.render_widget(ratatui::widgets::Block::default().style(base), frame.area());
-        let [feed, status] =
-            Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(frame.area());
+        let input = self.prompt_box();
+        let box_rows = if input.is_some() { BOX_ROWS as u16 } else { 0 };
+        let [feed, input_area, status] = Layout::vertical([
+            Constraint::Min(1),
+            Constraint::Length(box_rows),
+            Constraint::Length(1),
+        ])
+        .areas(frame.area());
         frame.render_widget(&self.feed, feed);
+        if let Some(placeholder) = input {
+            use ratatui::text::{Line as TLine, Span};
+            use ratatui::widgets::{Block, BorderType, Borders};
+            let block = Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(style(BOX_BORDER));
+            let prompt = TLine::from(vec![
+                Span::styled(" > ", style(FG)),
+                Span::styled(placeholder, style(STATUS_FG)),
+            ]);
+            frame.render_widget(Paragraph::new(prompt).block(block), input_area);
+        }
         let bar = match (&self.shell, &self.search) {
             (Some(f), _) => Some(format!("{}{}", self.prompt, f.value)),
             (None, Some(f)) => Some(format!("/{}", f.value)),
@@ -750,6 +788,7 @@ impl App {
         self.menu = None;
         self.panel = false;
         let shell = self.config.hide == "shell";
+        self.feed.set_height(self.view_height()); // the input box comes and goes with hiding
         if self.panic {
             self.feed.set_bottom_anchored(true);
             let (width, rows) = (self.width(), self.view_height() - usize::from(shell));
@@ -2722,5 +2761,64 @@ pub(crate) mod tests {
         h.press(&["a"]);
         h.app.tick();
         assert_eq!(h.app.feed.reveal(), None);
+    }
+
+    #[test]
+    fn agent_view_draws_an_input_box_above_the_status() {
+        let h = sample_with(10, agent(), 80, 24);
+        let rows: Vec<String> = h.screen().lines().map(String::from).collect();
+        assert!(
+            rows[20].starts_with('╭') && rows[20].ends_with('╮'),
+            "{}",
+            rows[20]
+        );
+        assert!(rows[21].starts_with("│ > "), "{}", rows[21]);
+        assert!(rows[22].starts_with('╰'));
+        assert!(rows[23].contains("1/10"));
+        assert_eq!(h.visible().len(), 20);
+        for w in ["book", "reader", "okuyucu", "sample"] {
+            assert!(!h.screen().to_lowercase().contains(w), "{w}");
+        }
+        // other views, narrow or short windows and the hidden screen have none
+        let code = Harness::sample(80, 24);
+        assert!(!code.screen().contains('╭'));
+        assert_eq!(code.visible().len(), 23);
+        for (cols, rows) in [(39, 24), (80, 9)] {
+            let small = sample_with(10, agent(), cols, rows);
+            assert!(!small.screen().contains('╭'), "{cols}x{rows}");
+        }
+        let mut h = h;
+        h.press(&["`"]);
+        assert!(!h.screen().contains('╭'));
+        assert_eq!(h.visible().len(), 23); // the hidden stream fills the screen
+        h.press(&["`"]);
+        assert!(h.screen().contains('╭'));
+        assert_eq!(h.visible().len(), 20);
+    }
+
+    #[test]
+    fn paging_with_the_input_box_shows_every_line_once() {
+        let mut h = sample_with(30, agent(), 80, 24);
+        let header = get_mask("agent", "python")
+            .unwrap()
+            .header(&mut seeded("x"), 80);
+        let stream = h.session().window(100_000);
+        let first = h.visible();
+        assert_eq!(first[..header.len()], header[..]);
+        let mut got: Vec<Line> = first[header.len()..].to_vec();
+        for _ in 0..200 {
+            if !h.app.more_below {
+                break;
+            }
+            h.press(&["space"]);
+            let page = h.visible();
+            assert!(page.len() <= 20);
+            got.extend(page);
+        }
+        assert!(!h.app.more_below);
+        assert_eq!(got.len(), stream.len());
+        assert_eq!(got, stream);
+        h.press(&["u"]); // and back again a screen
+        assert!(h.visible().len() <= 20);
     }
 }

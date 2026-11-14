@@ -526,6 +526,10 @@ impl Mask for AgentMask {
     fn typewriter(&self) -> bool {
         true
     }
+
+    fn prompt_box(&self) -> Option<&'static str> {
+        Some("Try \"add tests for the retry path\"")
+    }
 }
 
 /// Spinner glyphs, grown then shrunk again like Claude Code's.

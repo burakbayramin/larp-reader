@@ -122,6 +122,12 @@ pub trait Mask {
     fn typewriter(&self) -> bool {
         false
     }
+
+    /// A faint placeholder for an (inert) input box drawn above the status
+    /// line, for masks that look like an interactive session; None: no box.
+    fn prompt_box(&self) -> Option<&'static str> {
+        None
+    }
 }
 
 /// A fresh mask by name; `lang` matters only to the code mask.
