@@ -1,6 +1,7 @@
 //! A live-looking agent session: animated status, typewriter, input box.
 
 use super::*;
+use crate::ui::timer::{ANIMATION_FRAME, TYPING_FRAME};
 
 // -- a live-looking agent session --
 

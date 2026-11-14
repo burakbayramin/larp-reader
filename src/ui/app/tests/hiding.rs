@@ -1,6 +1,7 @@
 //! The hidden screen: its stream and the fake shell.
 
 use super::*;
+use crate::pace::learn;
 
 #[test]
 fn panic_removes_every_word_of_the_text() {
@@ -56,7 +57,7 @@ fn hidden_stream_flows_on_a_timer() {
 #[test]
 fn time_spent_hidden_is_not_reading_time() {
     let mut h = paced(200);
-    let words = h.app.view_words;
+    let words = h.app.pacer.view_words;
     h.press(&["`"]);
     h.now += Duration::from_secs(120); // someone walked by
     h.press(&["`"]);

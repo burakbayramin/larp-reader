@@ -1,6 +1,7 @@
 //! Auto scroll and the reading rate it learns from paging.
 
 use super::*;
+use crate::pace::{learn, line_delay, words_in};
 
 fn noisy() -> Config {
     Config { noise: 3, ..cfg() }
@@ -116,7 +117,7 @@ fn auto_waits_by_the_words_on_screen_then_by_each_line() {
 #[test]
 fn paging_learns_the_reading_rate() {
     let mut h = paced(200);
-    let words = h.app.view_words;
+    let words = h.app.pacer.view_words;
     assert!(words > 20);
     h.now += Duration::from_secs(20);
     h.press(&["space"]);
@@ -139,11 +140,11 @@ fn quick_paging_and_line_scrolling_do_not_learn() {
 fn line_scrolling_keeps_the_clock_and_counts_the_new_lines() {
     // a screen read for 20 s, a line scrolled, then paged 3 s later: 23 s of reading
     let mut h = paced(200);
-    let before = h.app.view_words;
+    let before = h.app.pacer.view_words;
     h.now += Duration::from_secs(20);
     h.press(&["j", "j"]);
     h.now += Duration::from_secs(3);
-    let read = h.app.view_words;
+    let read = h.app.pacer.view_words;
     assert!(read >= before);
     h.press(&["space"]);
     assert_eq!(h.app.config.wpm, learn(200, read, 23.0).unwrap());

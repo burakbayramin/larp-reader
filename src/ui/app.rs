@@ -4,7 +4,6 @@
 //! and `resize`; `draw` paints the current state. Time is always passed in, so
 //! tests can drive the app without a terminal and without waiting.
 
-use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -23,6 +22,7 @@ use super::search::{self, Search};
 use super::shell::{shell_output, shell_prompt};
 use super::style::{base, style};
 use super::theme::{self, THEMES};
+use super::timer::{Clock, Pacer};
 use crate::book::{Book, Pos};
 use crate::errors::FccError;
 use crate::loaders::{load_book, supported_extensions};
@@ -30,7 +30,7 @@ use crate::masks::base::{error_lines, plain_line};
 use crate::masks::time::civil;
 use crate::masks::{LANGS, Line, MASK_NAMES, Mask, Rng, get_mask, seeded};
 use crate::noise::MAX_NOISE;
-use crate::pace::{learn, line_delay, step_wpm, words_in};
+use crate::pace::step_wpm;
 use crate::session::Session;
 use crate::state::{Config, Entry, last_entry, load_progress, save_config, save_progress};
 use crate::text::truncate_cells;
@@ -38,16 +38,6 @@ use crate::text::truncate_cells;
 pub const MIN_WIDTH: usize = 40;
 pub const AUTOSAVE: Duration = Duration::from_secs(10);
 pub const FLASH: Duration = Duration::from_secs(2);
-/// Filler lines per second while hidden.
-pub const PANIC_RATE: f64 = 4.5;
-/// Redraw interval while the status label animates.
-pub const ANIMATION_FRAME: Duration = Duration::from_millis(120);
-/// Redraw interval while a line types out.
-pub const TYPING_FRAME: Duration = Duration::from_millis(30);
-/// Typing speed of a streamed line, in characters per second.
-pub const TYPING_RATE: f64 = 180.0;
-/// A line is fully typed within this share of its reading time.
-pub const TYPING_SHARE: f64 = 0.4;
 /// Rows of the input box some views draw above the status line.
 pub const BOX_ROWS: usize = 3;
 /// Shorter windows keep every row for the text.
@@ -161,19 +151,8 @@ pub struct App {
     quit: bool,
     /// The time of the event being handled.
     now: Instant,
-    /// Auto mode: lines of the paragraph being streamed, not yet shown.
-    queue: VecDeque<Line>,
-    /// Words of the newest text on screen, still to be read.
-    last_words: usize,
-    /// When the stream shows its next line.
-    next_tick: Option<Instant>,
-    /// Reading pace: which manual screen is up, since when, and the text lines seen on it.
-    view_key: Option<(String, Pos, usize)>,
-    view_since: Instant,
-    view_seen: HashMap<(Option<Pos>, String), usize>,
-    pub view_words: usize,
-    /// The next redraw only scrolled by a line: keep timing the screen.
-    line_step: bool,
+    /// The stream timer, the reading rate, the typewriter and the status clock.
+    pub pacer: Pacer,
     /// Filler for the hidden screen: unseeded, it never needs to repeat.
     panic_rng: Rng,
     prompt: String,
@@ -185,10 +164,6 @@ pub struct App {
     pub menu: Option<Menu>,
     /// The side panel with the keys and the folder's files.
     pub panel: bool,
-    /// When the current disguise came up: animated status labels count from here.
-    started: Instant,
-    /// The newest streamed line typing out: since when, for how long, its characters.
-    typing: Option<(Instant, Duration, usize)>,
 }
 
 impl App {
@@ -223,14 +198,7 @@ impl App {
             save_error_shown: false,
             quit: false,
             now,
-            queue: VecDeque::new(),
-            last_words: 0,
-            next_tick: None,
-            view_key: None,
-            view_since: now,
-            view_seen: HashMap::new(),
-            view_words: 0,
-            line_step: false,
+            pacer: Pacer::new(now),
             panic_rng: Rng::seed_from_u64(
                 SystemTime::now()
                     .duration_since(UNIX_EPOCH)
@@ -242,8 +210,6 @@ impl App {
             search: Search::default(),
             menu: None,
             panel: false,
-            started: now,
-            typing: None,
         };
         if let Some(e) = mask_error {
             app.notice.extend(error_lines(&e, app.width()));
@@ -338,13 +304,13 @@ impl App {
 
     /// Lay the screen out again from the session: warning, notices, header and text.
     pub fn redraw(&mut self) {
-        self.finish_typing();
+        self.pacer.finish_typing(&mut self.feed);
         self.feed.set_height(self.view_height());
         if self.panic {
             return;
         }
         self.feed.set_bottom_anchored(self.auto);
-        self.queue.clear();
+        self.pacer.clear_queue();
         let width = self.width();
         let mut lines = vec![];
         if width < MIN_WIDTH {
@@ -361,7 +327,7 @@ impl App {
             }
             if self.auto {
                 let para = s.paragraph_lines(s.pos());
-                self.last_words = words_in(&para);
+                self.pacer.show_paragraph(&para);
                 lines.extend(para);
             } else {
                 let rows = view.saturating_sub(lines.len());
@@ -374,34 +340,9 @@ impl App {
             }
         }
         if let Some((key, shown)) = watched {
-            self.watch_view(key, &shown);
+            self.pacer.watch(key, &shown, self.now);
         }
         self.feed.set_lines(self.search.highlighted(lines));
-    }
-
-    /// Time a manual screen from when it first shows.
-    ///
-    /// Scrolling by a line keeps the clock running and adds the lines it brings
-    /// in, so a page turn afterwards still divides everything read by the time
-    /// it really took.
-    fn watch_view(&mut self, key: (String, Pos, usize), shown: &[Line]) {
-        let step = std::mem::take(&mut self.line_step);
-        if self.view_key.as_ref() == Some(&key) {
-            return;
-        }
-        let seen: HashMap<(Option<Pos>, String), usize> = shown
-            .iter()
-            .filter(|l| l.is_book)
-            .map(|l| ((l.pos, l.plain()), words_in(std::slice::from_ref(l))))
-            .collect();
-        if step && self.view_key.is_some() {
-            self.view_seen.extend(seen);
-        } else {
-            self.view_since = self.now;
-            self.view_seen = seen;
-        }
-        self.view_key = Some(key);
-        self.view_words = self.view_seen.values().sum();
     }
 
     pub fn status_text(&self) -> String {
@@ -411,7 +352,7 @@ impl App {
         match &self.session {
             Some(s) => {
                 let (done, total) = s.progress();
-                let elapsed = self.now.saturating_duration_since(self.started);
+                let elapsed = self.pacer.elapsed(self.now);
                 s.mask()
                     .animated_label(done, total, self.width(), elapsed)
                     .unwrap_or_else(|| s.mask().progress_label(done, total, self.width()))
@@ -614,7 +555,7 @@ impl App {
 
     pub fn handle_key(&mut self, key: KeyEvent, now: Instant) {
         self.now = now;
-        self.finish_typing(); // any key, paging and hiding included, shows the whole line
+        self.pacer.finish_typing(&mut self.feed); // any key, paging and hiding included, shows the whole line
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
         if key.code == KeyCode::Char('`') {
             self.toggle_panic(); // works from anywhere, bars and menus included
@@ -682,9 +623,9 @@ impl App {
     }
 
     fn step(&mut self, n: isize) {
-        self.line_step = true;
+        self.pacer.set_line_step(true);
         self.scroll(n);
-        self.line_step = false; // in case nothing was redrawn
+        self.pacer.set_line_step(false); // in case nothing was redrawn
     }
 
     /// Move the manual view by `n` rendered lines; never past the last screen.
@@ -709,11 +650,7 @@ impl App {
     fn page(&mut self) {
         if self.session.is_some() && !self.auto && !self.panic && self.more_below {
             // paging on means the screen was read: let it tune the reading rate
-            let read = self
-                .now
-                .saturating_duration_since(self.view_since)
-                .as_secs_f64();
-            if let Some(rate) = learn(self.config.wpm, self.view_words, read)
+            if let Some(rate) = self.pacer.learned_rate(self.config.wpm, self.now)
                 && rate != self.config.wpm
             {
                 self.config.wpm = rate;
@@ -725,11 +662,11 @@ impl App {
 
     pub fn toggle_panic(&mut self) {
         self.panic = !self.panic;
-        self.stop_timer();
-        self.finish_typing();
+        self.pacer.stop();
+        self.pacer.finish_typing(&mut self.feed);
         self.feed.clear();
-        self.queue.clear();
-        self.view_key = None; // time spent hidden is not reading time
+        self.pacer.clear_queue();
+        self.pacer.forget_view(); // time spent hidden is not reading time
         self.search.close();
         self.menu = None;
         self.panel = false;
@@ -823,7 +760,7 @@ impl App {
         }
         self.config.mask = name.to_string();
         self.config.lang = lang.to_string();
-        self.started = self.now; // a new session: its clock starts at zero
+        self.pacer.restart_clock(self.now); // a new session: its clock starts at zero
         self.persist_config();
         self.redraw();
     }
@@ -922,7 +859,7 @@ impl App {
             Err(e) => self.notice = error_lines(&e, self.width()),
             Ok(()) => {
                 self.notice.clear();
-                self.queue.clear();
+                self.pacer.clear_queue();
             }
         }
         self.redraw();
@@ -1118,25 +1055,19 @@ impl App {
     /// The next moment `on_time` has something to do.
     pub fn next_deadline(&self) -> Instant {
         let mut at = self.next_autosave;
-        if let Some(t) = self.next_tick {
-            at = at.min(t);
-        }
         if let Some((_, until)) = &self.flash {
             at = at.min(*until);
         }
-        if self.animating() {
-            at = at.min(self.now + ANIMATION_FRAME);
-        }
-        if self.typing.is_some() {
-            at = at.min(self.now + TYPING_FRAME);
+        if let Some(t) = self.pacer.next_deadline(self.now, self.animating()) {
+            at = at.min(t);
         }
         at
     }
 
     pub fn on_time(&mut self, now: Instant) {
         self.now = now;
-        self.type_on();
-        if self.next_tick.is_some_and(|t| now >= t) {
+        self.pacer.type_on(now, self.panic, &mut self.feed);
+        if self.pacer.is_due(now) {
             self.timer_fired();
         }
         if let Some((_, until)) = &self.flash
@@ -1150,37 +1081,28 @@ impl App {
         }
     }
 
-    fn stop_timer(&mut self) {
-        self.next_tick = None;
-    }
-
     fn restart_timer(&mut self) {
-        self.stop_timer();
-        if self.panic {
-            if self.config.hide != "shell" {
-                self.next_tick = Some(self.now + Duration::from_secs_f64(1.0 / PANIC_RATE));
-            } // a shell waits for input
-            return;
-        }
-        if self.auto && self.session.is_some() {
-            // the text already on screen gets its reading time before the next line
-            self.next_tick = Some(
-                self.now + Duration::from_secs_f64(line_delay(self.last_words, self.config.wpm)),
-            );
-        }
+        let clock = if self.panic {
+            Clock::Hidden {
+                shell: self.config.hide == "shell",
+            }
+        } else if self.auto && self.session.is_some() {
+            Clock::Auto
+        } else {
+            Clock::Idle
+        };
+        self.pacer.restart(clock, self.now, self.config.wpm);
     }
 
     fn timer_fired(&mut self) {
-        self.next_tick = None;
+        self.pacer.stop();
         self.tick();
         if self.panic {
             self.restart_timer();
             return;
         }
-        if self.auto && !self.panic && self.next_tick.is_none() {
-            self.next_tick = Some(
-                self.now + Duration::from_secs_f64(line_delay(self.last_words, self.config.wpm)),
-            );
+        if self.auto && !self.panic && self.pacer.due().is_none() {
+            self.pacer.schedule_line(self.now, self.config.wpm);
         }
     }
 
@@ -1200,73 +1122,27 @@ impl App {
         let Some(s) = self.session.as_mut() else {
             return;
         };
-        let mut out = vec![];
-        let mut finished = false;
-        loop {
-            if self.queue.is_empty() {
-                if !s.advance(1) {
-                    finished = true;
-                    break;
-                }
-                self.queue = s.paragraph_lines(s.pos()).into();
-            }
-            let line = self.queue.pop_front().expect("refilled above");
-            let is_book = line.is_book;
-            out.push(line);
-            if is_book {
-                break;
-            }
-        }
-        self.last_words = words_in(&out);
+        let (out, finished) = self.pacer.next_lines(s);
         let types = s.mask().typewriter();
         if !out.is_empty() {
             let out = self.search.highlighted(out);
             let chars = out.last().filter(|l| l.is_book).map(text_chars);
             self.feed.append(out);
             if let Some(chars) = chars.filter(|&c| types && c > 0) {
-                self.start_typing(chars);
+                self.pacer
+                    .start_typing(chars, self.now, self.config.wpm, &mut self.feed);
             }
         }
         if finished {
             // end of text: back to manual mode so the paging keys work again
-            self.stop_timer();
+            self.pacer.stop();
             self.auto = false;
             self.redraw();
         }
     }
 
-    /// Type the newest line out, done well before its reading time is up.
-    fn start_typing(&mut self, chars: usize) {
-        let reading = line_delay(self.last_words, self.config.wpm) * TYPING_SHARE;
-        let span = (chars as f64 / TYPING_RATE).min(reading);
-        self.typing = Some((self.now, Duration::from_secs_f64(span), chars));
-        self.feed.set_reveal(Some(0));
-    }
-
-    /// Show the characters due by now.
-    fn type_on(&mut self) {
-        let Some((since, span, chars)) = self.typing else {
-            return;
-        };
-        let gone = self.now.saturating_duration_since(since).as_secs_f64();
-        let span = span.as_secs_f64();
-        if self.panic || gone >= span {
-            self.finish_typing();
-            return;
-        }
-        let shown = ((chars as f64 * gone / span).ceil() as usize).min(chars);
-        self.feed.set_reveal(Some(shown));
-    }
-
-    /// The line being typed shows in full at once.
-    fn finish_typing(&mut self) {
-        if self.typing.take().is_some() {
-            self.feed.set_reveal(None);
-        }
-    }
-
     pub fn timer_due(&self) -> Option<Instant> {
-        self.next_tick
+        self.pacer.due()
     }
 
     pub fn flash(&mut self, msg: &str, now: Instant) {
@@ -1305,7 +1181,7 @@ impl App {
             );
             self.notice.extend(lines.iter().cloned());
             if self.auto && !self.panic {
-                self.finish_typing();
+                self.pacer.finish_typing(&mut self.feed);
                 self.feed.append(lines);
             } else {
                 self.redraw();
