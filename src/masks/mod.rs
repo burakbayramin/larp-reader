@@ -117,6 +117,11 @@ pub trait Mask {
     ) -> Option<String> {
         None
     }
+
+    /// Whether streamed text lines type out a few characters at a time.
+    fn typewriter(&self) -> bool {
+        false
+    }
 }
 
 /// A fresh mask by name; `lang` matters only to the code mask.

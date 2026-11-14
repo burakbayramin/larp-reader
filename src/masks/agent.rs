@@ -522,6 +522,10 @@ impl Mask for AgentMask {
         let fits = |s: &&String| s.chars().count() <= width;
         Some(tries.iter().find(fits).unwrap_or(&tries[2]).clone())
     }
+
+    fn typewriter(&self) -> bool {
+        true
+    }
 }
 
 /// Spinner glyphs, grown then shrunk again like Claude Code's.

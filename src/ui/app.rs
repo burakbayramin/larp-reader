@@ -16,7 +16,7 @@ use ratatui::widgets::Paragraph;
 
 use rand::SeedableRng;
 
-use super::feed::Feed;
+use super::feed::{Feed, text_chars};
 use super::input::{InputEvent, LineInput};
 use super::menu::{Menu, MenuResult, section_label};
 use super::shell::{shell_output, shell_prompt};
@@ -41,6 +41,12 @@ pub const FLASH: Duration = Duration::from_secs(2);
 pub const PANIC_RATE: f64 = 4.5;
 /// Redraw interval while the status label animates.
 pub const ANIMATION_FRAME: Duration = Duration::from_millis(120);
+/// Redraw interval while a line types out.
+pub const TYPING_FRAME: Duration = Duration::from_millis(30);
+/// Typing speed of a streamed line, in characters per second.
+pub const TYPING_RATE: f64 = 180.0;
+/// A line is fully typed within this share of its reading time.
+pub const TYPING_SHARE: f64 = 0.4;
 const WARNING: &str = "warning: window too narrow";
 const STATUS_FG: &str = "#858585";
 const FG: &str = "#d4d4d4";
@@ -222,6 +228,8 @@ pub struct App {
     pub panel: bool,
     /// When the current disguise came up: animated status labels count from here.
     started: Instant,
+    /// The newest streamed line typing out: since when, for how long, its characters.
+    typing: Option<(Instant, Duration, usize)>,
 }
 
 impl App {
@@ -277,6 +285,7 @@ impl App {
             menu: None,
             panel: false,
             started: now,
+            typing: None,
         };
         if let Some(e) = mask_error {
             app.notice.extend(error_lines(&e, app.width()));
@@ -357,6 +366,7 @@ impl App {
 
     /// Lay the screen out again from the session: warning, notices, header and text.
     pub fn redraw(&mut self) {
+        self.finish_typing();
         self.feed.set_height(self.view_height());
         if self.panic {
             return;
@@ -614,6 +624,7 @@ impl App {
 
     pub fn handle_key(&mut self, key: KeyEvent, now: Instant) {
         self.now = now;
+        self.finish_typing(); // any key, paging and hiding included, shows the whole line
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
         if key.code == KeyCode::Char('`') {
             self.toggle_panic(); // works from anywhere, bars and menus included
@@ -731,6 +742,7 @@ impl App {
     pub fn toggle_panic(&mut self) {
         self.panic = !self.panic;
         self.stop_timer();
+        self.finish_typing();
         self.feed.clear();
         self.queue.clear();
         self.view_key = None; // time spent hidden is not reading time
@@ -1167,11 +1179,15 @@ impl App {
         if self.animating() {
             at = at.min(self.now + ANIMATION_FRAME);
         }
+        if self.typing.is_some() {
+            at = at.min(self.now + TYPING_FRAME);
+        }
         at
     }
 
     pub fn on_time(&mut self, now: Instant) {
         self.now = now;
+        self.type_on();
         if self.next_tick.is_some_and(|t| now >= t) {
             self.timer_fired();
         }
@@ -1254,15 +1270,50 @@ impl App {
             }
         }
         self.last_words = words_in(&out);
+        let types = s.mask().typewriter();
         if !out.is_empty() {
             let out = self.highlighted(out);
+            let chars = out.last().filter(|l| l.is_book).map(text_chars);
             self.feed.append(out);
+            if let Some(chars) = chars.filter(|&c| types && c > 0) {
+                self.start_typing(chars);
+            }
         }
         if finished {
             // end of text: back to manual mode so the paging keys work again
             self.stop_timer();
             self.auto = false;
             self.redraw();
+        }
+    }
+
+    /// Type the newest line out, done well before its reading time is up.
+    fn start_typing(&mut self, chars: usize) {
+        let reading = line_delay(self.last_words, self.config.wpm) * TYPING_SHARE;
+        let span = (chars as f64 / TYPING_RATE).min(reading);
+        self.typing = Some((self.now, Duration::from_secs_f64(span), chars));
+        self.feed.set_reveal(Some(0));
+    }
+
+    /// Show the characters due by now.
+    fn type_on(&mut self) {
+        let Some((since, span, chars)) = self.typing else {
+            return;
+        };
+        let gone = self.now.saturating_duration_since(since).as_secs_f64();
+        let span = span.as_secs_f64();
+        if self.panic || gone >= span {
+            self.finish_typing();
+            return;
+        }
+        let shown = ((chars as f64 * gone / span).ceil() as usize).min(chars);
+        self.feed.set_reveal(Some(shown));
+    }
+
+    /// The line being typed shows in full at once.
+    fn finish_typing(&mut self) {
+        if self.typing.take().is_some() {
+            self.feed.set_reveal(None);
         }
     }
 
@@ -1306,6 +1357,7 @@ impl App {
             );
             self.notice.extend(lines.iter().cloned());
             if self.auto && !self.panic {
+                self.finish_typing();
                 self.feed.append(lines);
             } else {
                 self.redraw();
@@ -2598,5 +2650,77 @@ pub(crate) mod tests {
         assert!(code.app.next_deadline() >= code.now + Duration::from_secs(1));
         code.advance(Duration::from_secs(1));
         assert!(code.app.next_deadline() >= code.now + Duration::from_secs(1));
+    }
+
+    /// The newest text line of the stream, as drawn on screen.
+    fn newest_drawn(h: &Harness) -> (Line, String) {
+        let line = h.app.feed.history_lines().last().unwrap().clone();
+        let text = h.app.feed.text();
+        (line, text.lines.last().unwrap().to_string())
+    }
+
+    #[test]
+    fn typewriter_reveals_a_streamed_line_then_completes() {
+        let mut h = sample_with(10, agent(), 80, 24);
+        h.press(&["a"]);
+        h.app.tick();
+        let (line, drawn) = newest_drawn(&h);
+        assert!(line.is_book); // the history has the whole line at once
+        assert_eq!(h.app.feed.reveal(), Some(0));
+        assert!(h.app.next_deadline() <= h.now + TYPING_FRAME);
+        let full = line.plain();
+        assert_ne!(drawn, full);
+        let mut seen = vec![0];
+        for _ in 0..200 {
+            h.advance(TYPING_FRAME);
+            match h.app.feed.reveal() {
+                Some(n) => seen.push(n),
+                None => break,
+            }
+        }
+        assert_eq!(h.app.feed.reveal(), None, "finished");
+        assert!(seen.len() > 3, "{seen:?}"); // several steps
+        assert!(seen.windows(2).all(|w| w[0] < w[1]), "{seen:?}");
+        assert_eq!(newest_drawn(&h).1, full);
+        // and well before the next line is due
+        assert!(h.app.timer_due().unwrap() > h.now);
+        assert!(h.app.next_deadline() > h.now + TYPING_FRAME);
+    }
+
+    #[test]
+    fn typewriter_finishes_at_once_on_keys_hiding_and_resizing() {
+        let mut h = sample_with(10, agent(), 80, 24);
+        h.press(&["a"]);
+        h.app.tick();
+        h.advance(TYPING_FRAME);
+        assert!(h.app.feed.reveal().is_some());
+        h.press(&["space"]); // paging is idle in auto mode, but the line shows whole
+        assert_eq!(h.app.feed.reveal(), None);
+        assert_eq!(newest_drawn(&h).1, newest_drawn(&h).0.plain());
+        h.app.tick();
+        h.press(&["`"]);
+        assert_eq!(h.app.feed.reveal(), None);
+        assert!(!h.app.feed.history_lines().iter().any(|l| l.is_book));
+        for _ in 0..5 {
+            h.app.tick(); // the hidden stream never types out
+            h.advance(TYPING_FRAME);
+            assert_eq!(h.app.feed.reveal(), None);
+        }
+        h.press(&["`"]);
+        h.app.tick();
+        assert!(h.app.feed.reveal().is_some());
+        h.app.resize(100, 30);
+        assert_eq!(h.app.feed.reveal(), None);
+        h.app.tick();
+        h.press(&["a"]); // leaving auto mode
+        assert_eq!(h.app.feed.reveal(), None);
+    }
+
+    #[test]
+    fn other_views_stream_whole_lines() {
+        let mut h = sample_with(10, cfg(), 80, 24);
+        h.press(&["a"]);
+        h.app.tick();
+        assert_eq!(h.app.feed.reveal(), None);
     }
 }
