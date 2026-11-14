@@ -19,10 +19,11 @@ use rand::SeedableRng;
 use super::feed::{Feed, text_chars};
 use super::input::{InputEvent, LineInput};
 use super::menu::{Menu, MenuResult, section_label};
+use super::search::{self, Search};
 use super::shell::{shell_output, shell_prompt};
 use super::style::{base, style};
 use super::theme::{self, THEMES};
-use crate::book::{Book, Pos, match_spans};
+use crate::book::{Book, Pos};
 use crate::errors::FccError;
 use crate::loaders::{load_book, supported_extensions};
 use crate::masks::base::{error_lines, plain_line};
@@ -57,8 +58,6 @@ const STATUS_FG: &str = "#858585";
 const FG: &str = "#d4d4d4";
 const SAVED_MSG: &str = "cache saved";
 const NO_MARKS_MSG: &str = "cache empty";
-const NOT_FOUND_MSG: &str = "Pattern not found";
-const HIGHLIGHT: &str = "reverse";
 /// One per digit key.
 const LISTED_INPUTS: usize = 9;
 const PANEL_WIDTH: u16 = 38;
@@ -84,15 +83,6 @@ const KEYS: &[(&str, &str)] = &[
     ("q", "quit"),
 ];
 
-/// The flash after a search wrapped around the end (forward) or the start (backward).
-fn wrap_msg(backward: bool) -> &'static str {
-    if backward {
-        "search hit TOP, continuing at BOTTOM"
-    } else {
-        "search hit BOTTOM, continuing at TOP"
-    }
-}
-
 /// The end of `line` that fits in `cols` cells: an input bar scrolls sideways
 /// like a terminal, so the typed text and the cursor stay in view.
 fn tail_fitting(line: &str, cols: usize) -> String {
@@ -108,40 +98,6 @@ fn tail_fitting(line: &str, cols: usize) -> String {
         kept.push(c);
     }
     kept.iter().rev().collect()
-}
-
-/// `line` with every match of `query` inside its text segments shown reversed (like grep --color).
-pub fn highlight(line: &Line, query: &str) -> Line {
-    let mut segments = vec![];
-    for (text, style) in &line.segments {
-        let spans = if style.split_whitespace().any(|t| t == "book") {
-            match_spans(text, query)
-        } else {
-            vec![]
-        };
-        if spans.is_empty() {
-            segments.push((text.clone(), style.clone()));
-            continue;
-        }
-        let chars: Vec<char> = text.chars().collect();
-        let piece = |a: usize, b: usize| chars[a..b].iter().collect::<String>();
-        let mut at = 0;
-        for (start, end) in spans {
-            if start > at {
-                segments.push((piece(at, start), style.clone()));
-            }
-            segments.push((piece(start, end), format!("{style} {HIGHLIGHT}")));
-            at = end;
-        }
-        if at < chars.len() {
-            segments.push((piece(at, chars.len()), style.clone()));
-        }
-    }
-    Line {
-        segments,
-        is_book: line.is_book,
-        pos: line.pos,
-    }
 }
 
 /// The configured mask, or the code mask plus the problem if it can't be built.
@@ -223,10 +179,8 @@ pub struct App {
     prompt: String,
     /// The fake shell's input line, while it is up.
     pub shell: Option<LineInput>,
-    /// The search input line, while it is up.
-    pub search: Option<LineInput>,
-    /// The last search; its matches are highlighted.
-    pub query: String,
+    /// The search bar and the last query.
+    pub search: Search,
     /// The settings screen, while it is up.
     pub menu: Option<Menu>,
     /// The side panel with the keys and the folder's files.
@@ -285,8 +239,7 @@ impl App {
             ),
             prompt: shell_prompt(),
             shell: None,
-            search: None,
-            query: String::new(),
+            search: Search::default(),
             menu: None,
             panel: false,
             started: now,
@@ -423,7 +376,7 @@ impl App {
         if let Some((key, shown)) = watched {
             self.watch_view(key, &shown);
         }
-        self.feed.set_lines(self.highlighted(lines));
+        self.feed.set_lines(self.search.highlighted(lines));
     }
 
     /// Time a manual screen from when it first shows.
@@ -475,7 +428,7 @@ impl App {
             || self.flash.is_some()
             || self.menu.is_some()
             || self.shell.is_some()
-            || self.search.is_some()
+            || self.search.is_open()
         {
             return false;
         }
@@ -519,10 +472,9 @@ impl App {
             ]);
             frame.render_widget(Paragraph::new(prompt).block(block), input_area);
         }
-        let bar = match (&self.shell, &self.search) {
-            (Some(f), _) => Some(format!("{}{}", self.prompt, f.value)),
-            (None, Some(f)) => Some(format!("/{}", f.value)),
-            _ => None,
+        let bar = match &self.shell {
+            Some(f) => Some(format!("{}{}", self.prompt, f.value)),
+            None => self.search.bar_text(),
         };
         if let Some(line) = bar {
             let line = tail_fitting(&line, status.width.saturating_sub(1) as usize);
@@ -686,18 +638,12 @@ impl App {
             }
             return;
         }
-        if let Some(field) = self.search.as_mut() {
-            match field.handle(key) {
-                InputEvent::Submit(query) => {
-                    self.search = None;
-                    self.query = query.trim().to_string();
-                    match self.session.as_ref().map(Session::pos) {
-                        Some(pos) if !self.query.is_empty() => self.find(pos, false, false),
-                        _ => self.redraw(),
-                    }
+        if self.search.is_open() {
+            if self.search.handle(key) {
+                match self.session.as_ref().map(Session::pos) {
+                    Some(pos) if !self.search.query.is_empty() => self.find(pos, false, false),
+                    _ => self.redraw(),
                 }
-                InputEvent::Ignored if key.code == KeyCode::Esc => self.search = None,
-                _ => {}
             }
             return;
         }
@@ -784,7 +730,7 @@ impl App {
         self.feed.clear();
         self.queue.clear();
         self.view_key = None; // time spent hidden is not reading time
-        self.search = None;
+        self.search.close();
         self.menu = None;
         self.panel = false;
         let shell = self.config.hide == "shell";
@@ -825,23 +771,6 @@ impl App {
         }
     }
 
-    /// Mark the last search's matches inside the text.
-    fn highlighted(&self, lines: Vec<Line>) -> Vec<Line> {
-        if self.query.is_empty() {
-            return lines;
-        }
-        lines
-            .into_iter()
-            .map(|l| {
-                if l.is_book {
-                    highlight(&l, &self.query)
-                } else {
-                    l
-                }
-            })
-            .collect()
-    }
-
     /// Show the text from the top of paragraph `pos`.
     fn go(&mut self, pos: Pos) {
         if let Some(s) = self.session.as_mut() {
@@ -874,7 +803,7 @@ impl App {
     fn open_search(&mut self) {
         if self.session.is_some() && !self.panic {
             self.panel = false;
-            self.search = Some(LineInput::default());
+            self.search.open();
         }
     }
 
@@ -1072,17 +1001,13 @@ impl App {
         let Some(s) = self.session.as_ref() else {
             return;
         };
-        match s.book.find(&self.query, start, backward) {
-            None => {
-                self.redraw();
-                self.flash(NOT_FOUND_MSG, self.now);
-            }
-            Some((pos, wrapped_now)) => {
-                self.go(pos);
-                if wrapped || wrapped_now {
-                    self.flash(wrap_msg(backward), self.now);
-                }
-            }
+        let (target, msg) = self.search.find(&s.book, start, backward, wrapped);
+        match target {
+            None => self.redraw(),
+            Some(pos) => self.go(pos),
+        }
+        if let Some(msg) = msg {
+            self.flash(msg, self.now);
         }
     }
 
@@ -1090,26 +1015,10 @@ impl App {
         let Some(s) = self.session.as_ref() else {
             return;
         };
-        if self.panic || self.query.is_empty() {
+        if self.panic || self.search.query.is_empty() {
             return;
         }
-        let book = &s.book;
-        let start = if backward {
-            book.prev_pos(s.pos())
-        } else {
-            book.next_pos(s.pos())
-        };
-        let wrapped = start.is_none();
-        let start = start.or_else(|| {
-            let chapters = book.chapter_list();
-            if backward {
-                let (last, _) = *chapters.last()?;
-                Some((last, book.chapters[last].paragraphs.len() - 1))
-            } else {
-                chapters.first().map(|(c, _)| (*c, 0))
-            }
-        });
-        if let Some(start) = start {
+        if let Some((start, wrapped)) = search::next_start(&s.book, s.pos(), backward) {
             self.find(start, backward, wrapped);
         }
     }
@@ -1311,7 +1220,7 @@ impl App {
         self.last_words = words_in(&out);
         let types = s.mask().typewriter();
         if !out.is_empty() {
-            let out = self.highlighted(out);
+            let out = self.search.highlighted(out);
             let chars = out.last().filter(|l| l.is_book).map(text_chars);
             self.feed.append(out);
             if let Some(chars) = chars.filter(|&c| types && c > 0) {

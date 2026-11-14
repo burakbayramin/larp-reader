@@ -1,6 +1,7 @@
 //! Sections, search and marks.
 
 use super::*;
+use crate::ui::search::highlight;
 
 #[test]
 fn brackets_jump_between_sections() {
@@ -23,11 +24,11 @@ fn brackets_jump_between_sections() {
 fn slash_searches_and_highlights() {
     let mut h = Harness::sample(80, 24);
     h.press(&["/"]);
-    assert!(h.app.search.is_some());
+    assert!(h.app.search.is_open());
     type_text(&mut h, "number 7");
     assert!(h.screen().lines().last().unwrap().starts_with("/number 7"));
     h.press(&["enter"]);
-    assert!(h.app.search.is_none());
+    assert!(!h.app.search.is_open());
     assert_eq!(h.session().pos(), (0, 7));
     let hits: Vec<String> = h
         .visible()
@@ -67,11 +68,11 @@ fn missing_pattern_reports_and_stays() {
 fn escape_cancels_search_and_backtick_hides() {
     let mut h = Harness::sample(80, 24);
     h.press(&["/", "x", "escape"]);
-    assert!(h.app.search.is_none());
+    assert!(!h.app.search.is_open());
     h.press(&["j"]);
     assert!(h.session().line_offset == 1 || h.session().pos() != (0, 0));
     h.press(&["/", "`"]);
-    assert!(h.app.panic && h.app.search.is_none());
+    assert!(h.app.panic && !h.app.search.is_open());
 }
 
 #[test]
