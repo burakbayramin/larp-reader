@@ -6,7 +6,7 @@ use super::filler::{Slot, crates_deck};
 use super::palette::{BLUE, FG, GREEN, YELLOW};
 use super::{Mask, Rng, randint, section};
 use crate::book::{Paragraph, Pos};
-use crate::text::ragged;
+use crate::text::{ragged, ragged_count};
 use unicode_width::UnicodeWidthStr;
 
 const GUTTER: &str = "   |  ";
@@ -40,7 +40,7 @@ impl Mask for BuildMask {
     }
 
     fn line_count(&self, para: &Paragraph, width: usize) -> usize {
-        ragged(&para.text, width.saturating_sub(GUTTER.width()).max(1)).len() + 6
+        ragged_count(&para.text, width.saturating_sub(GUTTER.width()).max(1)) + 6
     }
 
     fn render(

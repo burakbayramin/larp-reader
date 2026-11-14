@@ -6,7 +6,7 @@ use super::base::{Line, Segment, crop, seg};
 use super::palette::{COMMENT, GUTTER, highlight};
 use super::{LANGS, Mask, Rng, section, snippets};
 use crate::book::{Paragraph, Pos};
-use crate::text::ragged;
+use crate::text::{ragged, ragged_count};
 use unicode_width::UnicodeWidthStr;
 
 /// "%4d " gutter.
@@ -157,7 +157,7 @@ impl Mask for CodeMask {
 
     fn line_count(&self, para: &Paragraph, width: usize) -> usize {
         let (_, opening, closing) = frame(self.lang);
-        ragged(&para.text, self.body_width(width)).len() + opening.len() + closing.len() + 2
+        ragged_count(&para.text, self.body_width(width)) + opening.len() + closing.len() + 2
     }
 
     fn render(

@@ -5,7 +5,7 @@ use super::filler::{Slot, docker_deck};
 use super::palette::{BLUE, CONTROL, CYAN, DIM, FG, GREEN, YELLOW};
 use super::{Mask, Rng, pick, section};
 use crate::book::{Paragraph, Pos};
-use crate::text::ragged;
+use crate::text::{ragged, ragged_count};
 use unicode_width::UnicodeWidthStr;
 
 const BOOK_SVC: &str = "worker-1";
@@ -66,7 +66,7 @@ impl Mask for DockerMask {
     }
 
     fn line_count(&self, para: &Paragraph, width: usize) -> usize {
-        ragged(&para.text, width.saturating_sub(prefix_len(width)).max(1)).len()
+        ragged_count(&para.text, width.saturating_sub(prefix_len(width)).max(1))
     }
 
     fn render(

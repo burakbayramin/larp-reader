@@ -6,7 +6,7 @@ use super::filler::Slot;
 use super::palette::{CYAN, DIM, FG, GREEN, RED, highlight};
 use super::{Mask, Rng, random, section};
 use crate::book::{Paragraph, Pos};
-use crate::text::ragged;
+use crate::text::{ragged, ragged_count};
 use unicode_width::UnicodeWidthStr;
 
 #[derive(Default)]
@@ -53,7 +53,7 @@ impl Mask for DiffMask {
     }
 
     fn line_count(&self, para: &Paragraph, width: usize) -> usize {
-        ragged(&para.text, width.saturating_sub(2).max(1)).len() + 3
+        ragged_count(&para.text, width.saturating_sub(2).max(1)) + 3
     }
 
     fn render(

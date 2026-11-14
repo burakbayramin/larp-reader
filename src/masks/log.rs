@@ -6,7 +6,7 @@ use super::palette::{BLUE, CYAN, DIM, FG, GREEN, YELLOW};
 use super::time::{EPOCH_DAY, civil};
 use super::{Mask, Rng, pick, randint, section, weighted};
 use crate::book::{Paragraph, Pos};
-use crate::text::ragged;
+use crate::text::{ragged, ragged_count};
 use unicode_width::UnicodeWidthStr;
 
 /// Milliseconds of 2026-11-11 09:00:00 after that day's midnight: the log's first moment.
@@ -153,7 +153,7 @@ impl Mask for LogMask {
     }
 
     fn line_count(&self, para: &Paragraph, width: usize) -> usize {
-        ragged(&para.text, Self::body(width)).len() + 2
+        ragged_count(&para.text, Self::body(width)) + 2
     }
 
     fn render(

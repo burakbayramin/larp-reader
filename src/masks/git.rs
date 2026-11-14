@@ -8,7 +8,7 @@ use super::palette::{DIM, FG, GREEN, RED, YELLOW};
 use super::time::{EPOCH_DAY, civil, month, weekday};
 use super::{Mask, Rng, pick, randint, section};
 use crate::book::{Paragraph, Pos};
-use crate::text::{pad_cells, ragged};
+use crate::text::{pad_cells, ragged, ragged_count};
 
 /// 2026-11-11 18:00, in minutes since 1970: history counts back from here.
 const EPOCH_MIN: i64 = EPOCH_DAY * 1440 + 18 * 60;
@@ -85,7 +85,7 @@ impl Mask for GitMask {
     }
 
     fn line_count(&self, para: &Paragraph, width: usize) -> usize {
-        HEADER_LINES + ragged(&para.text, width.saturating_sub(indent(width)).max(1)).len() + 1
+        HEADER_LINES + ragged_count(&para.text, width.saturating_sub(indent(width)).max(1)) + 1
     }
 
     fn render(

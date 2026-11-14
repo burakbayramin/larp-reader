@@ -133,46 +133,124 @@ pub fn wrap(text: &str, width: usize) -> Vec<String> {
 /// The breaks depend only on the text and the width, so the same paragraph is
 /// always laid out the same way (and can be counted without being drawn).
 pub fn ragged(text: &str, width: usize) -> Vec<String> {
-    let room = width.clamp(1, CODE_LINE_MAX);
-    let seed = crc32fast::hash(format!("{room}:{text}").as_bytes());
-    let mut rng = Pcg32::seed_from_u64(seed as u64);
-    let shortest = ((room as f64 * SHORTEST) as usize).max(1);
     let mut lines = vec![];
+    ragged_with(text, width, |line| lines.push(line.to_string()));
+    lines
+}
+
+/// How many lines `ragged` gives, without building them.
+///
+/// Counts are remembered per (text, room), where `room` is the width clamped as
+/// `ragged` clamps it: a resize, a mask switch or a noise change that leaves the
+/// room alone costs one hash of the text instead of a fresh wrap.
+pub fn ragged_count(text: &str, width: usize) -> usize {
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+    use std::hash::{DefaultHasher, Hash, Hasher};
+
+    /// Past this many remembered counts the memo starts over (a few MB at most).
+    const MEMO_MAX: usize = 1 << 19;
+    thread_local! {
+        static MEMO: RefCell<HashMap<(u64, usize), u32>> = RefCell::new(HashMap::new());
+    }
+
+    let room = width.clamp(1, CODE_LINE_MAX);
+    let mut h = DefaultHasher::new();
+    text.hash(&mut h);
+    let key = (h.finish(), room);
+    if let Some(n) = MEMO.with(|m| m.borrow().get(&key).copied()) {
+        return n as usize;
+    }
+    #[cfg(test)]
+    WRAPS.with(|c| c.set(c.get() + 1));
+    let mut n = 0;
+    ragged_with(text, room, |_| n += 1);
+    MEMO.with(|m| {
+        let mut m = m.borrow_mut();
+        if m.len() >= MEMO_MAX {
+            m.clear();
+        }
+        m.insert(key, n as u32);
+    });
+    n
+}
+
+#[cfg(test)]
+thread_local! {
+    /// How many times `ragged_count` really wrapped a paragraph on this thread.
+    pub static WRAPS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// A word's width and whether it is plain printable ASCII, where the width is its
+/// length and joining it to a line adds exactly that (no combining or wide chars).
+fn word_width(word: &str) -> (usize, bool) {
+    if word.bytes().all(|b| (0x21..=0x7e).contains(&b)) {
+        (word.len(), true)
+    } else {
+        (word.width(), false)
+    }
+}
+
+/// The layout behind `ragged` and `ragged_count`: hands every line to `emit`.
+fn ragged_with(text: &str, width: usize, mut emit: impl FnMut(&str)) {
+    let room = width.clamp(1, CODE_LINE_MAX);
+    // crc32 of "{room}:{text}", fed in pieces so the text is not copied
+    let mut hasher = crc32fast::Hasher::new();
+    hasher.update(room.to_string().as_bytes());
+    hasher.update(b":");
+    hasher.update(text.as_bytes());
+    let mut rng = Pcg32::seed_from_u64(hasher.finalize() as u64);
+    let shortest = ((room as f64 * SHORTEST) as usize).max(1);
     let mut cur = String::new();
+    // `cur.width()`, kept up to date instead of measured again for every word
+    let mut cur_w = 0;
     let mut target = rng.gen_range(shortest..=room);
 
     for word in text.split_whitespace() {
         let mut word = word;
-        while word.width() > room {
+        let (mut w, mut plain) = word_width(word);
+        while w > room {
             if !cur.is_empty() {
-                lines.push(std::mem::take(&mut cur));
+                emit(&cur);
+                cur.clear();
+                cur_w = 0;
                 target = rng.gen_range(shortest..=room);
             }
             let (head, tail) = take_cols(word, room);
-            lines.push(head.to_string());
+            emit(head);
             word = tail;
+            (w, plain) = word_width(word);
         }
         if word.is_empty() {
             continue;
         }
-        if !cur.is_empty() && cur.width() + 1 + word.width() > target {
-            lines.push(std::mem::take(&mut cur));
+        if !cur.is_empty() && cur_w + 1 + w > target {
+            emit(&cur);
+            cur.clear();
+            cur_w = 0;
             target = rng.gen_range(shortest..=room);
         }
-        if !cur.is_empty() {
+        let sep = !cur.is_empty();
+        if sep {
             cur.push(' ');
         }
         cur.push_str(word);
+        cur_w = if plain {
+            cur_w + sep as usize + w
+        } else {
+            cur.width()
+        };
         let ends_clause = cur.ends_with(BREAK_AFTER);
-        if cur.width() >= shortest && ends_clause && rng.r#gen::<f64>() < PUNCT_BREAK {
-            lines.push(std::mem::take(&mut cur));
+        if cur_w >= shortest && ends_clause && rng.r#gen::<f64>() < PUNCT_BREAK {
+            emit(&cur);
+            cur.clear();
+            cur_w = 0;
             target = rng.gen_range(shortest..=room);
         }
     }
     if !cur.is_empty() {
-        lines.push(cur);
+        emit(&cur);
     }
-    lines
 }
 
 #[cfg(test)]
@@ -274,6 +352,112 @@ mod tests {
         let lines = ragged(&prose(), 100);
         let at_clause = lines.iter().filter(|l| l.ends_with(BREAK_AFTER)).count();
         assert!(at_clause > lines.len() / 2);
+    }
+
+    /// `ragged` as it was before widths were tracked incrementally.
+    fn ragged_reference(text: &str, width: usize) -> Vec<String> {
+        let room = width.clamp(1, CODE_LINE_MAX);
+        let seed = crc32fast::hash(format!("{room}:{text}").as_bytes());
+        let mut rng = Pcg32::seed_from_u64(seed as u64);
+        let shortest = ((room as f64 * SHORTEST) as usize).max(1);
+        let mut lines = vec![];
+        let mut cur = String::new();
+        let mut target = rng.gen_range(shortest..=room);
+        for word in text.split_whitespace() {
+            let mut word = word;
+            while word.width() > room {
+                if !cur.is_empty() {
+                    lines.push(std::mem::take(&mut cur));
+                    target = rng.gen_range(shortest..=room);
+                }
+                let (head, tail) = take_cols(word, room);
+                lines.push(head.to_string());
+                word = tail;
+            }
+            if word.is_empty() {
+                continue;
+            }
+            if !cur.is_empty() && cur.width() + 1 + word.width() > target {
+                lines.push(std::mem::take(&mut cur));
+                target = rng.gen_range(shortest..=room);
+            }
+            if !cur.is_empty() {
+                cur.push(' ');
+            }
+            cur.push_str(word);
+            let ends_clause = cur.ends_with(BREAK_AFTER);
+            if cur.width() >= shortest && ends_clause && rng.r#gen::<f64>() < PUNCT_BREAK {
+                lines.push(std::mem::take(&mut cur));
+                target = rng.gen_range(shortest..=room);
+            }
+        }
+        if !cur.is_empty() {
+            lines.push(cur);
+        }
+        lines
+    }
+
+    #[test]
+    fn ragged_is_unchanged_by_incremental_widths() {
+        const WORDS: &[&str] = &[
+            "the",
+            "river,",
+            "carried",
+            "everything;",
+            "sözcük",
+            "ağır",
+            "bilmiyordu.",
+            "漢字かな",
+            "🙂ok",
+            "e\u{301}clair",
+            "👨\u{200d}👩",
+            "x\u{fe0f}",
+            "a_very_long_word_indeed_",
+            "?!",
+            "...",
+            "\u{7}bell",
+            "çok",
+            "Ünlü.",
+        ];
+        let mut x: u64 = 99;
+        let mut next = move || {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            x
+        };
+        for _ in 0..300 {
+            let n = 1 + (next() % 150) as usize;
+            let text: Vec<&str> = (0..n)
+                .map(|_| WORDS[(next() % WORDS.len() as u64) as usize])
+                .collect();
+            let text = text.join(" ");
+            for width in [1, 3, 10, 40, 79, 100] {
+                let lines = ragged(&text, width);
+                assert_eq!(lines, ragged_reference(&text, width), "{width}: {text}");
+                assert_eq!(ragged_count(&text, width), lines.len());
+            }
+        }
+        // the long ASCII-only words that make up most books
+        let long = "word, another; thing. ".repeat(200);
+        assert_eq!(ragged(&long, 88), ragged_reference(&long, 88));
+    }
+
+    #[test]
+    fn ragged_count_matches_ragged() {
+        for width in [1, 7, 30, 88, 100, 300] {
+            for text in [
+                prose(),
+                "a".repeat(200),
+                String::new(),
+                "漢字かな ".repeat(40),
+            ] {
+                // twice, so the remembered count is checked as well
+                for _ in 0..2 {
+                    assert_eq!(ragged_count(&text, width), ragged(&text, width).len());
+                }
+            }
+        }
     }
 
     #[test]

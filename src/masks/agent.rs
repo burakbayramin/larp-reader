@@ -16,7 +16,7 @@ use super::codegen::{commands_deck, files_deck, signatures_deck, statements_deck
 use super::palette::{DIM, FG, GREEN, RED, highlight};
 use super::{Mask, Rng, pick, randint, random, section};
 use crate::book::{Paragraph, Pos};
-use crate::text::ragged;
+use crate::text::{ragged, ragged_count};
 use unicode_width::UnicodeWidthStr;
 
 pub const BULLET: &str = if cfg!(windows) { "●" } else { "⏺" };
@@ -390,9 +390,9 @@ impl Mask for AgentMask {
     fn line_count(&self, para: &Paragraph, width: usize) -> usize {
         let lay = layout(&para.text);
         match lay.kind {
-            Kind::Say => ragged(&para.text, width.saturating_sub(2).max(1)).len() + 1,
+            Kind::Say => ragged_count(&para.text, width.saturating_sub(2).max(1)) + 1,
             Kind::Edit => {
-                2 + lay.before + lay.removed + ragged(&para.text, body_width(width)).len() + 1 + 1
+                2 + lay.before + lay.removed + ragged_count(&para.text, body_width(width)) + 1 + 1
             }
         }
     }

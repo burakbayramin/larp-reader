@@ -5,7 +5,7 @@ use super::filler::{Slot, test_ids_deck};
 use super::palette::{DIM, FG, GREEN, RED};
 use super::{Mask, Rng, randint, section};
 use crate::book::{Paragraph, Pos};
-use crate::text::ragged;
+use crate::text::{ragged, ragged_count};
 use unicode_width::UnicodeWidthStr;
 
 /// Python's `str.center(width, fill)`: the odd pad goes where CPython puts it.
@@ -57,7 +57,7 @@ impl Mask for TestMask {
     }
 
     fn line_count(&self, para: &Paragraph, width: usize) -> usize {
-        ragged(&para.text, width.saturating_sub(4).max(1)).len() + 5
+        ragged_count(&para.text, width.saturating_sub(4).max(1)) + 5
     }
 
     fn render(
