@@ -3,6 +3,7 @@
 use rand::Rng as _;
 
 use super::base::{Line, chrome, seg};
+use super::filler::{Slot, git_paths_deck};
 use super::palette::{DIM, FG, GREEN, RED, YELLOW};
 use super::time::{EPOCH_DAY, civil, month, weekday};
 use super::{Mask, Rng, pick, randint, section};
@@ -17,20 +18,6 @@ const AUTHORS: &[(&str, &str)] = &[
     ("Elif Demir", "elif.demir@example.com"),
     ("Alex Novak", "anovak@example.com"),
     ("Sam Patel", "sam.patel@example.com"),
-];
-const FILES: &[&str] = &[
-    "src/api/handlers.py",
-    "src/api/routes.py",
-    "src/core/cache.py",
-    "src/core/scheduler.py",
-    "src/db/migrations/0042_add_index.py",
-    "src/db/models.py",
-    "tests/test_handlers.py",
-    "tests/test_scheduler.py",
-    "pyproject.toml",
-    "README.md",
-    "docs/architecture.md",
-    ".github/workflows/ci.yml",
 ];
 const INDENT: usize = 4;
 /// commit, Author, Date, blank.
@@ -56,8 +43,8 @@ fn git_date(minutes: i64) -> String {
 }
 
 /// One `git log --stat` file line: ` path | 12 +++++---`.
-fn stat(rng: &mut Rng, width: usize) -> Line {
-    let path = pick(rng, FILES);
+fn stat(rng: &mut Rng, width: usize, slot: usize) -> Line {
+    let path = git_paths_deck().get(slot);
     let mut adds = randint(rng, 0, 14);
     let dels = randint(rng, 0, 9);
     if adds + dels == 0 {
@@ -80,7 +67,9 @@ fn stat(rng: &mut Rng, width: usize) -> Line {
 }
 
 #[derive(Default)]
-pub struct GitMask;
+pub struct GitMask {
+    slot: Slot,
+}
 
 impl Mask for GitMask {
     fn name(&self) -> &'static str {
@@ -92,7 +81,7 @@ impl Mask for GitMask {
     }
 
     fn noise(&mut self, rng: &mut Rng, width: usize) -> Line {
-        stat(rng, width)
+        stat(rng, width, self.slot.take())
     }
 
     fn line_count(&self, para: &Paragraph, width: usize) -> usize {
@@ -107,6 +96,7 @@ impl Mask for GitMask {
         rng: &mut Rng,
         line_no_start: usize,
     ) -> Vec<Line> {
+        self.slot.set(line_no_start);
         let sha: String = (0..5)
             .map(|_| format!("{:08x}", rng.r#gen::<u32>()))
             .collect();
@@ -188,7 +178,7 @@ mod tests {
 
     #[test]
     fn git_paragraph_is_an_indented_commit_message() {
-        let lines = GitMask.render(&para(), (0, 0), 80, &mut Rng::seed_from_u64(1), 10);
+        let lines = GitMask::default().render(&para(), (0, 0), 80, &mut Rng::seed_from_u64(1), 10);
         let first = lines[0].plain();
         assert!(first.starts_with("commit ") && first.len() == 47, "{first}");
         assert!(lines[1].plain().starts_with("Author: "));
@@ -199,15 +189,21 @@ mod tests {
 
     #[test]
     fn git_history_goes_back_in_time() {
-        let first = GitMask.render(&para(), (0, 0), 80, &mut Rng::seed_from_u64(1), 1)[2].plain();
-        let later = GitMask.render(&para(), (0, 1), 80, &mut Rng::seed_from_u64(1), 500)[2].plain();
+        let first = GitMask::default().render(&para(), (0, 0), 80, &mut Rng::seed_from_u64(1), 1)
+            [2]
+        .plain();
+        let later = GitMask::default().render(&para(), (0, 1), 80, &mut Rng::seed_from_u64(1), 500)
+            [2]
+        .plain();
         assert_ne!(first, later);
         assert_eq!(git_date(EPOCH_MIN - 16), "Wed Nov 11 17:44:00 2026 +0300");
     }
 
     #[test]
     fn git_filler_is_a_stat_line() {
-        let line = GitMask.noise(&mut Rng::seed_from_u64(2), 80).plain();
+        let line = GitMask::default()
+            .noise(&mut Rng::seed_from_u64(2), 80)
+            .plain();
         assert!(
             line.contains(" | ") && line.trim_end().ends_with(['+', '-']),
             "{line}"

@@ -1,23 +1,12 @@
 //! A pytest run (`masks/test.py`): every paragraph is an assertion error, filler is passing tests.
 
 use super::base::{Line, chrome, seg};
+use super::filler::{Slot, test_ids_deck};
 use super::palette::{DIM, FG, GREEN, RED};
-use super::{Mask, Rng, pick, randint, section};
+use super::{Mask, Rng, randint, section};
 use crate::book::{Paragraph, Pos};
 use crate::text::ragged;
 use unicode_width::UnicodeWidthStr;
-
-const FILES: &[&str] = &[
-    "parser", "session", "render", "config", "index", "format", "cache",
-];
-const CASES: &[&str] = &[
-    "parses_chunk",
-    "handles_empty",
-    "rejects_bad_input",
-    "roundtrip",
-    "caches_result",
-    "wraps_lines",
-];
 
 /// Python's `str.center(width, fill)`: the odd pad goes where CPython puts it.
 fn center(text: &str, width: usize, fill: char) -> String {
@@ -32,7 +21,9 @@ fn center(text: &str, width: usize, fill: char) -> String {
 }
 
 #[derive(Default)]
-pub struct TestMask;
+pub struct TestMask {
+    slot: Slot,
+}
 
 impl Mask for TestMask {
     fn name(&self) -> &'static str {
@@ -60,11 +51,7 @@ impl Mask for TestMask {
     }
 
     fn noise(&mut self, rng: &mut Rng, width: usize) -> Line {
-        let name = format!(
-            "tests/test_{}.py::test_{} ",
-            pick(rng, FILES),
-            pick(rng, CASES)
-        );
+        let name = format!("{} ", test_ids_deck().get(self.slot.take()));
         let pct = format!(" [{:3}%]", randint(rng, 1, 100));
         chrome(width, &[(&name, FG), ("PASSED", GREEN), (&pct, DIM)])
     }
@@ -81,8 +68,13 @@ impl Mask for TestMask {
         rng: &mut Rng,
         line_no_start: usize,
     ) -> Vec<Line> {
-        let case = pick(rng, CASES);
-        let fname = pick(rng, FILES);
+        self.slot.set(line_no_start);
+        // the failing test is its own entry of the pool, between the two passing ones
+        let id = test_ids_deck().get(line_no_start + 1);
+        let (fname, case) = id
+            .trim_start_matches("tests/test_")
+            .split_once(".py::test_")
+            .expect("pool ids have this shape");
         let fail = format!("bold {RED}");
         let mut out = vec![
             self.noise(rng, width),
@@ -100,6 +92,7 @@ impl Mask for TestMask {
             width,
             &[(&format!("tests/test_{fname}.py"), &fail), (&at, FG)],
         ));
+        self.slot.set(line_no_start + 2);
         out.push(self.noise(rng, width));
         out
     }
@@ -132,7 +125,7 @@ mod tests {
 
     #[test]
     fn header_is_pytest_session_banner() {
-        let text: Vec<String> = TestMask
+        let text: Vec<String> = TestMask::default()
             .header(&mut Rng::seed_from_u64(1), 80)
             .iter()
             .map(Line::plain)
@@ -147,7 +140,7 @@ mod tests {
     #[test]
     fn banner_is_centred_to_the_width_like_pytest() {
         for width in [40, 60, 80, 41] {
-            let banner = TestMask.header(&mut Rng::seed_from_u64(1), width)[0].plain();
+            let banner = TestMask::default().header(&mut Rng::seed_from_u64(1), width)[0].plain();
             assert_eq!(banner.len(), width);
             let (left, right) = banner.split_once(" test session starts ").unwrap();
             assert!(left.chars().all(|c| c == '=') && right.chars().all(|c| c == '='));
@@ -157,7 +150,7 @@ mod tests {
 
     #[test]
     fn book_lines_are_assertion_error_message_lines() {
-        let lines = TestMask.render(&para(), (0, 0), 70, &mut Rng::seed_from_u64(1), 1);
+        let lines = TestMask::default().render(&para(), (0, 0), 70, &mut Rng::seed_from_u64(1), 1);
         let book: Vec<&Line> = lines.iter().filter(|l| l.is_book).collect();
         assert!(book.len() > 1);
         assert!(book.iter().all(|l| l.plain().starts_with("E   ")));
@@ -177,7 +170,7 @@ mod tests {
     fn noise_is_passed_test_line_with_percentage() {
         let mut r = Rng::seed_from_u64(5);
         for _ in 0..50 {
-            let n = TestMask.noise(&mut r, 80);
+            let n = TestMask::default().noise(&mut r, 80);
             let p = n.plain();
             assert!(
                 p.starts_with("tests/test_") && p.contains(".py::test_") && p.contains(" PASSED ["),
@@ -190,7 +183,7 @@ mod tests {
     #[test]
     fn progress_label() {
         assert_eq!(
-            TestMask.progress_label(142, 380, 50),
+            TestMask::default().progress_label(142, 380, 50),
             "[ 37%] collected 380 items"
         );
     }

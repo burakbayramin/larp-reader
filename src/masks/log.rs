@@ -1,6 +1,7 @@
 //! A service log (`masks/log.py`): text lines are INFO entries of one worker, filler is other services' chatter.
 
 use super::base::{Line, Segment, chrome, chrome_owned, progress_bar_label, seg};
+use super::filler::{Slot, log_deck};
 use super::palette::{BLUE, CYAN, DIM, FG, GREEN, YELLOW};
 use super::time::{EPOCH_DAY, civil};
 use super::{Mask, Rng, pick, randint, section, weighted};
@@ -26,29 +27,6 @@ const COMPACT_MIN_WIDTH: usize = 60;
 /// Below the per-line budget of render(), so time never runs backwards.
 const MAX_STEP_MS: u64 = 700;
 const LINE_MS: u64 = 731;
-
-fn messages(level: &str) -> &'static [&'static str] {
-    match level {
-        "DEBUG" => &[
-            "cache lookup key=user:1042 hit=true",
-            "retry budget remaining=3",
-            "parsed payload bytes=2048",
-            "scheduler tick queue_depth=0",
-        ],
-        "WARN" => &[
-            "slow query detected took=840ms",
-            "retrying upstream call attempt=2",
-            "queue depth above soft limit",
-        ],
-        _ => &[
-            "request completed in 12ms",
-            "connection pool size=8 idle=5",
-            "flushed 128 records to disk",
-            "heartbeat ok",
-            "job 4821 finished status=done",
-        ],
-    }
-}
 
 fn level_style(level: &str) -> String {
     match level {
@@ -125,11 +103,16 @@ fn prefix_len(width: usize) -> usize {
 pub struct LogMask {
     /// Time of the last line: filler continues from it.
     t: u64,
+    /// Where the filler pools are read next.
+    slot: Slot,
 }
 
 impl Default for LogMask {
     fn default() -> Self {
-        LogMask { t: EPOCH_MS }
+        LogMask {
+            t: EPOCH_MS,
+            slot: Slot::default(),
+        }
     }
 }
 
@@ -139,10 +122,10 @@ impl LogMask {
         Time(self.t)
     }
 
-    fn entry(&self, rng: &mut Rng, t: Time, width: usize) -> Line {
+    fn entry(&mut self, rng: &mut Rng, t: Time, width: usize) -> Line {
         let level = *weighted(rng, LEVELS, &[6, 2, 1]);
         let mut segs = prefix_segments(t, level, pick(rng, SERVICES), width);
-        segs.push(seg(*pick(rng, messages(level)), FG));
+        segs.push(seg(log_deck(level).get(self.slot.take()), FG));
         chrome_owned(width, segs)
     }
 
@@ -182,6 +165,7 @@ impl Mask for LogMask {
         line_no_start: usize,
     ) -> Vec<Line> {
         self.t = EPOCH_MS + line_no_start as u64 * LINE_MS;
+        self.slot.set(line_no_start);
         let t = self.tick(rng);
         let mut out = vec![self.entry(rng, t, width)];
         for text in ragged(&para.text, Self::body(width)) {

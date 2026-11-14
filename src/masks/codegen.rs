@@ -43,7 +43,7 @@ impl Deck {
 
 // -- vocabulary -----------------------------------------------------------------
 
-const VARS: &[&str] = &[
+pub(super) const VARS: &[&str] = &[
     "chunk", "offset", "buf", "state", "count", "entry", "result", "payload", "node", "token",
     "span", "limit", "cursor", "batch", "record", "header", "digest", "delta", "window", "target",
     "source", "pending", "retries", "elapsed", "marker", "frame",
@@ -70,7 +70,7 @@ const ATTRS: &[&str] = &[
     "_pool",
     "_limits",
 ];
-const FUNCS: &[&str] = &[
+pub(super) const FUNCS: &[&str] = &[
     "load",
     "flush",
     "evict",
@@ -183,7 +183,7 @@ const SIG_TEMPLATES: &[&str] = &[
     "def _{f}({args}) -> bool:",
 ];
 
-const DIRS: &[&str] = &[
+pub(super) const DIRS: &[&str] = &[
     "src/core",
     "src/api",
     "src/db",
@@ -193,7 +193,7 @@ const DIRS: &[&str] = &[
     "src/auth",
     "src/sync",
 ];
-const MODULES: &[&str] = &[
+pub(super) const MODULES: &[&str] = &[
     "cache",
     "index",
     "queue",
@@ -247,7 +247,7 @@ const TASK_TEMPLATES: &[&str] = &[
 ];
 
 /// Python's `str.format` for these templates: `{name}`, `{name!r}` (a quoted string) and `{{`/`}}`.
-fn fill(template: &str, slots: &[(&str, &str)]) -> String {
+pub(super) fn fill(template: &str, slots: &[(&str, &str)]) -> String {
     let mut out = String::with_capacity(template.len() + 16);
     let mut rest = template;
     while let Some(i) = rest.find(['{', '}']) {

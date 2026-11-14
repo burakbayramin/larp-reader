@@ -12,6 +12,7 @@ pub mod code;
 pub mod codegen;
 pub mod diff;
 pub mod docker;
+pub mod filler;
 pub mod git;
 pub mod log;
 pub mod palette;
@@ -145,11 +146,11 @@ pub fn get_mask(name: &str, lang: &str) -> Result<Box<dyn Mask>, String> {
     Ok(match name {
         "code" => Box::new(code::CodeMask::new(lang)?),
         "log" => Box::new(log::LogMask::default()),
-        "diff" => Box::new(diff::DiffMask),
-        "test" => Box::new(test::TestMask),
-        "build" => Box::new(build::BuildMask),
-        "git" => Box::new(git::GitMask),
-        "docker" => Box::new(docker::DockerMask),
+        "diff" => Box::new(diff::DiffMask::default()),
+        "test" => Box::new(test::TestMask::default()),
+        "build" => Box::new(build::BuildMask::default()),
+        "git" => Box::new(git::GitMask::default()),
+        "docker" => Box::new(docker::DockerMask::default()),
         "agent" => Box::new(agent::AgentMask::default()),
         _ => return Err(format!("unknown or unregistered mask: {name:?}")),
     })

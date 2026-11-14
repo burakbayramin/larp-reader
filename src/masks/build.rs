@@ -1,30 +1,20 @@
 //! A cargo build (`masks/build.py`): every paragraph is a compiler warning's note, filler is crates compiling.
 
 use super::base::{Line, chrome, progress_bar_label, seg};
+use super::codegen::{MODULES, VARS};
+use super::filler::{Slot, crates_deck};
 use super::palette::{BLUE, FG, GREEN, YELLOW};
-use super::{Mask, Rng, pick, randint, section};
+use super::{Mask, Rng, randint, section};
 use crate::book::{Paragraph, Pos};
 use crate::text::ragged;
 use unicode_width::UnicodeWidthStr;
 
-const CRATES: &[&str] = &[
-    "serde",
-    "tokio",
-    "regex",
-    "anyhow",
-    "hyper",
-    "clap",
-    "memchr",
-    "once_cell",
-    "bytes",
-    "itoa",
-];
-const FILES: &[&str] = &["parser", "index", "render", "config", "cache"];
-const VARS: &[&str] = &["chunk", "offset", "buf", "state", "count"];
 const GUTTER: &str = "   |  ";
 
 #[derive(Default)]
-pub struct BuildMask;
+pub struct BuildMask {
+    slot: Slot,
+}
 
 impl Mask for BuildMask {
     fn name(&self) -> &'static str {
@@ -41,14 +31,8 @@ impl Mask for BuildMask {
         )]
     }
 
-    fn noise(&mut self, rng: &mut Rng, width: usize) -> Line {
-        let ver = format!(
-            "{}.{}.{}",
-            randint(rng, 0, 2),
-            randint(rng, 0, 20),
-            randint(rng, 0, 9)
-        );
-        let name = format!(" {} v{ver}", pick(rng, CRATES));
+    fn noise(&mut self, _rng: &mut Rng, width: usize) -> Line {
+        let name = format!(" {}", crates_deck().get(self.slot.take()));
         chrome(
             width,
             &[("   Compiling", &format!("bold {GREEN}")), (&name, FG)],
@@ -68,9 +52,10 @@ impl Mask for BuildMask {
         line_no_start: usize,
     ) -> Vec<Line> {
         let rail = format!("bold {BLUE}");
-        let file = pick(rng, FILES);
+        self.slot.set(line_no_start);
+        let file = MODULES[line_no_start * 7 % MODULES.len()];
         let col = randint(rng, 5, 20);
-        let var = pick(rng, VARS);
+        let var = VARS[line_no_start * 5 % VARS.len()];
         let mut out = vec![
             self.noise(rng, width),
             chrome(
@@ -155,7 +140,7 @@ mod tests {
     fn noise_is_compiling_line_with_semver() {
         let mut r = Rng::seed_from_u64(6);
         for _ in 0..50 {
-            let n = BuildMask.noise(&mut r, 80);
+            let n = BuildMask::default().noise(&mut r, 80);
             let p = n.plain();
             let (name, ver) = p
                 .trim_start_matches("   Compiling ")
@@ -177,7 +162,8 @@ mod tests {
 
     #[test]
     fn book_lines_are_warning_note_lines() {
-        let lines = BuildMask.render(&para(), (0, 0), 70, &mut Rng::seed_from_u64(1), 41);
+        let lines =
+            BuildMask::default().render(&para(), (0, 0), 70, &mut Rng::seed_from_u64(1), 41);
         let plain: Vec<String> = lines.iter().map(Line::plain).collect();
         assert!(plain.iter().any(|p| p.starts_with("warning:")));
         assert!(
@@ -196,7 +182,7 @@ mod tests {
     #[test]
     fn location_changes_with_line_no_start() {
         let arrow = |s| -> Vec<String> {
-            BuildMask
+            BuildMask::default()
                 .render(&para(), (0, 0), 70, &mut Rng::seed_from_u64(1), s)
                 .iter()
                 .map(Line::plain)
@@ -209,7 +195,7 @@ mod tests {
     #[test]
     fn progress_label() {
         assert_eq!(
-            BuildMask.progress_label(142, 380, 50),
+            BuildMask::default().progress_label(142, 380, 50),
             "Building [===>      ] 142/380"
         );
     }

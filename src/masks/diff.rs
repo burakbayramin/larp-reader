@@ -1,29 +1,18 @@
 //! A diff (`masks/diff.py`): every paragraph is a hunk whose added lines are the text.
 
 use super::base::{Line, chrome, chrome_owned, progress_bar_label, seg};
+use super::codegen::statements_deck;
+use super::filler::Slot;
 use super::palette::{CYAN, DIM, FG, GREEN, RED, highlight};
-use super::{Mask, Rng, pick, random, section};
+use super::{Mask, Rng, random, section};
 use crate::book::{Paragraph, Pos};
 use crate::text::ragged;
 use unicode_width::UnicodeWidthStr;
 
-const CONTEXT: &[&str] = &[
-    "    ctx = build_context(request)",
-    "    if not payload:",
-    "        return None",
-    "    for item in queue:",
-    "    return response",
-    "    logger.debug(\"handled\")",
-];
-const REMOVED: &[&str] = &[
-    "    result = old_handler(request)",
-    "    cache.clear()",
-    "    timeout = 30",
-    "    raise NotImplementedError",
-];
-
 #[derive(Default)]
-pub struct DiffMask;
+pub struct DiffMask {
+    slot: Slot,
+}
 
 impl Mask for DiffMask {
     fn name(&self) -> &'static str {
@@ -48,15 +37,19 @@ impl Mask for DiffMask {
     }
 
     fn noise(&mut self, rng: &mut Rng, width: usize) -> Line {
+        let n = self.slot.take();
+        let indent = if (n / 7).is_multiple_of(3) {
+            "        "
+        } else {
+            "    "
+        };
+        let stmt = format!("{indent}{}", statements_deck().get(n));
         if random(rng) < 0.6 {
             let mut segs = vec![seg(" ", FG)];
-            segs.extend(highlight("python", pick(rng, CONTEXT)).swap_remove(0));
+            segs.extend(highlight("python", &stmt).swap_remove(0));
             return chrome_owned(width, segs);
         }
-        chrome(
-            width,
-            &[("-", RED), (&format!(" {}", pick(rng, REMOVED)), RED)],
-        )
+        chrome(width, &[("-", RED), (&format!(" {stmt}"), RED)])
     }
 
     fn line_count(&self, para: &Paragraph, width: usize) -> usize {
@@ -71,6 +64,7 @@ impl Mask for DiffMask {
         rng: &mut Rng,
         line_no_start: usize,
     ) -> Vec<Line> {
+        self.slot.set(line_no_start);
         let texts = ragged(&para.text, width.saturating_sub(2).max(1));
         let start = 100 + line_no_start;
         let hunk = format!("@@ -{start},7 +{start},{} @@", 7 + texts.len());
@@ -127,7 +121,7 @@ mod tests {
 
     #[test]
     fn header_is_a_diff_preamble() {
-        let lines: Vec<String> = DiffMask
+        let lines: Vec<String> = DiffMask::default()
             .header(&mut Rng::seed_from_u64(1), 80)
             .iter()
             .map(Line::plain)
@@ -141,7 +135,7 @@ mod tests {
 
     #[test]
     fn paragraph_starts_with_hunk_header_and_book_lines_are_additions() {
-        let lines = DiffMask.render(&para(), (0, 0), 70, &mut Rng::seed_from_u64(1), 41);
+        let lines = DiffMask::default().render(&para(), (0, 0), 70, &mut Rng::seed_from_u64(1), 41);
         let first = lines[0].plain();
         assert!(
             first.starts_with("@@ -141,7 +141,") && first.ends_with(" @@ def handler():"),
@@ -159,8 +153,10 @@ mod tests {
 
     #[test]
     fn hunk_header_changes_with_line_no_start() {
-        let a = DiffMask.render(&para(), (0, 0), 70, &mut Rng::seed_from_u64(1), 1)[0].plain();
-        let b = DiffMask.render(&para(), (0, 0), 70, &mut Rng::seed_from_u64(1), 400)[0].plain();
+        let a = DiffMask::default().render(&para(), (0, 0), 70, &mut Rng::seed_from_u64(1), 1)[0]
+            .plain();
+        let b = DiffMask::default().render(&para(), (0, 0), 70, &mut Rng::seed_from_u64(1), 400)[0]
+            .plain();
         assert_ne!(a, b);
     }
 
@@ -168,16 +164,23 @@ mod tests {
     fn noise_is_context_or_removal_lines() {
         let mut r = Rng::seed_from_u64(4);
         let kinds: std::collections::HashSet<String> = (0..100)
-            .map(|_| DiffMask.noise(&mut r, 70).plain().chars().take(2).collect())
+            .map(|_| {
+                DiffMask::default()
+                    .noise(&mut r, 70)
+                    .plain()
+                    .chars()
+                    .take(2)
+                    .collect()
+            })
             .collect();
         assert_eq!(kinds, ["  ".to_string(), "- ".to_string()].into());
-        assert!((0..20).all(|_| !DiffMask.noise(&mut r, 70).is_book));
+        assert!((0..20).all(|_| !DiffMask::default().noise(&mut r, 70).is_book));
     }
 
     #[test]
     fn progress_label() {
         assert_eq!(
-            DiffMask.progress_label(142, 380, 50),
+            DiffMask::default().progress_label(142, 380, 50),
             "Diffing [===>      ] 142/380"
         );
     }
