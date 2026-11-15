@@ -29,7 +29,7 @@ const COMPACT_MIN_WIDTH: usize = 60;
 const MAX_STEP_MS: u64 = 700;
 const LINE_MS: u64 = 731;
 
-fn level_style(level: &str) -> Look {
+fn level_look(level: &str) -> Look {
     match level {
         "DEBUG" => BLUE,
         "WARN" => YELLOW.bold(),
@@ -72,7 +72,7 @@ impl Time {
 
 /// Log-line prefix sized to the pane: full ISO (~43 cols), compact (~26) or tiny (13).
 fn prefix_segments(t: Time, level: &str, svc: &str, width: usize) -> Vec<Segment> {
-    let lvl = level_style(level);
+    let lvl = level_look(level);
     if width >= FULL_MIN_WIDTH {
         return vec![
             seg(format!("{} ", t.stamp()), DIM),

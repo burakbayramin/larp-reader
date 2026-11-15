@@ -27,9 +27,9 @@ pub fn partial(line: &Line, shown: usize) -> Line {
     let segments = line
         .segments
         .iter()
-        .map(|(text, style)| {
-            if !style.book {
-                return (text.clone(), *style);
+        .map(|(text, look)| {
+            if !look.book {
+                return (text.clone(), *look);
             }
             let mut out = String::new();
             for c in text.chars() {
@@ -40,7 +40,7 @@ pub fn partial(line: &Line, shown: usize) -> Line {
                     out.extend(std::iter::repeat_n(' ', c.width().unwrap_or(0)));
                 }
             }
-            (out, *style)
+            (out, *look)
         })
         .collect();
     Line {

@@ -658,8 +658,8 @@ mod tests {
         let mut out = vec![];
         for l in lines.iter().filter(|l| l.is_book) {
             let mut col = 0;
-            for (text, style) in &l.segments {
-                if style.book {
+            for (text, look) in &l.segments {
+                if look.book {
                     let visible: String = text.chars().take(width.saturating_sub(col)).collect();
                     out.extend(visible.split_whitespace().map(String::from));
                 }

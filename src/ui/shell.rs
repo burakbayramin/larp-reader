@@ -116,11 +116,11 @@ pub fn shell_output(
         "clear" | "cls" => return None,
         "ls" | "dir" => {
             let mut segs = vec![];
-            for (i, (entry, style)) in LISTING.iter().enumerate() {
+            for (i, (entry, look)) in LISTING.iter().enumerate() {
                 if i > 0 {
                     segs.push(seg("  ", Look::PLAIN));
                 }
-                segs.push(seg(*entry, *style));
+                segs.push(seg(*entry, *look));
             }
             vec![Line {
                 segments: segs,

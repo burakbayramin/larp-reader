@@ -257,7 +257,7 @@ impl AgentMask {
                     &[(&format!("{BULLET} "), GREEN), ("Update Todos", FG.bold())],
                 )];
                 for k in 0..n {
-                    let (mark, style) = if k < n - 1 {
+                    let (mark, look) = if k < n - 1 {
                         ("☒ ", DIM)
                     } else {
                         ("☐ ", FG)
@@ -265,7 +265,7 @@ impl AgentMask {
                     out.push(result(
                         width,
                         k == 0,
-                        vec![seg(mark, style), seg(tasks_deck().get(slot * 3 + k), style)],
+                        vec![seg(mark, look), seg(tasks_deck().get(slot * 3 + k), look)],
                     ));
                 }
                 out.push(blank(width));

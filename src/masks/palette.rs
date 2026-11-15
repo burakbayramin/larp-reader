@@ -427,7 +427,7 @@ fn is_ident(c: char) -> bool {
     c.is_alphanumeric() || c == '_'
 }
 
-/// (text, style) tokens of `code`, which may span lines.
+/// (text, look) tokens of `code`, which may span lines.
 fn tokens(l: &Lang, code: &str) -> Vec<(String, Look)> {
     let s: Vec<char> = code.chars().collect();
     let mut out: Vec<(String, Look)> = vec![];
@@ -529,7 +529,7 @@ fn tokens(l: &Lang, code: &str) -> Vec<(String, Look)> {
             }
             let word = text(start, i);
             let next = s.get(i).copied();
-            let style = if l.types.contains(&word.as_str()) {
+            let look = if l.types.contains(&word.as_str()) {
                 TYPE
             } else if l.keywords.contains(&word.as_str()) {
                 if CONTROL_WORDS.contains(&word.as_str()) {
@@ -555,7 +555,7 @@ fn tokens(l: &Lang, code: &str) -> Vec<(String, Look)> {
                 VAR
             };
             prev_word = word.clone();
-            out.push((word, style));
+            out.push((word, look));
             continue;
         }
         // whitespace, operators, punctuation
@@ -570,7 +570,7 @@ fn tokens(l: &Lang, code: &str) -> Vec<(String, Look)> {
 
 fn compute(lang_name: &str, code: &str) -> Vec<Vec<Segment>> {
     let mut lines: Vec<Vec<Segment>> = vec![vec![]];
-    for (text, style) in tokens(lang(lang_name), code) {
+    for (text, look) in tokens(lang(lang_name), code) {
         for (j, part) in text.split('\n').enumerate() {
             if j > 0 {
                 lines.push(vec![]);
@@ -580,8 +580,8 @@ fn compute(lang_name: &str, code: &str) -> Vec<Vec<Segment>> {
             }
             let line = lines.last_mut().expect("at least one line");
             match line.last_mut() {
-                Some((t, s)) if *s == style => t.push_str(part),
-                _ => line.push((part.to_string(), style)),
+                Some((t, s)) if *s == look => t.push_str(part),
+                _ => line.push((part.to_string(), look)),
             }
         }
     }
@@ -613,7 +613,7 @@ pub fn highlight(lang_name: &str, code: &str) -> Vec<Vec<Segment>> {
 mod tests {
     use super::*;
 
-    fn style_of(line: &[Segment], text: &str) -> Look {
+    fn look_of(line: &[Segment], text: &str) -> Look {
         line.iter()
             .find(|(t, _)| t == text)
             .unwrap_or_else(|| panic!("{text} in {line:?}"))
@@ -624,37 +624,37 @@ mod tests {
     fn highlight_colours_tokens_differently() {
         let lines = highlight("python", r#"def retry(limit: int = 5): return "x""#);
         let line = &lines[0];
-        assert_eq!(style_of(line, "def"), KEYWORD);
-        assert_eq!(style_of(line, "retry"), FUNC);
-        assert_eq!(style_of(line, "5"), NUMBER);
-        assert_eq!(style_of(line, "\"x\""), STRING);
-        assert_eq!(style_of(line, "return"), CONTROL);
-        assert_eq!(style_of(line, "limit"), VAR);
+        assert_eq!(look_of(line, "def"), KEYWORD);
+        assert_eq!(look_of(line, "retry"), FUNC);
+        assert_eq!(look_of(line, "5"), NUMBER);
+        assert_eq!(look_of(line, "\"x\""), STRING);
+        assert_eq!(look_of(line, "return"), CONTROL);
+        assert_eq!(look_of(line, "limit"), VAR);
     }
 
     #[test]
     fn each_language_has_its_comments_strings_and_types() {
         let rust = &highlight("rust", "fn load(x: u32) -> Self { let s = \"a\"; } // done")[0];
-        assert_eq!(style_of(rust, "load"), FUNC);
-        assert_eq!(style_of(rust, "u32"), TYPE);
-        assert_eq!(style_of(rust, "\"a\""), STRING);
-        assert_eq!(style_of(rust, "// done"), COMMENT);
+        assert_eq!(look_of(rust, "load"), FUNC);
+        assert_eq!(look_of(rust, "u32"), TYPE);
+        assert_eq!(look_of(rust, "\"a\""), STRING);
+        assert_eq!(look_of(rust, "// done"), COMMENT);
         let rust_lifetime = &highlight("rust", "fn f<'a>(x: &'a str) {}")[0];
         assert!(
             rust_lifetime.iter().all(|(_, s)| *s != STRING),
             "{rust_lifetime:?}"
         );
         let go = &highlight("go", "func (c *Cache) Get(key string) error {")[0];
-        assert_eq!(style_of(go, "Get"), FUNC);
-        assert_eq!(style_of(go, "string"), TYPE);
+        assert_eq!(look_of(go, "Get"), FUNC);
+        assert_eq!(look_of(go, "string"), TYPE);
         let ts = &highlight("typescript", "const MAX_SIZE = `t${x}`;")[0];
-        assert_eq!(style_of(ts, "MAX_SIZE"), CONST);
+        assert_eq!(look_of(ts, "MAX_SIZE"), CONST);
         assert!(ts.iter().any(|(t, s)| t.starts_with('`') && *s == STRING));
         let cs = &highlight("csharp", "[Obsolete] public sealed class Indexer {")[0];
-        assert_eq!(style_of(cs, "Indexer"), TYPE);
+        assert_eq!(look_of(cs, "Indexer"), TYPE);
         let py = &highlight("python", "@dataclass\nclass Span:")[..];
-        assert_eq!(style_of(&py[0], "@dataclass"), FUNC);
-        assert_eq!(style_of(&py[1], "Span"), TYPE);
+        assert_eq!(look_of(&py[0], "@dataclass"), FUNC);
+        assert_eq!(look_of(&py[1], "Span"), TYPE);
     }
 
     #[test]

@@ -54,7 +54,7 @@ pub fn plain_line(text: impl Into<String>, look: Look) -> Line {
 pub fn crop(segments: Vec<Segment>, width: usize) -> Vec<Segment> {
     let mut out = vec![];
     let mut left = width;
-    for (text, style) in segments {
+    for (text, look) in segments {
         if left == 0 {
             break;
         }
@@ -68,7 +68,7 @@ pub fn crop(segments: Vec<Segment>, width: usize) -> Vec<Segment> {
             kept.push(c);
             left -= w;
         }
-        out.push((kept, style));
+        out.push((kept, look));
     }
     out
 }
@@ -92,13 +92,13 @@ pub fn chrome_owned(width: usize, segments: Vec<Segment>) -> Line {
     }
 }
 
-/// Crop single-style chrome lines to `width` cells.
+/// Crop single-look chrome lines to `width` cells.
 pub fn fit_lines(lines: Vec<Line>, width: usize) -> Vec<Line> {
     lines
         .into_iter()
         .map(|l| {
-            let style = l.segments.first().map(|(_, s)| *s).unwrap_or_default();
-            chrome_owned(width, vec![(l.plain(), style)])
+            let look = l.segments.first().map(|(_, s)| *s).unwrap_or_default();
+            chrome_owned(width, vec![(l.plain(), look)])
         })
         .collect()
 }

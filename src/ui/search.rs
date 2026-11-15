@@ -20,14 +20,14 @@ fn wrap_msg(backward: bool) -> &'static str {
 /// `line` with every match of `query` inside its text segments shown reversed (like grep --color).
 pub fn highlight(line: &Line, query: &str) -> Line {
     let mut segments = vec![];
-    for (text, style) in &line.segments {
-        let spans = if style.book {
+    for (text, look) in &line.segments {
+        let spans = if look.book {
             match_spans(text, query)
         } else {
             vec![]
         };
         if spans.is_empty() {
-            segments.push((text.clone(), *style));
+            segments.push((text.clone(), *look));
             continue;
         }
         let chars: Vec<char> = text.chars().collect();
@@ -35,13 +35,13 @@ pub fn highlight(line: &Line, query: &str) -> Line {
         let mut at = 0;
         for (start, end) in spans {
             if start > at {
-                segments.push((piece(at, start), *style));
+                segments.push((piece(at, start), *look));
             }
-            segments.push((piece(start, end), style.reverse()));
+            segments.push((piece(start, end), look.reverse()));
             at = end;
         }
         if at < chars.len() {
-            segments.push((piece(at, chars.len()), *style));
+            segments.push((piece(at, chars.len()), *look));
         }
     }
     Line {
