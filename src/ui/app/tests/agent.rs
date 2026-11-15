@@ -596,3 +596,18 @@ fn the_box_and_the_report_keep_out_of_each_other_s_way() {
     h.press(&["S"]); // now it opens
     assert!(h.app.report.is_some());
 }
+
+#[test]
+fn no_text_stays_on_screen_while_a_reply_plays() {
+    let mut h = sample_with(10, agent(), 90, 30);
+    let words = text_words(&mut h);
+    assert!(!leaked(&h, &words).is_empty(), "the text is up before");
+    ask(&mut h, "tidy up the retry loop");
+    assert!(h.app.reply.is_some());
+    while h.app.reply.is_some() {
+        assert!(leaked(&h, &words).is_empty(), "{:?}", leaked(&h, &words));
+        h.advance(Duration::from_millis(250));
+    }
+    play_out(&mut h);
+    assert!(!leaked(&h, &words).is_empty(), "and back after");
+}

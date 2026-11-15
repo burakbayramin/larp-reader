@@ -740,12 +740,30 @@ impl App {
             return;
         }
         self.feed.set_bottom_anchored(true);
+        self.hide_text_above();
         let last = self.feed.visible_lines().last();
         if last.is_some_and(|l| !l.plain().trim().is_empty()) {
             self.feed.append(vec![plain_line("", FG)]); // a gap above the request
         }
         self.reply = Some(Reply::new(groups, self.now));
         self.play_reply();
+    }
+
+    /// While a reply plays, nothing of the text stays on screen: the rows
+    /// above it become the session's own earlier work (the view's filler),
+    /// so it reads as one continuous session. The text comes back after.
+    fn hide_text_above(&mut self) {
+        let rows = self.feed.visible_lines().len();
+        let width = self.width();
+        let Some(s) = self.session.as_mut() else {
+            return;
+        };
+        let mut rng = seeded(&format!("{}:before-reply", s.book.id));
+        let filler = s
+            .mask_mut()
+            .noise_block(rows, &mut rng, width)
+            .unwrap_or_else(|| (0..rows).map(|_| plain_line("", FG)).collect());
+        self.feed.set_lines(filler);
     }
 
     /// Show the reply's lines due now; once it is over, back to the text.
