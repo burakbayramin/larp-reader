@@ -157,6 +157,15 @@ pub trait Mask {
         None
     }
 
+    /// What the session "does" for a request typed into the input box:
+    /// groups of lines played one after another (the request echoed, a
+    /// thinking moment, the work, a closing remark). Chosen from the request
+    /// alone, so the same request gets the same reply; never any text of the
+    /// open file, and none of it is a text line. Empty: no reply.
+    fn reply(&self, _request: &str, _width: usize) -> Vec<Vec<Line>> {
+        vec![]
+    }
+
     /// A little figure in the header that moves: pairs of (row as the header
     /// draws it, row to show now). The app swaps them in at draw time, so the
     /// header itself never changes. `active`: text is streaming. None: no figure.

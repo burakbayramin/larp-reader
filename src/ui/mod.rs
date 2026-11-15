@@ -5,6 +5,7 @@ pub mod feed;
 pub mod input;
 pub mod menu;
 pub mod panel;
+pub mod reply;
 pub mod search;
 pub mod shell;
 pub mod theme;

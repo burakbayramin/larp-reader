@@ -384,3 +384,199 @@ fn the_box_key_is_inert_in_other_views_and_small_windows() {
     h.app.resize(80, 9); // the box goes away, and typing with it
     assert!(h.app.ask.is_none());
 }
+
+// -- the fake reply --
+
+const REQUEST: &str = "add retries to the upload client";
+
+/// Type `request` into the box and send it.
+fn ask(h: &mut Harness, request: &str) {
+    h.press(&["i"]);
+    type_text(h, request);
+    h.press(&["enter"]);
+}
+
+/// Every line of the reply to `request`: played until just before it ends.
+fn whole_reply(h: &mut Harness, request: &str) -> Vec<Line> {
+    let before = h.app.feed.history_lines().len();
+    ask(h, request);
+    let left = h.app.reply.as_ref().unwrap().length();
+    h.advance(left - crate::ui::reply::HOLD / 2);
+    assert!(h.app.reply.is_some());
+    let lines = &h.app.feed.history_lines()[before..];
+    // a gap above the request when the screen did not end in one
+    let gap = lines
+        .iter()
+        .take_while(|l| l.plain().trim().is_empty())
+        .count();
+    assert!(gap <= 1);
+    lines[gap..].to_vec()
+}
+
+/// Let the reply play out, a tenth of a second at a time, for up to 15s.
+fn play_out(h: &mut Harness) {
+    for _ in 0..150 {
+        if h.app.reply.is_none() {
+            return;
+        }
+        h.advance(Duration::from_millis(100));
+    }
+}
+
+#[test]
+fn enter_echoes_the_request_and_a_reply_streams_in() {
+    let mut h = sample_with(30, agent(), 80, 24);
+    let words = text_words(&mut h);
+    let before = h.visible();
+    ask(&mut h, REQUEST);
+    assert!(h.app.ask.is_none() && h.app.reply.is_some());
+    let screen = h.screen();
+    assert!(screen.contains(&format!("> {REQUEST}")), "{screen}");
+    let (row, cursor) = box_row(&h);
+    assert!(
+        !row.contains("Try") && cursor.is_none(),
+        "an empty box: {row}"
+    );
+    h.advance(Duration::from_millis(400));
+    assert!(h.screen().contains("✻ Thinking…"));
+    let shown = h.app.feed.history_lines().len();
+    h.advance(Duration::from_secs(3));
+    assert!(
+        h.app.feed.history_lines().len() > shown,
+        "it goes on working"
+    );
+    // done within a few seconds, and the text is back exactly as it was
+    play_out(&mut h);
+    assert!(h.app.reply.is_none(), "over within 15s");
+    assert_eq!(h.visible(), before);
+    assert!(!h.screen().contains(REQUEST));
+    assert!(h.screen().contains("Try"));
+    let mut fresh = sample_with(30, agent(), 80, 24);
+    let reply = whole_reply(&mut fresh, REQUEST);
+    assert!(reply.iter().all(|l| !l.is_book && l.pos.is_none()));
+    let text = reply.iter().map(Line::plain).collect::<Vec<_>>().join("\n");
+    assert!(fresh.screen().contains("⏺ "), "{}", fresh.screen());
+    let mut tail = fresh.app.feed.history_lines().to_vec();
+    tail.drain(..tail.len() - reply.len());
+    assert_eq!(tail, reply);
+    for w in ["book", "reader", "okuyucu", "sample"] {
+        assert!(!text.to_lowercase().contains(w), "{w}: {text}");
+    }
+    let reply_words: std::collections::HashSet<String> = text
+        .split(|c: char| !c.is_alphabetic())
+        .map(str::to_lowercase)
+        .collect();
+    let from_text: Vec<&String> = words
+        .iter()
+        .filter(|w| {
+            reply_words.contains(*w) && !["retries", "upload", "client"].contains(&w.as_str())
+        })
+        .collect();
+    assert!(from_text.is_empty(), "{from_text:?}");
+    let last = reply.iter().rev().find(|l| !l.plain().trim().is_empty());
+    assert!(last.unwrap().plain().starts_with("⏺ "), "{text}");
+}
+
+#[test]
+fn the_same_request_gets_the_same_reply() {
+    let mut h = sample_with(30, agent(), 80, 24);
+    let first = whole_reply(&mut h, REQUEST);
+    h.press(&["space"]); // ends it
+    h.press(&["space"]); // and reading goes on
+    let again = whole_reply(&mut h, REQUEST);
+    assert_eq!(first, again);
+    let mut other = sample_with(30, agent(), 80, 24);
+    let different = whole_reply(&mut other, "rename the config loader and update callers");
+    assert_ne!(first, different);
+    // 2-5 tool calls (a sub-agent batch counts too), then one remark
+    let calls = |r: &[Line]| r.iter().filter(|l| l.plain().starts_with("⏺ ")).count();
+    assert!((3..=6).contains(&calls(&first)), "{}", calls(&first));
+}
+
+#[test]
+fn a_reading_key_or_esc_ends_the_reply_where_the_text_was() {
+    for k in ["space", "j", "escape", "q"] {
+        let mut h = sample_with(30, agent(), 80, 24);
+        h.press(&["space"]);
+        let (pos, offset, before) = (h.session().pos(), h.session().line_offset, h.visible());
+        ask(&mut h, REQUEST);
+        h.advance(Duration::from_secs(2));
+        h.press(&[k]);
+        assert!(h.app.reply.is_none(), "{k}");
+        assert!(!h.app.should_quit() && !h.app.panel, "{k} did only that");
+        assert_eq!(
+            (h.session().pos(), h.session().line_offset),
+            (pos, offset),
+            "{k}"
+        );
+        assert_eq!(h.visible(), before, "{k}");
+        h.press(&["space"]);
+        assert_ne!(h.session().pos(), pos, "{k}: reading goes on");
+    }
+}
+
+#[test]
+fn the_status_keeps_spinning_while_the_reply_plays() {
+    let mut h = sample_with(30, agent(), 80, 24);
+    ask(&mut h, REQUEST);
+    assert!(h.app.animating());
+    assert!(h.app.next_deadline() <= h.now + ANIMATION_FRAME);
+    let a = h.status();
+    h.advance(ANIMATION_FRAME);
+    assert_ne!(h.status(), a);
+}
+
+#[test]
+fn auto_scroll_waits_for_the_reply_and_goes_on_after() {
+    let mut h = sample_with(
+        30,
+        Config {
+            auto: true,
+            ..agent()
+        },
+        80,
+        24,
+    );
+    ask(&mut h, REQUEST);
+    assert!(h.app.timer_due().is_none(), "auto waits");
+    let pos = h.session().pos();
+    play_out(&mut h);
+    assert!(h.app.reply.is_none());
+    assert_eq!(h.session().pos(), pos, "no text streamed meanwhile");
+    assert!(h.app.auto && h.app.timer_due().is_some(), "and resumes");
+    assert!(!h.screen().contains(REQUEST));
+}
+
+#[test]
+fn hiding_during_a_reply_shows_only_the_hidden_stream() {
+    let mut h = sample_with(10, agent(), 80, 24);
+    let words = text_words(&mut h);
+    ask(&mut h, "zebra quokka wombat");
+    h.advance(Duration::from_secs(3));
+    h.press(&["`"]);
+    assert!(h.app.reply.is_none());
+    for _ in 0..20 {
+        h.advance(Duration::from_millis(250));
+    }
+    let screen = h.screen();
+    assert!(
+        !screen.contains("zebra") && !screen.contains('╭'),
+        "{screen}"
+    );
+    assert!(!shown(&h).contains("zebra"));
+    assert_eq!(leaked(&h, &words), Vec::<String>::new());
+    h.press(&["`"]);
+    assert!(!h.screen().contains("zebra"));
+    assert!(
+        h.screen().contains("Try"),
+        "back to the text, the reply gone"
+    );
+}
+
+#[test]
+fn an_empty_request_just_closes_the_box() {
+    let mut h = sample_with(10, agent(), 80, 24);
+    ask(&mut h, "   ");
+    assert!(h.app.ask.is_none() && h.app.reply.is_none());
+    assert!(h.screen().contains("Try"));
+}

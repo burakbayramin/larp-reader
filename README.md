@@ -89,6 +89,11 @@ komut çıktıları, `Read`/`Search` çağrıları ve yapılacaklar listesi. Par
 diff'te eklenen (yeşil) satırlar, kalanı ajanın açıklama metni olarak görünür. Dolgu kodu
 binlerce farklı satırlık havuzlardan sırayla okunur, bu yüzden uzun süre aynı satır
 tekrar etmez. Sürekli akış için: `larpr build kitap.epub --mask=agent --auto`.
+Biri yanınıza gelirse `i` ile alttaki kutuya bir istek yazıp `Enter`'a basın: isteğiniz
+`> ...` olarak ekrana düşer ve ajan birkaç saniye "üzerinde çalışır" (düşünür, dosya
+okur, komut çalıştırır, diff gösterir, kısa bir özetle bitirir). Aynı istek hep aynı
+cevabı alır; cevap bitince ya da herhangi bir tuşa basınca metin kaldığı yerde geri
+gelir. Bu sırada otomatik akış bekler, panik tuşu her şeyi anında gizler.
 
 Sahte shell (`--hide=shell` ya da menüde `on hide: shell`): panik tuşuna basınca
 gerçek bir prompt çıkar (Windows'ta `PS C:\...>`, macOS/Linux'ta kullanıcı@makine).

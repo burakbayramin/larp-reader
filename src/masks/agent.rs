@@ -37,6 +37,17 @@ const BODY_INDENT: usize = 8;
 const PER_SLOT: usize = 8;
 /// The hidden stream reads a part of the pools the text never reaches.
 const STREAM_BASE: usize = 10_000_000;
+/// Replies to typed requests read yet another part.
+const REPLY_BASE: usize = 20_000_000;
+/// How a reply ends; `{n}` is how many files it touched.
+const SUMMARIES: &[&str] = &[
+    "Done. Updated {n} and all tests pass.",
+    "All set: {n} changed, the suite is green.",
+    "Finished. The change touches {n}; tests and lint pass.",
+    "Done. I made the change in {n} and ran the tests: all passing.",
+    "That's in. {n} updated, nothing else needed.",
+    "Done. {n} edited; existing behaviour is unchanged and covered by tests.",
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
@@ -753,6 +764,63 @@ impl Mask for AgentMask {
     fn prompt_box(&self) -> Option<&'static str> {
         Some("Try \"add tests for the retry path\"")
     }
+
+    /// Look at the code, do a few things, sum up: 2-5 tool calls picked by
+    /// the request's hash, with a batch of sub-agents for longer requests.
+    fn reply(&self, request: &str, width: usize) -> Vec<Vec<Line>> {
+        let request = request.trim();
+        let h = crc32fast::hash(request.as_bytes()) as usize;
+        let mut rng = super::seeded(&format!("reply {request}"));
+        let slot = REPLY_BASE + h % 100_000 * 64;
+        let echo: Vec<Line> = ragged(request, width.saturating_sub(2).max(1))
+            .into_iter()
+            .enumerate()
+            .map(|(k, t)| {
+                let lead = if k == 0 { "> " } else { "  " };
+                chrome(width, &[(lead, DIM), (&t, DIM)])
+            })
+            .chain([blank(width)])
+            .collect();
+        let mut out = vec![echo, vec![chrome(width, &[(THINKING, DIM)]), blank(width)]];
+        let long = request.split_whitespace().count() > 8;
+        let n = 2 + h % 3 + usize::from(long);
+        let mut files = 0;
+        let mut last = "";
+        for k in 0..n {
+            let kind = if k == 0 {
+                *pick(&mut rng, &["read", "search"])
+            } else if k == 1 && long {
+                "agents"
+            } else if k + 1 == n {
+                *pick(&mut rng, &["bash", "edit"])
+            } else {
+                let kinds: Vec<&str> = ["read", "search", "edit", "write", "todos", "bash"]
+                    .into_iter()
+                    .filter(|x| *x != last)
+                    .collect();
+                *pick(&mut rng, &kinds)
+            };
+            last = kind;
+            let at = slot + k * 8;
+            out.push(match kind {
+                // a finished batch: the reply waits for nothing
+                "agents" => {
+                    let mut lines = agents(width, at, randint(&mut rng, 2, 4), false);
+                    lines.push(blank(width));
+                    lines
+                }
+                _ => self.unit(kind, at, &mut rng, width),
+            });
+            files += usize::from(matches!(kind, "edit" | "write"));
+        }
+        let files = plural(files.max(1), "file");
+        let summary = SUMMARIES[h / 3 % SUMMARIES.len()].replace("{n}", &files);
+        out.push(vec![
+            chrome(width, &[(&format!("{BULLET} "), FG), (&summary, FG)]),
+            blank(width),
+        ]);
+        out
+    }
 }
 
 /// Spinner glyphs, grown then shrunk again like Claude Code's.
@@ -1208,5 +1276,46 @@ mod tests {
         assert!(narrow.chars().count() <= 30, "{narrow}");
         assert!(narrow.contains("5/380"));
         assert!(!l.contains("esc"));
+    }
+
+    #[test]
+    fn replies_are_a_few_tool_calls_that_fit_and_repeat() {
+        let m = AgentMask::default();
+        let mut sizes = std::collections::HashSet::new();
+        for i in 0..60 {
+            let request = format!("fix issue {i} in the parser{}", " please".repeat(i % 12));
+            for width in [40, 80, 160] {
+                let groups = m.reply(&request, width);
+                assert_eq!(groups, m.reply(&request, width), "same request, same reply");
+                // echo, thinking, 2-5 calls (a sub-agent batch among them), a remark
+                let calls = groups.len() - 3;
+                assert!((2..=5).contains(&calls), "{calls}");
+                sizes.insert(calls);
+                assert!(groups[0][0].plain().starts_with("> fix issue"));
+                assert_eq!(groups[1][0].plain(), THINKING);
+                let end = groups.last().unwrap()[0].plain();
+                assert!(end.starts_with(&format!("{BULLET} ")), "{end}");
+                for l in groups.iter().flatten() {
+                    assert!(!l.is_book && l.pos.is_none());
+                    assert!(l.plain().width() <= width, "{}", l.plain());
+                    let low = l.plain().to_lowercase();
+                    assert!(
+                        !["book", "reader", "okuyucu"]
+                            .iter()
+                            .any(|w| low.contains(w))
+                    );
+                }
+            }
+        }
+        assert_eq!(sizes.len(), 4, "{sizes:?}");
+        let long = m.reply(
+            "please refactor the session store so it can be shared by workers",
+            80,
+        );
+        assert!(
+            long.iter()
+                .flatten()
+                .any(|l| l.plain().contains("agents finished"))
+        );
     }
 }

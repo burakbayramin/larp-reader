@@ -18,6 +18,7 @@ use super::feed::{Feed, text_chars};
 use super::input::{InputEvent, LineInput};
 use super::menu::{Menu, MenuResult, section_label};
 use super::panel;
+use super::reply::Reply;
 use super::search::{self, Search};
 use super::shell::{shell_output, shell_prompt};
 use super::theme::{THEMES, Theme};
@@ -139,6 +140,8 @@ pub struct App {
     pub shell: Option<LineInput>,
     /// The input box's line while it takes the keys (views with a box only).
     pub ask: Option<LineInput>,
+    /// A fake reply to a submitted request, while it plays.
+    pub reply: Option<Reply>,
     /// The search bar and the last query.
     pub search: Search,
     /// The settings screen, while it is up.
@@ -193,6 +196,7 @@ impl App {
             prompt: shell_prompt(),
             shell: None,
             ask: None,
+            reply: None,
             search: Search::default(),
             menu: None,
             panel: false,
@@ -297,7 +301,8 @@ impl App {
         if self.panic {
             return;
         }
-        self.feed.set_bottom_anchored(self.auto);
+        self.feed
+            .set_bottom_anchored(self.auto || self.reply.is_some());
         self.pacer.clear_queue();
         let width = self.width();
         let mut lines = vec![];
@@ -399,7 +404,10 @@ impl App {
         let Some(s) = self.session.as_ref().filter(|_| !self.panic) else {
             return text;
         };
-        let Some(rows) = s.mask().sprite(self.pacer.elapsed(self.now), self.auto) else {
+        let Some(rows) = s.mask().sprite(
+            self.pacer.elapsed(self.now),
+            self.auto || self.reply.is_some(),
+        ) else {
             return text;
         };
         for line in &mut text.lines {
@@ -451,6 +459,8 @@ impl App {
                     let room = (input_area.width as usize).saturating_sub(2 + LEAD.len() + 1);
                     (tail_fitting(&f.value, room), FG)
                 }
+                // empty while it "works", like a session that is busy
+                None if self.reply.is_some() => (String::new(), STATUS_FG),
                 None => (placeholder.to_string(), STATUS_FG),
             };
             let typed = unicode_width::UnicodeWidthStr::width(text.as_str()) as u16;
@@ -509,10 +519,12 @@ impl App {
     pub fn resize(&mut self, cols: u16, rows: u16) {
         self.cols = cols as usize;
         self.rows = rows as usize;
-        let closed = self.ask.is_some() && self.prompt_box().is_none();
-        if closed {
+        let box_gone = self.ask.is_some() && self.prompt_box().is_none();
+        if box_gone {
             self.ask = None; // the box is gone in a small window
         }
+        // a reply laid out for the old width ends: the text comes back re-wrapped
+        let closed = box_gone | self.reply.take().is_some();
         let width = self.width();
         if let Some(s) = self.session.as_mut()
             && s.width() != width
@@ -551,12 +563,16 @@ impl App {
             match key.code {
                 KeyCode::Esc => self.close_box(),
                 _ => {
-                    if let InputEvent::Submit(_) = field.handle(key) {
-                        self.close_box();
+                    if let InputEvent::Submit(request) = field.handle(key) {
+                        self.submit(&request);
                     }
                 }
             }
             return; // the box takes every key while it is focused
+        }
+        if self.reply.is_some() {
+            self.end_reply(); // any key: back to the text, nothing else
+            return;
         }
         if let Some(menu) = self.menu.as_mut() {
             let result = menu.handle(key);
@@ -669,14 +685,55 @@ impl App {
         self.restart_timer();
     }
 
-    /// The box has the keys (auto scroll waits for it).
+    /// Play the view's reply to `request` under the screen, scrolling it up
+    /// like a terminal; an empty request just closes the box.
+    fn submit(&mut self, request: &str) {
+        self.ask = None;
+        let groups = match self.session.as_ref() {
+            Some(s) if !request.trim().is_empty() => s.mask().reply(request, self.width()),
+            _ => vec![],
+        };
+        if groups.is_empty() {
+            self.close_box();
+            return;
+        }
+        self.feed.set_bottom_anchored(true);
+        let last = self.feed.visible_lines().last();
+        if last.is_some_and(|l| !l.plain().trim().is_empty()) {
+            self.feed.append(vec![plain_line("", FG)]); // a gap above the request
+        }
+        self.reply = Some(Reply::new(groups, self.now));
+        self.play_reply();
+    }
+
+    /// Show the reply's lines due now; once it is over, back to the text.
+    fn play_reply(&mut self) {
+        let Some(reply) = self.reply.as_mut() else {
+            return;
+        };
+        let (lines, over) = reply.take_due(self.now);
+        self.feed.append(lines);
+        if over {
+            self.end_reply();
+        }
+    }
+
+    /// The text again exactly where it was, and auto scroll going on.
+    fn end_reply(&mut self) {
+        self.reply = None;
+        self.redraw();
+        self.restart_timer();
+    }
+
+    /// The box has the keys or a reply plays: auto scroll waits.
     fn busy(&self) -> bool {
-        self.ask.is_some()
+        self.ask.is_some() || self.reply.is_some()
     }
 
     pub fn toggle_panic(&mut self) {
         self.panic = !self.panic;
         self.ask = None; // the typed text goes with everything else
+        self.reply = None;
         self.pacer.stop();
         self.pacer.finish_typing(&mut self.feed);
         self.feed.clear();
@@ -1069,6 +1126,9 @@ impl App {
         if let Some(t) = self.pacer.next_deadline(self.now, self.animating()) {
             at = at.min(t);
         }
+        if let Some(r) = &self.reply {
+            at = at.min(r.due());
+        }
         at
     }
 
@@ -1078,6 +1138,7 @@ impl App {
         if self.pacer.is_due(now) {
             self.timer_fired();
         }
+        self.play_reply();
         if let Some((_, until)) = &self.flash
             && now >= *until
         {
