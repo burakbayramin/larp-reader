@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 use super::feed::Feed;
 use crate::book::Pos;
 use crate::masks::Line;
-use crate::pace::{learn, line_delay, words_in};
+use crate::pace::{counts_as_read, learn, line_delay, words_in};
 use crate::session::Session;
 
 /// Filler lines per second while hidden.
@@ -56,6 +56,8 @@ pub struct Pacer {
     started: Instant,
     /// The newest streamed line typing out: since when, for how long, its characters.
     typing: Option<(Instant, Duration, usize)>,
+    /// Screens that were read and left: (text id, words, seconds), until `App` takes them.
+    read: Vec<(String, usize, f64)>,
 }
 
 impl Pacer {
@@ -71,6 +73,7 @@ impl Pacer {
             line_step: false,
             started: now,
             typing: None,
+            read: vec![],
         }
     }
 
@@ -183,6 +186,7 @@ impl Pacer {
         if step && self.view_key.is_some() {
             self.view_seen.extend(seen);
         } else {
+            self.finish_view(now);
             self.view_since = now;
             self.view_seen = seen;
         }
@@ -191,8 +195,30 @@ impl Pacer {
     }
 
     /// Stop timing the screen: time spent elsewhere (hidden) is not reading time.
-    pub fn forget_view(&mut self) {
+    pub fn forget_view(&mut self, now: Instant) {
+        self.finish_view(now);
         self.view_key = None;
+    }
+
+    /// The screen up is left: if it was shown long enough to be read, it counts.
+    fn finish_view(&mut self, now: Instant) {
+        let Some((book, _, _)) = &self.view_key else {
+            return;
+        };
+        let seconds = now.saturating_duration_since(self.view_since).as_secs_f64();
+        if counts_as_read(self.view_words, seconds) {
+            self.read.push((book.clone(), self.view_words, seconds));
+        }
+    }
+
+    /// The screens read and left since the last call.
+    pub fn take_read(&mut self) -> Vec<(String, usize, f64)> {
+        std::mem::take(&mut self.read)
+    }
+
+    /// Words of the newest streamed text on screen.
+    pub fn shown_words(&self) -> usize {
+        self.last_words
     }
 
     /// The reading rate the screen up since `view_since` suggests, read by `now`.

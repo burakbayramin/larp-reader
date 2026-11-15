@@ -47,6 +47,14 @@ pub fn line_delay(words: usize, wpm: u32) -> f64 {
     (words as f64 * 60.0 / wpm.max(1) as f64).max(MIN_DELAY)
 }
 
+/// Whether a screen of `words` words, up for `seconds`, was really read: not
+/// skimmed past, not left open, not faster than anyone reads.
+pub fn counts_as_read(words: usize, seconds: f64) -> bool {
+    words >= MIN_SAMPLE_WORDS
+        && (MIN_SAMPLE_SECONDS..=MAX_SAMPLE_SECONDS).contains(&seconds)
+        && words as f64 * 60.0 / seconds <= MAX_WPM as f64
+}
+
 /// The rate after reading `words` words in `seconds`, or None if the screen says nothing reliable.
 pub fn learn(wpm: u32, words: usize, seconds: f64) -> Option<u32> {
     if words < MIN_SAMPLE_WORDS || !(MIN_SAMPLE_SECONDS..=MAX_SAMPLE_SECONDS).contains(&seconds) {

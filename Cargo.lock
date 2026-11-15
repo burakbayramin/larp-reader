@@ -1319,6 +1319,7 @@ dependencies = [
  "crc32fast",
  "ego-tree",
  "encoding_rs",
+ "libc",
  "mobi",
  "pdf_oxide",
  "quick-xml",

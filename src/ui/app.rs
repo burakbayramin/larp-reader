@@ -28,12 +28,15 @@ use crate::errors::FccError;
 use crate::loaders::load_book;
 use crate::masks::base::{error_lines, plain_line};
 use crate::masks::palette::YELLOW;
-use crate::masks::time::civil;
+use crate::masks::time::{civil, local_today};
 use crate::masks::{LANGS, Line, Look, MASK_NAMES, Mask, Rng, Role, get_mask, seeded};
 use crate::noise::MAX_NOISE;
-use crate::pace::step_wpm;
+use crate::pace::{line_delay, step_wpm};
 use crate::session::Session;
-use crate::state::{Config, Entry, last_entry, load_progress, save_config, save_progress};
+use crate::state::{
+    Config, Entry, last_entry, load_progress, load_stats, save_config, save_progress, save_stats,
+};
+use crate::stats::Stats;
 use crate::text::truncate_cells;
 
 pub const MIN_WIDTH: usize = 40;
@@ -150,6 +153,11 @@ pub struct App {
     pub panel: bool,
     /// The colour theme and depth everything is drawn in.
     pub theme: Theme,
+    /// Words and time read, per day and per text; saved with the progress.
+    pub stats: Stats,
+    stats_dirty: bool,
+    /// A fixed local day instead of the calendar's (tests).
+    pub day_override: Option<i64>,
 }
 
 impl App {
@@ -201,7 +209,11 @@ impl App {
             menu: None,
             panel: false,
             theme,
+            stats: Stats::default(),
+            stats_dirty: false,
+            day_override: None,
         };
+        app.stats = load_stats(&app.state_dir);
         if let Some(e) = mask_error {
             app.notice.extend(error_lines(&e, app.width()));
         }
@@ -335,6 +347,7 @@ impl App {
         }
         if let Some((key, shown)) = watched {
             self.pacer.watch(key, &shown, self.now);
+            self.bank_reading();
         }
         self.feed.set_lines(self.search.highlighted(lines));
     }
@@ -672,7 +685,8 @@ impl App {
         }
         self.panel = false;
         self.pacer.stop();
-        self.pacer.forget_view();
+        self.pacer.forget_view(self.now); // typing is not reading time
+        self.bank_reading();
         self.ask = Some(LineInput::default());
     }
 
@@ -738,7 +752,8 @@ impl App {
         self.pacer.finish_typing(&mut self.feed);
         self.feed.clear();
         self.pacer.clear_queue();
-        self.pacer.forget_view(); // time spent hidden is not reading time
+        self.pacer.forget_view(self.now); // time spent hidden is not reading time
+        self.bank_reading();
         self.search.close();
         self.menu = None;
         self.panel = false;
@@ -919,6 +934,7 @@ impl App {
 
     /// Open another file, keeping this one's place saved first.
     fn open_from_menu(&mut self, path: &Path) {
+        self.pacer.forget_view(self.now);
         self.try_save();
         match self.load(path) {
             Err(e) => self.notice = error_lines(&e, self.width()),
@@ -1111,6 +1127,7 @@ impl App {
     }
 
     fn quit_and_save(&mut self) {
+        self.pacer.forget_view(self.now); // the screen being read counts too
         self.try_save();
         self.quit = true;
     }
@@ -1191,6 +1208,14 @@ impl App {
         let Some(s) = self.session.as_mut() else {
             return;
         };
+        // the text on screen had its reading time: it was read
+        let (shown, id) = (self.pacer.shown_words(), s.book.id.clone());
+        if shown > 0 {
+            let secs = line_delay(shown, self.config.wpm);
+            let day = self.day_override.unwrap_or_else(local_today);
+            self.stats.record(day, &id, shown, secs);
+            self.stats_dirty = true;
+        }
         let (out, finished) = self.pacer.next_lines(s);
         let types = s.mask().typewriter();
         if !out.is_empty() {
@@ -1238,8 +1263,31 @@ impl App {
         save_progress(&self.state_dir, &data)
     }
 
+    /// Take the screens read since last time into the statistics.
+    fn bank_reading(&mut self) {
+        let read = self.pacer.take_read();
+        if read.is_empty() {
+            return;
+        }
+        let day = self.day_override.unwrap_or_else(local_today);
+        for (book, words, seconds) in read {
+            self.stats.record(day, &book, words, seconds);
+        }
+        self.stats_dirty = true;
+    }
+
+    fn save_stats(&mut self) -> std::io::Result<()> {
+        if !self.stats_dirty {
+            return Ok(());
+        }
+        save_stats(&self.state_dir, &self.stats)?;
+        self.stats_dirty = false;
+        Ok(())
+    }
+
     fn try_save(&mut self) {
-        if let Err(e) = self.save() {
+        self.bank_reading();
+        if let Err(e) = self.save().and_then(|()| self.save_stats()) {
             if self.save_error_shown {
                 return;
             }

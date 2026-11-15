@@ -17,6 +17,7 @@ use serde_json::{Map, Value};
 use crate::masks::{LANGS, MASK_NAMES};
 use crate::noise::MAX_NOISE;
 use crate::pace::{DEFAULT_WPM, clamp_wpm};
+use crate::stats::Stats;
 
 pub const HIDE_STYLES: &[&str] = &["stream", "shell"];
 /// Colour themes, in the order `t` cycles through them.
@@ -251,6 +252,17 @@ pub fn save_progress(dir: &Path, data: &Progress) -> io::Result<()> {
 }
 
 /// The most recently read book.
+/// The reading statistics; empty if missing (a corrupt file is moved to `.bak`).
+pub fn load_stats(dir: &Path) -> Stats {
+    read_object(&dir.join("stats.json"))
+        .map(|obj| Stats::from_object(&obj))
+        .unwrap_or_default()
+}
+
+pub fn save_stats(dir: &Path, stats: &Stats) -> io::Result<()> {
+    atomic_write(&dir.join("stats.json"), &stats.to_json())
+}
+
 pub fn last_entry(data: &Progress) -> Option<(&String, &Entry)> {
     data.iter()
         .max_by(|a, b| a.1.updated_at.cmp(&b.1.updated_at))
@@ -399,6 +411,29 @@ mod tests {
         save_config(d.path(), &Config::default()).unwrap();
         save_config(d.path(), &cfg("log", "go", 1, 200, false)).unwrap();
         assert_eq!(names(d.path()), vec!["config.json"]);
+    }
+
+    #[test]
+    fn stats_round_trip_and_start_empty() {
+        let d = tmp();
+        assert!(load_stats(d.path()).is_empty());
+        let mut stats = Stats::default();
+        stats.record(20_772, "abc", 300, 90.0);
+        save_stats(d.path(), &stats).unwrap();
+        assert_eq!(load_stats(d.path()), stats);
+        assert_eq!(names(d.path()), vec!["stats.json"]); // no temporary file left
+    }
+
+    #[test]
+    fn corrupt_stats_are_backed_up_and_start_empty() {
+        let d = tmp();
+        fs::write(d.path().join("stats.json"), "{not json").unwrap();
+        assert!(load_stats(d.path()).is_empty());
+        assert_eq!(
+            fs::read_to_string(d.path().join("stats.json.bak")).unwrap(),
+            "{not json"
+        );
+        assert!(!d.path().join("stats.json").exists());
     }
 
     #[test]
