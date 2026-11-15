@@ -49,6 +49,13 @@ const SUMMARIES: &[&str] = &[
     "Done. {n} edited; existing behaviour is unchanged and covered by tests.",
 ];
 
+/// Closing lines for a reply that changed nothing.
+const NO_CHANGE: &[&str] = &[
+    "Looked into it: the current code already handles this, so nothing needs to change.",
+    "Checked it end to end. No change needed; the tests already cover this case.",
+    "Nothing to change here: it works as asked and the suite is green.",
+];
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
     /// The text as added lines of an edit.
@@ -813,8 +820,11 @@ impl Mask for AgentMask {
             });
             files += usize::from(matches!(kind, "edit" | "write"));
         }
-        let files = plural(files.max(1), "file");
-        let summary = SUMMARIES[h / 3 % SUMMARIES.len()].replace("{n}", &files);
+        let summary = if files == 0 {
+            NO_CHANGE[h / 3 % NO_CHANGE.len()].to_string()
+        } else {
+            SUMMARIES[h / 3 % SUMMARIES.len()].replace("{n}", &plural(files, "file"))
+        };
         out.push(vec![
             chrome(width, &[(&format!("{BULLET} "), FG), (&summary, FG)]),
             blank(width),
@@ -1276,6 +1286,34 @@ mod tests {
         assert!(narrow.chars().count() <= 30, "{narrow}");
         assert!(narrow.contains("5/380"));
         assert!(!l.contains("esc"));
+    }
+
+    #[test]
+    fn the_reply_s_summary_counts_the_files_it_showed() {
+        let m = AgentMask::default();
+        let (mut none, mut some) = (0, 0);
+        for i in 0..80 {
+            let request = format!("look at case {i}");
+            let lines: Vec<String> = m
+                .reply(&request, 100)
+                .into_iter()
+                .flatten()
+                .map(|l| l.plain())
+                .collect();
+            let files = lines
+                .iter()
+                .filter(|l| l.contains("Update(") || l.contains("Write("))
+                .count();
+            let last = lines.iter().rev().find(|l| l.starts_with(BULLET)).unwrap();
+            if files == 0 {
+                none += 1;
+                assert!(NO_CHANGE.iter().any(|t| last.ends_with(t)), "{last}");
+            } else {
+                some += 1;
+                assert!(last.contains(&plural(files, "file")), "{files}: {last}");
+            }
+        }
+        assert!(none > 0 && some > 0, "{none} {some}");
     }
 
     #[test]
