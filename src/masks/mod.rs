@@ -156,6 +156,17 @@ pub trait Mask {
     fn prompt_box(&self) -> Option<&'static str> {
         None
     }
+
+    /// A little figure in the header that moves: pairs of (row as the header
+    /// draws it, row to show now). The app swaps them in at draw time, so the
+    /// header itself never changes. `active`: text is streaming. None: no figure.
+    fn sprite(
+        &self,
+        _elapsed: std::time::Duration,
+        _active: bool,
+    ) -> Option<Vec<(&'static str, &'static str)>> {
+        None
+    }
 }
 
 /// A fresh mask by name; `lang` matters only to the code mask.

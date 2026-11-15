@@ -369,16 +369,86 @@ impl AgentMask {
     }
 }
 
+/// The welcome figure, 9 cells wide: the rows as the header draws them.
+pub const SPRITE: [&str; 3] = [" ▄▆███▆▄ ", "██ ███ ██", " ▀█▀ ▀█▀ "];
+/// Eyes shut (the middle row).
+const SPRITE_BLINK: &str = "██▄███▄██";
+/// Feet apart (the bottom row), while text streams.
+const SPRITE_STEP: &str = "▀█▀   ▀█▀";
+/// How often the figure blinks, and for how long its eyes stay shut.
+pub const BLINK_EVERY: Duration = Duration::from_millis(3600);
+pub const BLINK_FOR: Duration = Duration::from_millis(180);
+/// How long each step lasts while text streams.
+pub const STEP_FOR: Duration = Duration::from_millis(360);
+/// The welcome box needs this many cells; narrower screens go without it.
+const WELCOME_MIN: usize = 32;
+const WELCOME_MAX: usize = 58;
+
+/// The figure's rows for `elapsed` into the session: (as drawn, as shown now).
+pub fn sprite_frame(elapsed: Duration, active: bool) -> Vec<(&'static str, &'static str)> {
+    let ms = elapsed.as_millis();
+    let blink = ms % BLINK_EVERY.as_millis() >= (BLINK_EVERY - BLINK_FOR).as_millis();
+    let step = active && (ms / STEP_FOR.as_millis()) % 2 == 1;
+    vec![
+        (SPRITE[0], SPRITE[0]),
+        (SPRITE[1], if blink { SPRITE_BLINK } else { SPRITE[1] }),
+        (SPRITE[2], if step { SPRITE_STEP } else { SPRITE[2] }),
+    ]
+}
+
+/// A boxed welcome like an interactive session's: the figure and three
+/// lines beside it. Empty on narrow screens.
+fn welcome(width: usize) -> Vec<Line> {
+    if width < WELCOME_MIN {
+        return vec![];
+    }
+    let w = width.min(WELCOME_MAX);
+    let room = w - 4 - SPRITE[0].width() - 2;
+    let version = format!("larpr v{}", env!("CARGO_PKG_VERSION"));
+    let texts = [
+        (version.as_str(), FG.bold()),
+        ("/help for help, /status for setup", DIM),
+        ("cwd: ~/work/api", DIM),
+    ];
+    let mut out = vec![chrome_owned(
+        width,
+        vec![seg(format!("╭{}╮", "─".repeat(w - 2)), DIM)],
+    )];
+    for (row, (text, look)) in SPRITE.iter().zip(texts) {
+        let text: String = text.chars().take(room).collect();
+        let pad = room - text.chars().count();
+        out.push(chrome_owned(
+            width,
+            vec![
+                seg("│ ", DIM),
+                seg(*row, YELLOW),
+                seg("  ", FG),
+                seg(text, look),
+                seg(format!("{} │", " ".repeat(pad)), DIM),
+            ],
+        ));
+    }
+    out.push(chrome_owned(
+        width,
+        vec![seg(format!("╰{}╯", "─".repeat(w - 2)), DIM)],
+    ));
+    out.push(blank(width));
+    out
+}
+
 impl Mask for AgentMask {
     fn name(&self) -> &'static str {
         "agent"
     }
 
     fn header(&mut self, _rng: &mut Rng, width: usize) -> Vec<Line> {
-        vec![
-            chrome(width, &[("> refactor the cache layer and add tests", DIM)]),
-            blank(width),
-        ]
+        let mut out = welcome(width);
+        out.push(chrome(
+            width,
+            &[("> refactor the cache layer and add tests", DIM)],
+        ));
+        out.push(blank(width));
+        out
     }
 
     fn line_count(&self, para: &Paragraph, width: usize) -> usize {
@@ -533,6 +603,10 @@ impl Mask for AgentMask {
 
     fn typewriter(&self) -> bool {
         true
+    }
+
+    fn sprite(&self, elapsed: Duration, active: bool) -> Option<Vec<(&'static str, &'static str)>> {
+        Some(sprite_frame(elapsed, active))
     }
 
     fn prompt_box(&self) -> Option<&'static str> {
@@ -805,7 +879,11 @@ mod tests {
     #[test]
     fn header_and_status() {
         let mut m = AgentMask::default();
-        assert!(m.header(&mut rng(1), 80)[0].plain().starts_with('>'));
+        let header = m.header(&mut rng(1), 80);
+        assert!(header[0].plain().starts_with('╭'));
+        assert!(header.iter().any(|l| l.plain().starts_with('>')));
+        let narrow = m.header(&mut rng(1), WELCOME_MIN - 1);
+        assert!(narrow[0].plain().starts_with('>'));
         assert!(m.progress_label(142, 380, 80).contains("142/380"));
     }
 

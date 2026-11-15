@@ -146,11 +146,11 @@ fn agent_view_draws_an_input_box_above_the_status() {
     assert_eq!(code.visible().len(), 23);
     for (cols, rows) in [(39, 24), (80, 9)] {
         let small = sample_with(10, agent(), cols, rows);
-        assert!(!small.screen().contains('╭'), "{cols}x{rows}");
+        assert!(!small.screen().contains("│ > "), "{cols}x{rows}");
     }
     let mut h = h;
     h.press(&["`"]);
-    assert!(!h.screen().contains('╭'));
+    assert!(!h.screen().contains("│ > ") && !h.screen().contains('╭'));
     assert_eq!(h.visible().len(), 23); // the hidden stream fills the screen
     h.press(&["`"]);
     assert!(h.screen().contains('╭'));
@@ -181,4 +181,49 @@ fn paging_with_the_input_box_shows_every_line_once() {
     assert_eq!(got, stream);
     h.press(&["u"]); // and back again a screen
     assert!(h.visible().len() <= 20);
+}
+
+// -- the welcome figure --
+
+#[test]
+fn the_welcome_figure_blinks_and_steps_while_text_streams() {
+    use crate::masks::agent::{BLINK_EVERY, BLINK_FOR, SPRITE, STEP_FOR};
+    let mut h = sample_with(10, agent(), 80, 40);
+    let screen = h.screen();
+    for row in SPRITE {
+        assert!(screen.contains(row), "{row:?} missing:\n{screen}");
+    }
+    h.advance(BLINK_EVERY - BLINK_FOR + ANIMATION_FRAME / 2);
+    let shut = h.screen();
+    assert!(!shut.contains(SPRITE[1]), "{shut}");
+    assert!(shut.contains(SPRITE[0]) && shut.contains(SPRITE[2]));
+    h.advance(BLINK_FOR);
+    assert!(h.screen().contains(SPRITE[1]));
+    assert!(h.screen().contains(SPRITE[2]), "standing still while idle");
+
+    let mut a = sample_with(
+        10,
+        Config {
+            auto: true,
+            ..agent()
+        },
+        80,
+        60,
+    );
+    a.advance(STEP_FOR + ANIMATION_FRAME / 2);
+    let stepping = a.screen();
+    assert!(stepping.contains(SPRITE[0]), "{stepping}");
+    assert!(!stepping.contains(SPRITE[2]), "{stepping}");
+    a.press(&["`"]); // hidden: no figure at all
+    for row in SPRITE {
+        assert!(!a.screen().contains(row));
+    }
+}
+
+#[test]
+fn the_header_itself_never_changes_with_the_figure() {
+    let mut h = sample_with(10, agent(), 80, 40);
+    let before = h.app.feed.history_lines().to_vec();
+    h.advance(Duration::from_secs(4));
+    assert_eq!(h.app.feed.history_lines().to_vec(), before);
 }

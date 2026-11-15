@@ -360,6 +360,25 @@ impl App {
         })
     }
 
+    /// Swap the header figure's rows for the frame due now (blinking, and
+    /// stepping while text streams). Never while hidden.
+    fn with_sprite(&self, mut text: ratatui::text::Text<'static>) -> ratatui::text::Text<'static> {
+        let Some(s) = self.session.as_ref().filter(|_| !self.panic) else {
+            return text;
+        };
+        let Some(rows) = s.mask().sprite(self.pacer.elapsed(self.now), self.auto) else {
+            return text;
+        };
+        for line in &mut text.lines {
+            for span in &mut line.spans {
+                if let Some((_, now)) = rows.iter().find(|(drawn, _)| span.content == *drawn) {
+                    span.content = (*now).into();
+                }
+            }
+        }
+        text
+    }
+
     pub fn draw(&self, frame: &mut Frame) {
         self.draw_in(frame, &self.theme);
     }
@@ -381,7 +400,10 @@ impl App {
             Constraint::Length(1),
         ])
         .areas(frame.area());
-        frame.render_widget(Paragraph::new(self.feed.text(theme)), feed);
+        frame.render_widget(
+            Paragraph::new(self.with_sprite(self.feed.text(theme))),
+            feed,
+        );
         if let Some(placeholder) = input {
             use ratatui::text::{Line as TLine, Span};
             use ratatui::widgets::{Block, BorderType, Borders};
