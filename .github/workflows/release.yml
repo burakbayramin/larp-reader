@@ -1,10 +1,20 @@
 name: release
 
 # Push a tag like v0.5.0 to build larpr for every platform and attach the
-# archives to a GitHub release of that name.
+# archives to a GitHub release of that name. Started by hand with a tag that
+# already has a release, it builds that tag again and adds (or replaces) the
+# archives there, keeping the release notes.
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build, e.g. v0.7.0"
+        required: true
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
 
 permissions:
   contents: write
@@ -33,18 +43,22 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
+      # cross-built on an arm runner: build only. A rebuild by hand of an older
+      # tag skips the tests: CI runs them on main.
       - run: cargo test --locked
-        if: matrix.target != 'x86_64-apple-darwin' # cross-built on an arm runner: build only
+        if: matrix.target != 'x86_64-apple-darwin' && github.event_name == 'push'
       - run: cargo build --release --locked --target ${{ matrix.target }}
       - name: Package
         run: |
-          name="larp-reader-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          name="larp-reader-${TAG}-${{ matrix.target }}"
           mkdir -p "dist/$name"
           bin="target/${{ matrix.target }}/release/larpr"
           [ -f "$bin.exe" ] && bin="$bin.exe"
@@ -73,5 +87,6 @@ jobs:
         run: cd dist && sha256sum * > SHA256SUMS
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.TAG }}
           files: dist/*
-          generate_release_notes: true
+          generate_release_notes: ${{ github.event_name == 'push' }}
