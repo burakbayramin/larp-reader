@@ -16,6 +16,13 @@ Windows, macOS (Apple Silicon ve Intel) ve Linux için hazır programlar
 [Releases](../../releases) sayfasında. Arşivi açıp `larpr` (Windows'ta `larpr.exe`)
 dosyasını PATH'teki bir klasöre koymanız yeterli; başka bir şey kurmak gerekmez.
 
+[cargo-binstall](https://github.com/cargo-bins/cargo-binstall) kuruluysa hazır programı
+derlemeden indirip kurar:
+
+```
+cargo binstall --git https://github.com/burakbayramin/larp-reader larp-reader
+```
+
 Kaynaktan derlemek için (Rust 1.88+):
 
 ```
