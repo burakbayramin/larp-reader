@@ -6,8 +6,9 @@ aracına baktığınızı sanır.
 
 İsim, argodaki *larp* fiilinden geliyor: rol yapmak, öyleymiş gibi davranmak.
 larp-reader ile kitap okurken çalışıyormuş gibi yaparsınız. `agent` görünümünün
-karşılama kutusundaki figür de aynısını yapıyor: sahte gözlük ve bıyıkla
-kılık değiştirmiş, ara sıra gözlüğünü kaldırıp etrafa bakıyor.
+karşılama kutusundaki figür de aynısını yapıyor: karton miğferli, köpük kılıçlı bir
+rol yapımcısı gibi poz veriyor, ara sıra kılıcını kaldırıp savuruyor, kılıç
+bazen sarkıyor (köpük sonuçta), yazı akarken de olduğu yerde yürüyor.
 
 ## Kurulum
 

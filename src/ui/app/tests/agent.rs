@@ -186,23 +186,23 @@ fn paging_with_the_input_box_shows_every_line_once() {
 // -- the welcome figure --
 
 #[test]
-fn the_welcome_figure_peeks_out_of_its_disguise_and_steps_while_text_streams() {
-    use crate::masks::agent::{PEEK_EVERY, PEEK_FOR, SPRITE, STEP_FOR};
+fn the_welcome_figure_poses_flourishes_and_marches_while_text_streams() {
+    use crate::masks::agent::{SHOW_EVERY, SHOW_FOR, SPRITE, STEP_FOR};
     let mut h = sample_with(10, agent(), 80, 40);
     let screen = h.screen();
     for row in SPRITE {
         assert!(screen.contains(row), "{row:?} missing:\n{screen}");
     }
-    h.advance(PEEK_EVERY - PEEK_FOR + ANIMATION_FRAME / 2);
-    let peeking = h.screen();
+    h.advance(SHOW_EVERY - SHOW_FOR + ANIMATION_FRAME / 2);
+    let flourish = h.screen();
     assert!(
-        !peeking.contains(SPRITE[0]) && !peeking.contains(SPRITE[1]),
-        "{peeking}"
+        !flourish.contains(SPRITE[0]) && !flourish.contains(SPRITE[1]),
+        "{flourish}"
     );
-    assert!(peeking.contains(SPRITE[2]) && peeking.contains(SPRITE[3]));
-    h.advance(PEEK_FOR);
+    assert!(flourish.contains(SPRITE[2]) && flourish.contains(SPRITE[3]));
+    h.advance(SHOW_FOR);
     for row in SPRITE {
-        assert!(h.screen().contains(row), "disguise back on: {row:?}");
+        assert!(h.screen().contains(row), "pose back: {row:?}");
     }
 
     let mut a = sample_with(
@@ -215,9 +215,9 @@ fn the_welcome_figure_peeks_out_of_its_disguise_and_steps_while_text_streams() {
         60,
     );
     a.advance(STEP_FOR + ANIMATION_FRAME / 2);
-    let stepping = a.screen();
-    assert!(stepping.contains(SPRITE[1]), "{stepping}");
-    assert!(!stepping.contains(SPRITE[3]), "{stepping}");
+    let marching = a.screen();
+    assert!(marching.contains(SPRITE[1]), "{marching}");
+    assert!(!marching.contains(SPRITE[3]), "{marching}");
     a.press(&["`"]); // hidden: no figure at all
     for row in SPRITE {
         assert!(!a.screen().contains(row));

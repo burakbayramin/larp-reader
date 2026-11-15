@@ -369,47 +369,53 @@ impl AgentMask {
     }
 }
 
-/// The welcome figure, a larper: someone in a cheap disguise (thick fake
-/// glasses, a big fake moustache) acting busy. 9 cells wide; these are the
-/// rows as the header draws them, disguise on.
-pub const SPRITE: [&str; 4] = [" ▄█████▄ ", "█▛▀▜█▛▀▜█", "██▄▀▀▀▄██", " ▀█▀ ▀█▀ "];
-/// Glasses pushed up onto the forehead (the top row) while it peeks.
-const SPRITE_GLASSES_UP: &str = "▗▛▀▜▄▛▀▜▖";
-/// Its real eyes, glancing left, then right, to see who is watching.
-const SPRITE_LOOK_LEFT: &str = "█ ███ ███";
-const SPRITE_LOOK_RIGHT: &str = "███ ███ █";
-/// Feet apart (the bottom row), while text streams.
-const SPRITE_STEP: &str = "▀█▀   ▀█▀";
-/// How often the figure lifts its disguise to peek, and for how long.
-pub const PEEK_EVERY: Duration = Duration::from_millis(5200);
-pub const PEEK_FOR: Duration = Duration::from_millis(1200);
+/// The welcome figure, a larper: a role-player in a homemade cardboard helmet
+/// with a foam sword, posing. 10 cells wide; these are the rows as the header
+/// draws them, sword up, standing proud.
+pub const SPRITE: [&str; 4] = [" ▄█████▄ │", " █ ▀ ▀ █ │", " ▐█████▌▄┼", "  ▟▛ ▜▙  █"];
+/// The flourish: sword lifted forward (the top two rows), then swung down.
+const SPRITE_RAISED: [&str; 2] = [" ▄█████▄ ╱", " █ ▀ ▀ █╱ "];
+const SPRITE_SWUNG: [&str; 2] = [" ▄█████▄  ", " █ ▀ ▀ █╲ "];
+/// The foam blade droops (the top row); it straightens when the window ends.
+const SPRITE_DROOP: &str = " ▄█████▄ ╮";
+/// Marching in place (the bottom row), left foot up, then right foot up.
+const SPRITE_MARCH: [&str; 2] = ["  ▗▘ ▜▙  █", "  ▟▛ ▝▖  █"];
+/// How often the figure does something showy, and for how long. Every third
+/// time the foam sword droops instead of flourishing.
+pub const SHOW_EVERY: Duration = Duration::from_millis(4000);
+pub const SHOW_FOR: Duration = Duration::from_millis(1200);
 /// How long each step lasts while text streams.
 pub const STEP_FOR: Duration = Duration::from_millis(360);
 /// The welcome box needs this many cells; narrower screens go without it.
-const WELCOME_MIN: usize = 32;
+const WELCOME_MIN: usize = 34;
 const WELCOME_MAX: usize = 58;
 
 /// The figure's rows for `elapsed` into the session: (as drawn, as shown now).
-/// Disguise on most of the time; every `PEEK_EVERY` it pushes the glasses up,
-/// looks left, looks right, and puts them back. It steps while text streams.
+/// It holds its pose; at the end of every `SHOW_EVERY` it raises and swings
+/// the sword (or lets it droop, every third time). While text streams it
+/// marches in place with the sword up.
 pub fn sprite_frame(elapsed: Duration, active: bool) -> Vec<(&'static str, &'static str)> {
     let ms = elapsed.as_millis();
-    let into = ms % PEEK_EVERY.as_millis();
-    let peek_from = (PEEK_EVERY - PEEK_FOR).as_millis();
-    let (top, eyes) = if into < peek_from {
-        (SPRITE[0], SPRITE[1])
-    } else if into - peek_from < PEEK_FOR.as_millis() / 2 {
-        (SPRITE_GLASSES_UP, SPRITE_LOOK_LEFT)
-    } else {
-        (SPRITE_GLASSES_UP, SPRITE_LOOK_RIGHT)
-    };
-    let step = active && (ms / STEP_FOR.as_millis()) % 2 == 1;
-    vec![
-        (SPRITE[0], top),
-        (SPRITE[1], eyes),
-        (SPRITE[2], SPRITE[2]),
-        (SPRITE[3], if step { SPRITE_STEP } else { SPRITE[3] }),
-    ]
+    let every = SHOW_EVERY.as_millis();
+    let into = ms % every;
+    let from = (SHOW_EVERY - SHOW_FOR).as_millis();
+    let mut now = SPRITE;
+    if !active && into >= from {
+        if (ms / every) % 3 == 2 {
+            now[0] = SPRITE_DROOP;
+        } else {
+            let pair = if into - from < SHOW_FOR.as_millis() / 2 {
+                SPRITE_RAISED
+            } else {
+                SPRITE_SWUNG
+            };
+            now[..2].copy_from_slice(&pair);
+        }
+    }
+    if active {
+        now[3] = SPRITE_MARCH[(ms / STEP_FOR.as_millis()) as usize % 2];
+    }
+    SPRITE.iter().copied().zip(now).collect()
 }
 
 /// A boxed welcome like an interactive session's: the figure and four
@@ -423,9 +429,9 @@ fn welcome(width: usize) -> Vec<Line> {
     let version = format!("larpr v{}", env!("CARGO_PKG_VERSION"));
     let texts = [
         (version.as_str(), FG.bold()),
-        ("/help for help, /status for setup", DIM),
+        ("role: senior engineer (self-appointed)", DIM),
         ("cwd: ~/work/api", DIM),
-        ("mode: definitely working", DIM),
+        ("armor: cardboard, sword: foam", DIM),
     ];
     let mut out = vec![chrome_owned(
         width,
@@ -896,13 +902,17 @@ mod tests {
     #[test]
     fn the_figure_s_frames_line_up_and_move_on_time() {
         let cells = SPRITE[0].width();
-        for f in SPRITE.iter().chain(&[
-            SPRITE_GLASSES_UP,
-            SPRITE_LOOK_LEFT,
-            SPRITE_LOOK_RIGHT,
-            SPRITE_STEP,
-        ]) {
+        let all = SPRITE
+            .iter()
+            .chain(&SPRITE_RAISED)
+            .chain(&SPRITE_SWUNG)
+            .chain(&[SPRITE_DROOP])
+            .chain(&SPRITE_MARCH);
+        for f in all {
             assert_eq!(f.width(), cells, "{f:?}");
+        }
+        for (i, a) in SPRITE.iter().enumerate() {
+            assert!(SPRITE.iter().skip(i + 1).all(|b| a != b), "rows differ");
         }
         let shown = |ms: u128, active: bool| -> Vec<&str> {
             sprite_frame(Duration::from_millis(ms as u64), active)
@@ -910,26 +920,30 @@ mod tests {
                 .map(|(_, now)| now)
                 .collect()
         };
-        assert_eq!(shown(0, false), SPRITE.to_vec(), "disguise on");
-        let peek = (PEEK_EVERY - PEEK_FOR).as_millis();
-        let half = PEEK_FOR.as_millis() / 2;
+        assert_eq!(shown(0, false), SPRITE.to_vec(), "proud pose");
+        let every = SHOW_EVERY.as_millis();
+        let from = (SHOW_EVERY - SHOW_FOR).as_millis();
+        let half = SHOW_FOR.as_millis() / 2;
+        assert_eq!(shown(from + 10, false)[..2], SPRITE_RAISED);
+        assert_eq!(shown(from + half + 10, false)[..2], SPRITE_SWUNG);
         assert_eq!(
-            shown(peek + 10, false)[..2],
-            [SPRITE_GLASSES_UP, SPRITE_LOOK_LEFT]
-        );
-        assert_eq!(
-            shown(peek + half + 10, false)[..2],
-            [SPRITE_GLASSES_UP, SPRITE_LOOK_RIGHT]
-        );
-        assert_eq!(
-            shown(PEEK_EVERY.as_millis() + 10, false),
+            shown(every + 10, false),
             SPRITE.to_vec(),
-            "back on"
+            "back to the pose"
         );
-        let step = STEP_FOR.as_millis() + 10;
-        assert_eq!(shown(step, false)[3], SPRITE[3], "still while idle");
-        assert_eq!(shown(step, true)[3], SPRITE_STEP);
-        assert_eq!(shown(2 * step, true)[3], SPRITE[3]);
+        let droop = 2 * every + from + 10;
+        assert_eq!(shown(droop, false)[0], SPRITE_DROOP);
+        assert_eq!(shown(droop, false)[1..], SPRITE[1..]);
+        assert_eq!(
+            shown(3 * every + 10, false),
+            SPRITE.to_vec(),
+            "straightened"
+        );
+        let step = STEP_FOR.as_millis();
+        assert_eq!(shown(step + 10, false)[3], SPRITE[3], "still while idle");
+        assert_eq!(shown(10, true)[3], SPRITE_MARCH[0]);
+        assert_eq!(shown(step + 10, true)[3], SPRITE_MARCH[1]);
+        assert_eq!(shown(from + 10, true)[..3], SPRITE[..3], "sword stays up");
     }
 
     #[test]
