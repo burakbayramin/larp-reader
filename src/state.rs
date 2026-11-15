@@ -68,11 +68,31 @@ pub struct Entry {
 
 pub type Progress = BTreeMap<String, Entry>;
 
-/// `%APPDATA%\fcc` when APPDATA is set (Windows), else `~/.config/fcc`.
-pub fn state_dir_for(appdata: Option<OsString>, home: Option<PathBuf>) -> PathBuf {
+/// The folder's name; `fcc` is where versions before the rename kept it.
+const DIR_NAME: &str = "larpr";
+const OLD_DIR_NAME: &str = "fcc";
+
+/// The folder that holds the state folders: `%APPDATA%` when set (Windows),
+/// else `~/.config`.
+fn state_parent(appdata: Option<OsString>, home: Option<PathBuf>) -> PathBuf {
     match appdata.filter(|a| !a.is_empty()) {
-        Some(a) => PathBuf::from(a).join("fcc"),
-        None => home.unwrap_or_default().join(".config").join("fcc"),
+        Some(a) => PathBuf::from(a),
+        None => home.unwrap_or_default().join(".config"),
+    }
+}
+
+/// `%APPDATA%\larpr` when APPDATA is set (Windows), else `~/.config/larpr`.
+pub fn state_dir_for(appdata: Option<OsString>, home: Option<PathBuf>) -> PathBuf {
+    state_parent(appdata, home).join(DIR_NAME)
+}
+
+/// Move the folder an older version kept (`fcc`) to its new name, once, so
+/// progress and settings carry over. Nothing happens if the new one exists.
+fn adopt_old_dir(parent: &Path) {
+    let new = parent.join(DIR_NAME);
+    let old = parent.join(OLD_DIR_NAME);
+    if !new.exists() && old.is_dir() {
+        let _ = fs::rename(&old, &new);
     }
 }
 
@@ -81,7 +101,9 @@ pub fn state_dir() -> io::Result<PathBuf> {
     let home = std::env::var_os("HOME")
         .or_else(|| std::env::var_os("USERPROFILE"))
         .map(PathBuf::from);
-    let dir = state_dir_for(std::env::var_os("APPDATA"), home);
+    let parent = state_parent(std::env::var_os("APPDATA"), home);
+    adopt_old_dir(&parent);
+    let dir = parent.join(DIR_NAME);
     fs::create_dir_all(&dir)?;
     Ok(dir)
 }
@@ -400,16 +422,36 @@ mod tests {
         let home = PathBuf::from("/home/x");
         assert_eq!(
             state_dir_for(Some("C:/Users/x/AppData".into()), Some(home.clone())),
-            PathBuf::from("C:/Users/x/AppData/fcc")
+            PathBuf::from("C:/Users/x/AppData/larpr")
         );
         assert_eq!(
             state_dir_for(None, Some(home.clone())),
-            home.join(".config").join("fcc")
+            home.join(".config").join("larpr")
         );
         assert_eq!(
             state_dir_for(Some("".into()), Some(home.clone())),
-            home.join(".config").join("fcc")
+            home.join(".config").join("larpr")
         );
+    }
+
+    #[test]
+    fn the_old_folder_moves_to_the_new_name_once() {
+        let d = tmp();
+        fs::create_dir(d.path().join("fcc")).unwrap();
+        fs::write(d.path().join("fcc").join("progress.json"), "{}").unwrap();
+        adopt_old_dir(d.path());
+        assert!(d.path().join("larpr").join("progress.json").exists());
+        assert!(!d.path().join("fcc").exists());
+
+        // An existing new folder is never replaced.
+        fs::create_dir(d.path().join("fcc")).unwrap();
+        fs::write(d.path().join("fcc").join("progress.json"), "old").unwrap();
+        adopt_old_dir(d.path());
+        assert_eq!(
+            fs::read_to_string(d.path().join("larpr").join("progress.json")).unwrap(),
+            "{}"
+        );
+        assert!(d.path().join("fcc").exists());
     }
 
     #[test]
