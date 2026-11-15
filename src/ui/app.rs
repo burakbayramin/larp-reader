@@ -137,6 +137,8 @@ pub struct App {
     prompt: String,
     /// The fake shell's input line, while it is up.
     pub shell: Option<LineInput>,
+    /// The input box's line while it takes the keys (views with a box only).
+    pub ask: Option<LineInput>,
     /// The search bar and the last query.
     pub search: Search,
     /// The settings screen, while it is up.
@@ -190,6 +192,7 @@ impl App {
             ),
             prompt: shell_prompt(),
             shell: None,
+            ask: None,
             search: Search::default(),
             menu: None,
             panel: false,
@@ -437,15 +440,29 @@ impl App {
         if let Some(placeholder) = input {
             use ratatui::text::{Line as TLine, Span};
             use ratatui::widgets::{Block, BorderType, Borders};
+            const LEAD: &str = " > ";
             let block = Block::default()
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
                 .border_style(style(BOX_BORDER));
+            let (text, look) = match &self.ask {
+                // the typed text scrolls sideways, keeping a cell for the cursor
+                Some(f) => {
+                    let room = (input_area.width as usize).saturating_sub(2 + LEAD.len() + 1);
+                    (tail_fitting(&f.value, room), FG)
+                }
+                None => (placeholder.to_string(), STATUS_FG),
+            };
+            let typed = unicode_width::UnicodeWidthStr::width(text.as_str()) as u16;
             let prompt = TLine::from(vec![
-                Span::styled(" > ", style(FG)),
-                Span::styled(placeholder, style(STATUS_FG)),
+                Span::styled(LEAD, style(FG)),
+                Span::styled(text, style(look)),
             ]);
             frame.render_widget(Paragraph::new(prompt).block(block), input_area);
+            if self.ask.is_some() {
+                let x = input_area.x + 1 + LEAD.len() as u16 + typed;
+                frame.set_cursor_position((x, input_area.y + 1));
+            }
         }
         let bar = match &self.shell {
             Some(f) => Some(format!("{}{}", self.prompt, f.value)),
@@ -492,6 +509,10 @@ impl App {
     pub fn resize(&mut self, cols: u16, rows: u16) {
         self.cols = cols as usize;
         self.rows = rows as usize;
+        let closed = self.ask.is_some() && self.prompt_box().is_none();
+        if closed {
+            self.ask = None; // the box is gone in a small window
+        }
         let width = self.width();
         if let Some(s) = self.session.as_mut()
             && s.width() != width
@@ -501,6 +522,9 @@ impl App {
             s.set_pos(pos); // re-wrapped: restart at the paragraph's top
         }
         self.redraw();
+        if closed {
+            self.restart_timer();
+        }
     }
 
     // -- keys ----------------------------------------------------------------
@@ -522,6 +546,17 @@ impl App {
                 self.run_shell(&command);
             }
             return; // a shell takes every key: nothing here moves the text
+        }
+        if let Some(field) = self.ask.as_mut() {
+            match key.code {
+                KeyCode::Esc => self.close_box(),
+                _ => {
+                    if let InputEvent::Submit(_) = field.handle(key) {
+                        self.close_box();
+                    }
+                }
+            }
+            return; // the box takes every key while it is focused
         }
         if let Some(menu) = self.menu.as_mut() {
             let result = menu.handle(key);
@@ -568,6 +603,7 @@ impl App {
             KeyCode::Esc if !self.panic => self.panel = !self.panel,
             KeyCode::Char(':') => self.open_menu(),
             KeyCode::Char('t') => self.cycle_theme(),
+            KeyCode::Char('i') => self.focus_box(),
             KeyCode::Char('\'') => self.jump_mark(true),
             KeyCode::Char('"') => self.jump_mark(false),
             _ => {}
@@ -612,8 +648,35 @@ impl App {
         self.scroll(self.page_rows as isize);
     }
 
+    /// Start typing into the input box, in views that draw one. Auto scroll
+    /// waits meanwhile, and the screen stops counting as reading time.
+    fn focus_box(&mut self) {
+        if self.session.is_none() || self.prompt_box().is_none() {
+            return; // also while hidden: the box is not drawn then
+        }
+        self.panel = false;
+        self.pacer.stop();
+        self.pacer.forget_view();
+        self.ask = Some(LineInput::default());
+    }
+
+    /// Back to reading where it was: the same screen, auto scroll going again.
+    fn close_box(&mut self) {
+        self.ask = None;
+        if !self.auto {
+            self.redraw(); // the same lines; only the reading clock starts over
+        }
+        self.restart_timer();
+    }
+
+    /// The box has the keys (auto scroll waits for it).
+    fn busy(&self) -> bool {
+        self.ask.is_some()
+    }
+
     pub fn toggle_panic(&mut self) {
         self.panic = !self.panic;
+        self.ask = None; // the typed text goes with everything else
         self.pacer.stop();
         self.pacer.finish_typing(&mut self.feed);
         self.feed.clear();
@@ -1031,7 +1094,7 @@ impl App {
             Clock::Hidden {
                 shell: self.config.hide == "shell",
             }
-        } else if self.auto && self.session.is_some() {
+        } else if self.auto && self.session.is_some() && !self.busy() {
             Clock::Auto
         } else {
             Clock::Idle
@@ -1061,7 +1124,7 @@ impl App {
             self.feed.append(vec![line]);
             return;
         }
-        if !self.auto {
+        if !self.auto || self.busy() {
             return;
         }
         let Some(s) = self.session.as_mut() else {

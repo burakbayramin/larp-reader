@@ -265,3 +265,122 @@ fn the_welcome_box_greets_a_resumed_session_too() {
     again.press(&["space"]);
     assert!(!again.screen().contains(SPRITE[0]), "gone once you move on");
 }
+
+// -- typing into the input box --
+
+/// The box's middle row (`│ > … │`) and where the terminal cursor sits.
+fn box_row(h: &Harness) -> (String, Option<(u16, u16)>) {
+    let mut t = Terminal::new(TestBackend::new(h.app.cols as u16, h.app.rows as u16)).unwrap();
+    t.draw(|f| h.app.draw(f)).unwrap();
+    // a fresh terminal's cursor sits at the corner until a draw places it
+    let p = t.get_cursor_position().unwrap();
+    let cursor = Some((p.x, p.y)).filter(|&c| c != (0, 0));
+    let row = h.screen().lines().nth(h.app.rows - 3).unwrap().to_string();
+    (row, cursor)
+}
+
+#[test]
+fn i_focuses_the_box_and_typing_shows_with_a_cursor() {
+    let mut h = sample_with(10, agent(), 80, 24);
+    let before = h.visible();
+    h.press(&["i"]);
+    let (row, cursor) = box_row(&h);
+    assert!(row.starts_with("│ > ") && !row.contains("Try"), "{row}");
+    assert_eq!(cursor, Some((4, 21)));
+    type_text(&mut h, "add retries jk q");
+    h.press(&["backspace", "backspace"]);
+    let (row, cursor) = box_row(&h);
+    assert_eq!(row.trim_end_matches(['│', ' ']), "│ > add retries jk");
+    assert_eq!(cursor, Some((4 + 14, 21)));
+    assert_eq!(h.visible(), before, "j, k and space typed, nothing moved");
+    assert!(!h.app.should_quit(), "q typed, not quitting");
+    // a long request scrolls sideways and keeps the cursor inside the box
+    type_text(&mut h, &"x".repeat(200));
+    let (row, cursor) = box_row(&h);
+    assert!(row.ends_with("x │"), "{row}");
+    assert!(cursor.unwrap().0 < 79);
+    for w in ["book", "reader", "okuyucu", "sample"] {
+        assert!(!h.screen().to_lowercase().contains(w), "{w}");
+    }
+}
+
+#[test]
+fn esc_cancels_typing_and_leaves_the_text_where_it_was() {
+    let mut h = sample_with(30, agent(), 80, 24);
+    h.press(&["space"]);
+    let (pos, offset, before) = (h.session().pos(), h.session().line_offset, h.visible());
+    h.press(&["i"]);
+    type_text(&mut h, "never mind");
+    h.press(&["escape"]);
+    assert!(h.app.ask.is_none());
+    assert!(!h.app.panel, "esc closed the box, not opened the panel");
+    let (row, cursor) = box_row(&h);
+    assert!(row.contains("Try"), "{row}");
+    assert_eq!(cursor, None);
+    assert!(!h.screen().contains("never mind"));
+    assert_eq!((h.session().pos(), h.session().line_offset), (pos, offset));
+    assert_eq!(h.visible(), before);
+    h.press(&["space"]); // reading keys work again
+    assert_ne!(h.session().pos(), pos);
+}
+
+#[test]
+fn typing_pauses_auto_scroll_until_the_box_closes() {
+    let mut h = sample_with(
+        30,
+        Config {
+            auto: true,
+            ..agent()
+        },
+        80,
+        24,
+    );
+    assert!(h.app.timer_due().is_some());
+    h.press(&["i"]);
+    assert!(h.app.timer_due().is_none(), "auto waits while typing");
+    let lines = h.app.feed.history_lines().len();
+    h.advance(Duration::from_secs(30));
+    assert_eq!(h.app.feed.history_lines().len(), lines);
+    h.press(&["escape"]);
+    assert!(h.app.auto);
+    assert!(h.app.timer_due().is_some(), "and goes on after");
+}
+
+#[test]
+fn hiding_while_typing_drops_the_box_and_what_was_typed() {
+    let mut h = sample_with(10, agent(), 80, 24);
+    let words = text_words(&mut h);
+    h.press(&["i"]);
+    type_text(&mut h, "zebra quokka");
+    h.press(&["`"]); // hides at once, and types no backtick
+    assert!(h.app.panic && h.app.ask.is_none());
+    let screen = h.screen();
+    assert!(
+        !screen.contains("zebra") && !screen.contains('`'),
+        "{screen}"
+    );
+    assert!(!screen.contains('╭'));
+    assert_eq!(leaked(&h, &words), Vec::<String>::new());
+    h.press(&["i"]); // no box while hidden
+    assert!(h.app.ask.is_none());
+    h.press(&["`"]);
+    assert!(!h.screen().contains("zebra"));
+    assert!(h.screen().contains("Try"));
+}
+
+#[test]
+fn the_box_key_is_inert_in_other_views_and_small_windows() {
+    let mut h = sample_with(30, cfg(), 80, 24);
+    let before = h.visible();
+    h.press(&["i"]);
+    assert!(h.app.ask.is_none());
+    h.press(&["j"]);
+    assert_ne!(h.visible(), before, "j still scrolls");
+    let mut small = sample_with(10, agent(), 80, 9);
+    small.press(&["i"]);
+    assert!(small.app.ask.is_none());
+    let mut h = sample_with(10, agent(), 80, 24);
+    h.press(&["i"]);
+    h.app.resize(80, 9); // the box goes away, and typing with it
+    assert!(h.app.ask.is_none());
+}

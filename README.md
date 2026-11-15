@@ -67,6 +67,7 @@ gerçek bir geliştirme oturumu.
 | `b` | yer imi ekle (`cache saved` mesajı) |
 | `'` / `"` | sonraki / önceki yer imine git |
 | `t` | renk temasını değiştir (monokai, dark, light, daltonized, ansi) |
+| `i` | `agent` görünümünde alttaki kutuya bir istek yaz (`Enter` gönderir, `Esc` vazgeçer); diğer görünümlerde bir şey yapmaz |
 | `:` | ayar menüsü (dosya aç, görünüm, dil, okuma hızı, gürültü, panik biçimi, tema, yer imleri, bölümler) |
 | `o` / `O` | klasördeki sonraki / önceki kitaba geç (her kitabın yeri ayrı saklanır) |
 | `Esc` | yan panel: kısayollar ve klasördeki kitaplar; panel açıkken `1`-`9` ile listeden kitap aç |
