@@ -455,7 +455,8 @@ fn enter_echoes_the_request_and_a_reply_streams_in() {
     let reply = whole_reply(&mut fresh, REQUEST);
     assert!(reply.iter().all(|l| !l.is_book && l.pos.is_none()));
     let text = reply.iter().map(Line::plain).collect::<Vec<_>>().join("\n");
-    assert!(fresh.screen().contains("⏺ "), "{}", fresh.screen());
+    let bullet = format!("{} ", crate::masks::agent::BULLET);
+    assert!(fresh.screen().contains(&bullet), "{}", fresh.screen());
     let mut tail = fresh.app.feed.history_lines().to_vec();
     tail.drain(..tail.len() - reply.len());
     assert_eq!(tail, reply);
@@ -474,7 +475,7 @@ fn enter_echoes_the_request_and_a_reply_streams_in() {
         .collect();
     assert!(from_text.is_empty(), "{from_text:?}");
     let last = reply.iter().rev().find(|l| !l.plain().trim().is_empty());
-    assert!(last.unwrap().plain().starts_with("⏺ "), "{text}");
+    assert!(last.unwrap().plain().starts_with(&bullet), "{text}");
 }
 
 #[test]
@@ -489,7 +490,8 @@ fn the_same_request_gets_the_same_reply() {
     let different = whole_reply(&mut other, "rename the config loader and update callers");
     assert_ne!(first, different);
     // 2-5 tool calls (a sub-agent batch counts too), then one remark
-    let calls = |r: &[Line]| r.iter().filter(|l| l.plain().starts_with("⏺ ")).count();
+    let bullet = format!("{} ", crate::masks::agent::BULLET);
+    let calls = |r: &[Line]| r.iter().filter(|l| l.plain().starts_with(&bullet)).count();
     assert!((3..=6).contains(&calls(&first)), "{}", calls(&first));
 }
 
