@@ -4,6 +4,11 @@ Terminal e-kitap okuyucusu; metni bir geliştirici aracının çıktısı gibi g
 (`code`, `log`, `diff`, `test`, `build`, `git`, `docker`, `agent` görünümleri). Yoldan geçen biri bir derleme
 aracına baktığınızı sanır.
 
+İsim, argodaki *larp* fiilinden geliyor: rol yapmak, öyleymiş gibi davranmak.
+larp-reader ile kitap okurken çalışıyormuş gibi yaparsınız. `agent` görünümünün
+karşılama kutusundaki figür de aynısını yapıyor: sahte gözlük ve bıyıkla
+kılık değiştirmiş, ara sıra gözlüğünü kaldırıp etrafa bakıyor.
+
 ## Kurulum
 
 Windows, macOS (Apple Silicon ve Intel) ve Linux için hazır programlar

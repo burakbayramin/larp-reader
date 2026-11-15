@@ -369,15 +369,20 @@ impl AgentMask {
     }
 }
 
-/// The welcome figure, 9 cells wide: the rows as the header draws them.
-pub const SPRITE: [&str; 3] = [" ▄▆███▆▄ ", "██ ███ ██", " ▀█▀ ▀█▀ "];
-/// Eyes shut (the middle row).
-const SPRITE_BLINK: &str = "██▄███▄██";
+/// The welcome figure, a larper: someone in a cheap disguise (thick fake
+/// glasses, a big fake moustache) acting busy. 9 cells wide; these are the
+/// rows as the header draws them, disguise on.
+pub const SPRITE: [&str; 4] = [" ▄█████▄ ", "█▛▀▜█▛▀▜█", "██▄▀▀▀▄██", " ▀█▀ ▀█▀ "];
+/// Glasses pushed up onto the forehead (the top row) while it peeks.
+const SPRITE_GLASSES_UP: &str = "▗▛▀▜▄▛▀▜▖";
+/// Its real eyes, glancing left, then right, to see who is watching.
+const SPRITE_LOOK_LEFT: &str = "█ ███ ███";
+const SPRITE_LOOK_RIGHT: &str = "███ ███ █";
 /// Feet apart (the bottom row), while text streams.
 const SPRITE_STEP: &str = "▀█▀   ▀█▀";
-/// How often the figure blinks, and for how long its eyes stay shut.
-pub const BLINK_EVERY: Duration = Duration::from_millis(3600);
-pub const BLINK_FOR: Duration = Duration::from_millis(180);
+/// How often the figure lifts its disguise to peek, and for how long.
+pub const PEEK_EVERY: Duration = Duration::from_millis(5200);
+pub const PEEK_FOR: Duration = Duration::from_millis(1200);
 /// How long each step lasts while text streams.
 pub const STEP_FOR: Duration = Duration::from_millis(360);
 /// The welcome box needs this many cells; narrower screens go without it.
@@ -385,18 +390,29 @@ const WELCOME_MIN: usize = 32;
 const WELCOME_MAX: usize = 58;
 
 /// The figure's rows for `elapsed` into the session: (as drawn, as shown now).
+/// Disguise on most of the time; every `PEEK_EVERY` it pushes the glasses up,
+/// looks left, looks right, and puts them back. It steps while text streams.
 pub fn sprite_frame(elapsed: Duration, active: bool) -> Vec<(&'static str, &'static str)> {
     let ms = elapsed.as_millis();
-    let blink = ms % BLINK_EVERY.as_millis() >= (BLINK_EVERY - BLINK_FOR).as_millis();
+    let into = ms % PEEK_EVERY.as_millis();
+    let peek_from = (PEEK_EVERY - PEEK_FOR).as_millis();
+    let (top, eyes) = if into < peek_from {
+        (SPRITE[0], SPRITE[1])
+    } else if into - peek_from < PEEK_FOR.as_millis() / 2 {
+        (SPRITE_GLASSES_UP, SPRITE_LOOK_LEFT)
+    } else {
+        (SPRITE_GLASSES_UP, SPRITE_LOOK_RIGHT)
+    };
     let step = active && (ms / STEP_FOR.as_millis()) % 2 == 1;
     vec![
-        (SPRITE[0], SPRITE[0]),
-        (SPRITE[1], if blink { SPRITE_BLINK } else { SPRITE[1] }),
-        (SPRITE[2], if step { SPRITE_STEP } else { SPRITE[2] }),
+        (SPRITE[0], top),
+        (SPRITE[1], eyes),
+        (SPRITE[2], SPRITE[2]),
+        (SPRITE[3], if step { SPRITE_STEP } else { SPRITE[3] }),
     ]
 }
 
-/// A boxed welcome like an interactive session's: the figure and three
+/// A boxed welcome like an interactive session's: the figure and four
 /// lines beside it. Empty on narrow screens.
 fn welcome(width: usize) -> Vec<Line> {
     if width < WELCOME_MIN {
@@ -409,6 +425,7 @@ fn welcome(width: usize) -> Vec<Line> {
         (version.as_str(), FG.bold()),
         ("/help for help, /status for setup", DIM),
         ("cwd: ~/work/api", DIM),
+        ("mode: definitely working", DIM),
     ];
     let mut out = vec![chrome_owned(
         width,
@@ -874,6 +891,64 @@ mod tests {
                 "{width}"
             );
         }
+    }
+
+    #[test]
+    fn the_figure_s_frames_line_up_and_move_on_time() {
+        let cells = SPRITE[0].width();
+        for f in SPRITE.iter().chain(&[
+            SPRITE_GLASSES_UP,
+            SPRITE_LOOK_LEFT,
+            SPRITE_LOOK_RIGHT,
+            SPRITE_STEP,
+        ]) {
+            assert_eq!(f.width(), cells, "{f:?}");
+        }
+        let shown = |ms: u128, active: bool| -> Vec<&str> {
+            sprite_frame(Duration::from_millis(ms as u64), active)
+                .into_iter()
+                .map(|(_, now)| now)
+                .collect()
+        };
+        assert_eq!(shown(0, false), SPRITE.to_vec(), "disguise on");
+        let peek = (PEEK_EVERY - PEEK_FOR).as_millis();
+        let half = PEEK_FOR.as_millis() / 2;
+        assert_eq!(
+            shown(peek + 10, false)[..2],
+            [SPRITE_GLASSES_UP, SPRITE_LOOK_LEFT]
+        );
+        assert_eq!(
+            shown(peek + half + 10, false)[..2],
+            [SPRITE_GLASSES_UP, SPRITE_LOOK_RIGHT]
+        );
+        assert_eq!(
+            shown(PEEK_EVERY.as_millis() + 10, false),
+            SPRITE.to_vec(),
+            "back on"
+        );
+        let step = STEP_FOR.as_millis() + 10;
+        assert_eq!(shown(step, false)[3], SPRITE[3], "still while idle");
+        assert_eq!(shown(step, true)[3], SPRITE_STEP);
+        assert_eq!(shown(2 * step, true)[3], SPRITE[3]);
+    }
+
+    #[test]
+    fn the_welcome_box_fits_or_stays_out() {
+        for width in [WELCOME_MIN, 40, 80, 200] {
+            let lines = welcome(width);
+            assert_eq!(lines.len(), SPRITE.len() + 3);
+            for l in &lines {
+                assert!(l.plain().width() <= width, "{width}: {}", l.plain());
+            }
+            let box_w = lines[0].plain().width();
+            let boxed = &lines[..SPRITE.len() + 2];
+            assert!(boxed.iter().all(|l| l.plain().width() == box_w));
+            let all: String = lines.iter().map(|l| l.plain()).collect();
+            for w in ["book", "reader", "okuyucu"] {
+                assert!(!all.to_lowercase().contains(w));
+            }
+        }
+        assert!(welcome(WELCOME_MIN - 1).is_empty());
     }
 
     #[test]
