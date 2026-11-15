@@ -97,3 +97,45 @@ fn it_waits_for_nothing_while_hidden() {
     h.press(&["S"]);
     assert!(h.app.report.is_none());
 }
+
+fn status_text(h: &Harness) -> String {
+    h.app
+        .status_segments()
+        .into_iter()
+        .map(|(t, _)| t)
+        .collect()
+}
+
+#[test]
+fn the_status_line_carries_todays_words_when_there_is_room() {
+    let h = read_some("agent");
+    let today = h.app.stats.day(DAY).words;
+    let status = status_text(&h);
+    assert!(
+        status.ends_with(&format!("today {} words", compact(today))),
+        "{status}"
+    );
+    assert!(status.contains("accept edits")); // the view's own pieces stay
+}
+
+#[test]
+fn the_status_line_stays_plain_before_any_reading_and_when_narrow() {
+    let mut h = sample_with(
+        10,
+        Config {
+            mask: "agent".into(),
+            ..cfg()
+        },
+        100,
+        30,
+    );
+    h.app.day_override = Some(DAY);
+    assert!(!status_text(&h).contains("today"));
+    let mut h = read_some("agent");
+    h.app.resize(50, 30);
+    let status = status_text(&h);
+    assert!(
+        !status.contains("today") && status.chars().count() <= 50,
+        "{status}"
+    );
+}

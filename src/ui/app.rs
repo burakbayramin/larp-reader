@@ -19,7 +19,7 @@ use super::input::{InputEvent, LineInput};
 use super::menu::{Menu, MenuResult, section_label};
 use super::panel;
 use super::reply::Reply;
-use super::report::Report;
+use super::report::{Report, compact};
 use super::search::{self, Search};
 use super::shell::{shell_output, shell_prompt};
 use super::theme::{THEMES, Theme};
@@ -383,11 +383,25 @@ impl App {
         };
         let mut out = crate::masks::base::colour_label(&text);
         let (done, total) = s.progress();
-        let right = s
+        let mut right = s
             .mask()
             .status_right(done, total, self.pacer.elapsed(self.now));
         let left_w = text.width();
-        let right_w: usize = right.iter().map(|(t, _)| t.width()).sum();
+        let width = |parts: &[crate::masks::Segment]| -> usize {
+            parts.iter().map(|(t, _)| t.width()).sum()
+        };
+        // today's reading goes last, and only where it still fits
+        let today = self.stats.day(self.today()).words;
+        if today > 0 {
+            let mut more = vec![(format!("today {} words", compact(today)), STATUS_FG)];
+            if !right.is_empty() {
+                more.insert(0, ("  ·  ".to_string(), STATUS_FG));
+            }
+            if left_w + 2 + width(&right) + width(&more) < self.cols {
+                right.extend(more);
+            }
+        }
+        let right_w = width(&right);
         let room = self.cols;
         if !right.is_empty() && left_w + 2 + right_w < room {
             out.push((" ".repeat(room - left_w - right_w - 1), STATUS_FG));
