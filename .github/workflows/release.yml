@@ -86,7 +86,13 @@ jobs:
       - name: Checksums
         run: cd dist && sha256sum * > SHA256SUMS
       - uses: softprops/action-gh-release@v2
+        if: github.event_name == 'push'
         with:
-          tag_name: ${{ env.TAG }}
           files: dist/*
-          generate_release_notes: ${{ github.event_name == 'push' }}
+          generate_release_notes: true
+      # by hand: add (or replace) the archives on the tag's existing release
+      - name: Upload to the existing release
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" dist/* --clobber --repo "$GITHUB_REPOSITORY"
