@@ -203,3 +203,7 @@ only by an ID number.
 
 If you used the program under its old name (`fcc`), your settings move to the new
 folder the first time you start it.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
