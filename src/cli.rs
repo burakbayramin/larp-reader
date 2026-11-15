@@ -157,7 +157,10 @@ mod tests {
         let e = resolve(["--version"], d.path()).unwrap_err();
         assert_eq!(e.kind(), clap::error::ErrorKind::DisplayVersion);
         let out = e.to_string();
-        assert!(out.starts_with("fcc 0.5.0 ("), "{out}");
+        assert!(
+            out.starts_with(&format!("fcc {} (", env!("CARGO_PKG_VERSION"))),
+            "{out}"
+        );
         assert!(forbidden(&out).is_empty());
     }
 

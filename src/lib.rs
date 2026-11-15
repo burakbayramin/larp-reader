@@ -52,7 +52,7 @@ mod tests {
     #[test]
     fn version_looks_like_a_build_tool() {
         let v = version();
-        assert!(v.starts_with("fcc 0.5.0 ("));
+        assert!(v.starts_with(&format!("fcc {} (", env!("CARGO_PKG_VERSION"))));
         for word in ["book", "reader", "okuyucu"] {
             assert!(!v.to_lowercase().contains(word));
         }
