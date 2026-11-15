@@ -27,32 +27,13 @@ pub fn days_from_civil(y: i64, m: u32, d: u32) -> i64 {
     era * 146_097 + doe - 719_468
 }
 
-/// The local date's day number now (UTC where the zone can't be told).
+/// The local date's day number now, in the machine's own time zone (on
+/// every platform; UTC only where the zone can't be told).
 pub fn local_today() -> i64 {
-    let secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0);
-    (secs + utc_offset(secs)).div_euclid(86_400)
-}
-
-#[cfg(unix)]
-fn utc_offset(secs: i64) -> i64 {
-    let t = secs as libc::time_t;
-    // SAFETY: `tm` is plain data and localtime_r only writes into it.
-    unsafe {
-        let mut tm: libc::tm = std::mem::zeroed();
-        if libc::localtime_r(&t, &mut tm).is_null() {
-            0
-        } else {
-            tm.tm_gmtoff as i64
-        }
-    }
-}
-
-#[cfg(not(unix))]
-fn utc_offset(_secs: i64) -> i64 {
-    0
+    let now = chrono::Local::now();
+    let secs = now.timestamp();
+    let offset = i64::from(now.offset().local_minus_utc());
+    (secs + offset).div_euclid(86_400)
 }
 
 /// `Wed`, `Thu` … (1970-01-01 was a Thursday).
@@ -69,6 +50,16 @@ pub fn month(m: u32) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn local_today_is_the_local_calendar_date() {
+        let date = chrono::Local::now().date_naive();
+        let epoch = chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
+        let want = (date - epoch).num_days();
+        let got = local_today();
+        // the date may roll over between the two reads, right at midnight
+        assert!(got == want || got == want + 1, "{got} vs {want}");
+    }
 
     #[test]
     fn dates_and_weekdays() {
