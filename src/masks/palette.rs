@@ -9,27 +9,27 @@ use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 
 use super::base::Segment;
+use super::look::{Look, Role};
 
-pub const BG: &str = "#1e1e1e";
-pub const FG: &str = "#d4d4d4";
-pub const GUTTER: &str = "#858585";
-pub const COMMENT: &str = "#6a9955";
-pub const KEYWORD: &str = "#569cd6";
-pub const CONTROL: &str = "#c586c0";
-pub const FUNC: &str = "#dcdcaa";
-pub const TYPE: &str = "#4ec9b0";
-pub const STRING: &str = "#ce9178";
-pub const NUMBER: &str = "#b5cea8";
-pub const VAR: &str = "#9cdcfe";
-pub const CONST: &str = "#4fc1ff";
+pub const FG: Look = Look::fg(Role::Text);
+pub const GUTTER: Look = Look::fg(Role::Gutter);
+pub const COMMENT: Look = Look::fg(Role::Comment);
+pub const KEYWORD: Look = Look::fg(Role::Keyword);
+pub const CONTROL: Look = Look::fg(Role::Control);
+pub const FUNC: Look = Look::fg(Role::Function);
+pub const TYPE: Look = Look::fg(Role::Type);
+pub const STRING: Look = Look::fg(Role::String);
+pub const NUMBER: Look = Look::fg(Role::Number);
+pub const VAR: Look = Look::fg(Role::Variable);
+pub const CONST: Look = Look::fg(Role::Constant);
 
 // terminal output
-pub const GREEN: &str = "#3fb950";
-pub const YELLOW: &str = "#d29922";
-pub const RED: &str = "#f85149";
-pub const BLUE: &str = "#58a6ff";
-pub const CYAN: &str = "#39c5cf";
-pub const DIM: &str = "#6e7681";
+pub const GREEN: Look = Look::fg(Role::Green);
+pub const YELLOW: Look = Look::fg(Role::Yellow);
+pub const RED: Look = Look::fg(Role::Red);
+pub const BLUE: Look = Look::fg(Role::Blue);
+pub const CYAN: Look = Look::fg(Role::Cyan);
+pub const DIM: Look = Look::fg(Role::Dim);
 
 const CONTROL_WORDS: &[&str] = &[
     "if", "else", "elif", "for", "while", "return", "match", "import", "from", "use", "package",
@@ -428,9 +428,9 @@ fn is_ident(c: char) -> bool {
 }
 
 /// (text, style) tokens of `code`, which may span lines.
-fn tokens(l: &Lang, code: &str) -> Vec<(String, &'static str)> {
+fn tokens(l: &Lang, code: &str) -> Vec<(String, Look)> {
     let s: Vec<char> = code.chars().collect();
-    let mut out: Vec<(String, &'static str)> = vec![];
+    let mut out: Vec<(String, Look)> = vec![];
     let mut i = 0;
     let mut prev_word = String::new(); // the last identifier, for `def name` / `class Name`
     let text = |a: usize, b: usize| s[a..b].iter().collect::<String>();
@@ -580,8 +580,8 @@ fn compute(lang_name: &str, code: &str) -> Vec<Vec<Segment>> {
             }
             let line = lines.last_mut().expect("at least one line");
             match line.last_mut() {
-                Some((t, s)) if s == style => t.push_str(part),
-                _ => line.push((part.to_string(), style.to_string())),
+                Some((t, s)) if *s == style => t.push_str(part),
+                _ => line.push((part.to_string(), style)),
             }
         }
     }
@@ -613,9 +613,8 @@ pub fn highlight(lang_name: &str, code: &str) -> Vec<Vec<Segment>> {
 mod tests {
     use super::*;
 
-    fn style_of<'a>(line: &'a [Segment], text: &str) -> &'a str {
-        &line
-            .iter()
+    fn style_of(line: &[Segment], text: &str) -> Look {
+        line.iter()
             .find(|(t, _)| t == text)
             .unwrap_or_else(|| panic!("{text} in {line:?}"))
             .1
@@ -642,7 +641,7 @@ mod tests {
         assert_eq!(style_of(rust, "// done"), COMMENT);
         let rust_lifetime = &highlight("rust", "fn f<'a>(x: &'a str) {}")[0];
         assert!(
-            rust_lifetime.iter().all(|(_, s)| s != STRING),
+            rust_lifetime.iter().all(|(_, s)| *s != STRING),
             "{rust_lifetime:?}"
         );
         let go = &highlight("go", "func (c *Cache) Get(key string) error {")[0];
@@ -650,7 +649,7 @@ mod tests {
         assert_eq!(style_of(go, "string"), TYPE);
         let ts = &highlight("typescript", "const MAX_SIZE = `t${x}`;")[0];
         assert_eq!(style_of(ts, "MAX_SIZE"), CONST);
-        assert!(ts.iter().any(|(t, s)| t.starts_with('`') && s == STRING));
+        assert!(ts.iter().any(|(t, s)| t.starts_with('`') && *s == STRING));
         let cs = &highlight("csharp", "[Obsolete] public sealed class Indexer {")[0];
         assert_eq!(style_of(cs, "Indexer"), TYPE);
         let py = &highlight("python", "@dataclass\nclass Span:")[..];
@@ -665,9 +664,9 @@ mod tests {
         assert!(
             lines[..3]
                 .iter()
-                .all(|l| l.iter().all(|(_, s)| s == COMMENT))
+                .all(|l| l.iter().all(|(_, s)| *s == COMMENT))
         );
         let py = highlight("python", "x = \"\"\"a\nb\"\"\"\ny = 1");
-        assert_eq!(py[1], vec![("b\"\"\"".to_string(), STRING.to_string())]);
+        assert_eq!(py[1], vec![("b\"\"\"".to_string(), STRING)]);
     }
 }

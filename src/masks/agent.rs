@@ -13,7 +13,8 @@ use rand::Rng as _;
 
 use super::base::{Line, Segment, chrome, chrome_owned, crop, seg};
 use super::codegen::{commands_deck, files_deck, signatures_deck, statements_deck, tasks_deck};
-use super::palette::{DIM, FG, GREEN, RED, highlight};
+use super::look::{Look, Role};
+use super::palette::{DIM, FG, GREEN, RED, YELLOW, highlight};
 use super::{Mask, Rng, pick, randint, random, section};
 use crate::book::{Paragraph, Pos};
 use crate::text::{ragged, ragged_count};
@@ -23,8 +24,8 @@ pub const BULLET: &str = if cfg!(windows) { "●" } else { "⏺" };
 /// First line of a tool result, and its following lines.
 const ELBOW: &str = "  ⎿  ";
 const CONT: &str = "     ";
-pub const ADD_BG: &str = "on #1f3d27";
-pub const DEL_BG: &str = "on #4b1f22";
+pub const ADD_BG: Role = Role::AddedBackground;
+pub const DEL_BG: Role = Role::RemovedBackground;
 const THINKING: &str = "✻ Thinking…";
 /// "%7d " before the +/- sign.
 const GUTTER: usize = 8;
@@ -90,10 +91,10 @@ fn body_width(width: usize) -> usize {
 }
 
 /// Fill the line out to `width` with the background colour.
-fn pad(mut segments: Vec<Segment>, width: usize, bg: &str) -> Vec<Segment> {
+fn pad(mut segments: Vec<Segment>, width: usize, bg: Role) -> Vec<Segment> {
     let used: usize = segments.iter().map(|(t, _)| t.width()).sum();
     if used < width {
-        segments.push(seg(" ".repeat(width - used), bg));
+        segments.push(seg(" ".repeat(width - used), Look::PLAIN.on(bg)));
     }
     segments
 }
@@ -129,7 +130,7 @@ fn tool(width: usize, name: &str, arg: &str) -> Line {
         width,
         &[
             (&format!("{BULLET} "), GREEN),
-            (name, &format!("bold {FG}")),
+            (name, FG.bold()),
             (&format!("({arg})"), FG),
         ],
     )
@@ -147,12 +148,12 @@ fn context(width: usize, n: usize, line: &str) -> Line {
     chrome_owned(width, all)
 }
 
-fn changed(width: usize, n: usize, sign: &str, colour: &str, bg: &str, line: &str) -> Line {
+fn changed(width: usize, n: usize, sign: &str, colour: Look, bg: Role, line: &str) -> Line {
     let segs = crop(
         vec![
             seg(format!("{n:>7} "), DIM),
-            seg(format!("{sign} "), format!("{colour} {bg}")),
-            seg(line, format!("{FG} {bg}")),
+            seg(format!("{sign} "), colour.on(bg)),
+            seg(line, FG.on(bg)),
         ],
         width,
     );
@@ -174,11 +175,7 @@ fn edit_head(width: usize, path: &str, adds: usize, rems: usize) -> Vec<Line> {
         result(
             width,
             true,
-            vec![
-                seg("Updated ", FG),
-                seg(path, format!("bold {FG}")),
-                seg(summary, FG),
-            ],
+            vec![seg("Updated ", FG), seg(path, FG.bold()), seg(summary, FG)],
         ),
     ]
 }
@@ -220,7 +217,7 @@ impl AgentMask {
                     true,
                     vec![
                         seg("Read ", FG),
-                        seg(randint(rng, 40, 480).to_string(), format!("bold {FG}")),
+                        seg(randint(rng, 40, 480).to_string(), FG.bold()),
                         seg(" lines", FG),
                     ],
                 ),
@@ -239,7 +236,7 @@ impl AgentMask {
                         true,
                         vec![
                             seg("Found ", FG),
-                            seg(randint(rng, 2, 14).to_string(), format!("bold {FG}")),
+                            seg(randint(rng, 2, 14).to_string(), FG.bold()),
                             seg(" lines", FG),
                         ],
                     ),
@@ -257,10 +254,7 @@ impl AgentMask {
                 let n = randint(rng, 2, 3);
                 let mut out = vec![chrome(
                     width,
-                    &[
-                        (&format!("{BULLET} "), GREEN),
-                        ("Update Todos", &format!("bold {FG}")),
-                    ],
+                    &[(&format!("{BULLET} "), GREEN), ("Update Todos", FG.bold())],
                 )];
                 for k in 0..n {
                     let (mark, style) = if k < n - 1 {
@@ -345,7 +339,7 @@ impl AgentMask {
                     result(
                         width,
                         k == 0,
-                        vec![seg(sha, "#d29922"), seg(tasks_deck().get(slot * 3 + k), FG)],
+                        vec![seg(sha, YELLOW), seg(tasks_deck().get(slot * 3 + k), FG)],
                     )
                 })
                 .collect();
@@ -417,7 +411,7 @@ impl Mask for AgentMask {
                     } else {
                         "  ".into()
                     };
-                    Line::book(vec![seg(lead, FG), seg(text, format!("book {FG}"))], pos)
+                    Line::book(vec![seg(lead, FG), seg(text, FG.book())], pos)
                 })
                 .collect();
             out.push(blank(width));
@@ -442,9 +436,9 @@ impl Mask for AgentMask {
         for (k, text) in texts.iter().enumerate() {
             let segs = vec![
                 seg(format!("{:>7} ", n + k), DIM),
-                seg("+ ", format!("{GREEN} {ADD_BG}")),
-                seg(ind.clone(), ADD_BG),
-                seg(text.clone(), format!("book {FG} {ADD_BG}")),
+                seg("+ ", GREEN.on(ADD_BG)),
+                seg(ind.clone(), Look::PLAIN.on(ADD_BG)),
+                seg(text.clone(), FG.on(ADD_BG).book()),
             ];
             out.push(Line::book(pad(segs, width, ADD_BG), pos));
         }
@@ -650,8 +644,10 @@ mod tests {
             && matches!((c[8], c[9]), ('+' | '-' | ' ', ' '))
     }
 
-    fn has_bg(l: &Line, bg: &str) -> bool {
-        l.segments.iter().any(|(_, s)| s.contains(bg))
+    fn has_bg(l: &Line, bg: Role) -> bool {
+        l.segments
+            .iter()
+            .any(|(_, s)| s.bg == Some(crate::masks::Ink::Role(bg)))
     }
 
     // -- test_agent.py --

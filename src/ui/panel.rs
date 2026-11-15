@@ -11,10 +11,17 @@ use ratatui::widgets::{Block, Borders, Clear, Padding, Paragraph};
 
 use super::style::style;
 use crate::loaders::{suffix, supported_extensions};
+use crate::masks::{Look, Role};
 
 /// One per digit key.
 pub const LISTED_INPUTS: usize = 9;
 const PANEL_WIDTH: u16 = 38;
+pub(crate) const PANEL_BORDER: Look = Look::fg(Role::PanelBorder);
+pub(crate) const PANEL: Look = Look::fg(Role::PanelText).on(Role::PanelBackground);
+pub(crate) const PANEL_BOLD: Look = Look::fg(Role::Text).bold();
+pub(crate) const PANEL_KEY: Look = Look::fg(Role::Function);
+pub(crate) const PANEL_TEXT: Look = Look::fg(Role::PanelText);
+pub(crate) const PANEL_DIM: Look = Look::fg(Role::Gutter);
 const KEYS: &[(&str, &str)] = &[
     ("space", "page down"),
     ("u, pgup", "page up"),
@@ -92,10 +99,10 @@ pub fn listed_target(current: Option<&str>, n: usize) -> Option<PathBuf> {
 /// The side panel's text: the keys, then the folder's openable files.
 pub fn panel_text(current: Option<&str>) -> Vec<TLine<'static>> {
     let (bold, key_style, text_style, dim) = (
-        style("bold #d4d4d4"),
-        style("#dcdcaa"),
-        style("#cccccc"),
-        style("#858585"),
+        style(PANEL_BOLD),
+        style(PANEL_KEY),
+        style(PANEL_TEXT),
+        style(PANEL_DIM),
     );
     let mut out = vec![TLine::styled("keys", bold)];
     for (k, what) in KEYS {
@@ -147,9 +154,9 @@ pub fn draw_panel(frame: &mut Frame, current: Option<&str>) {
     };
     let block = Block::default()
         .borders(Borders::LEFT)
-        .border_style(style("#3c3c3c"))
+        .border_style(style(PANEL_BORDER))
         .padding(Padding::new(2, 2, 1, 1))
-        .style(style("#cccccc on #252526"));
+        .style(style(PANEL));
     frame.render_widget(Clear, rect);
     frame.render_widget(Paragraph::new(panel_text(current)).block(block), rect);
 }

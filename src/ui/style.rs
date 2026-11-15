@@ -1,27 +1,27 @@
-//! Mask style strings (`"bold #f85149"`, `"book #d4d4d4 on #1f3d27"`) as terminal styles.
+//! Mask looks as terminal styles.
 
 use ratatui::style::{Color, Modifier, Style};
 
 use super::theme;
+use crate::masks::{Ink, Look, Role};
 
-/// A `#rrggbb` colour in `theme` at `depth`.
-fn hex(s: &str, theme_name: &str, depth: theme::Depth) -> Option<Color> {
-    let h = s.strip_prefix('#')?;
-    if h.len() != 6 {
-        return None;
-    }
-    let v = u32::from_str_radix(h, 16).ok()?;
-    theme::color(theme_name, depth, v)
+/// An ink in `theme` at `depth`.
+fn ink(i: Ink, theme_name: &str, depth: theme::Depth) -> Option<Color> {
+    let hex = match i {
+        Ink::Role(r) => r.dark(),
+        Ink::Rgb(h) => h,
+    };
+    theme::color(theme_name, depth, hex)
 }
 
-/// The terminal style for a mask style string in the current theme.
-pub fn style(spec: &str) -> Style {
+/// The terminal style for a look in the current theme.
+pub fn style(look: Look) -> Style {
     let (name, depth) = theme::current();
-    style_in(spec, &name, depth)
+    style_in(look, &name, depth)
 }
 
-/// Default text and background of the dark palette (the "text" and "background" roles).
-const BASE: &str = "#d4d4d4 on #1e1e1e";
+/// Default text and background (the "text" and "background" roles).
+const BASE: Look = Look::fg(Role::Text).on(Role::Background);
 
 /// The screen's base style (background and text) in the current theme.
 pub fn base() -> Style {
@@ -34,25 +34,20 @@ pub fn base_in(theme_name: &str, depth: theme::Depth) -> Style {
     style_in(BASE, theme_name, depth)
 }
 
-/// The terminal style for a mask style string; `book` (the internal text marker) never shows.
-pub fn style_in(spec: &str, theme_name: &str, depth: theme::Depth) -> Style {
+/// The terminal style for a look; `book` (the internal text marker) never shows.
+pub fn style_in(look: Look, theme_name: &str, depth: theme::Depth) -> Style {
     let mut out = Style::default();
-    let mut tokens = spec.split_whitespace();
-    while let Some(t) = tokens.next() {
-        match t {
-            "bold" => out = out.add_modifier(Modifier::BOLD),
-            "reverse" => out = out.add_modifier(Modifier::REVERSED),
-            "on" => {
-                if let Some(c) = tokens.next().and_then(|t| hex(t, theme_name, depth)) {
-                    out = out.bg(c);
-                }
-            }
-            _ => {
-                if let Some(c) = hex(t, theme_name, depth) {
-                    out = out.fg(c);
-                }
-            }
-        }
+    if look.bold {
+        out = out.add_modifier(Modifier::BOLD);
+    }
+    if look.reverse {
+        out = out.add_modifier(Modifier::REVERSED);
+    }
+    if let Some(c) = look.fg.and_then(|i| ink(i, theme_name, depth)) {
+        out = out.fg(c);
+    }
+    if let Some(c) = look.bg.and_then(|i| ink(i, theme_name, depth)) {
+        out = out.bg(c);
     }
     out
 }
@@ -65,22 +60,26 @@ mod tests {
 
     #[test]
     fn colours_backgrounds_and_modifiers() {
-        let s = style_in(
-            "book bold #f85149 on #1f3d27 reverse",
-            "dark",
-            Depth::TrueColor,
-        );
+        let look = Look::fg(Role::Red)
+            .bold()
+            .on(Role::AddedBackground)
+            .reverse()
+            .book();
+        let s = style_in(look, "dark", Depth::TrueColor);
         assert_eq!(s.fg, Some(Color::Rgb(0xf8, 0x51, 0x49)));
         assert_eq!(s.bg, Some(Color::Rgb(0x1f, 0x3d, 0x27)));
         assert!(s.add_modifier.contains(Modifier::BOLD | Modifier::REVERSED));
-        assert_eq!(style_in("book", "dark", Depth::TrueColor), Style::default());
+        assert_eq!(
+            style_in(Look::PLAIN.book(), "dark", Depth::TrueColor),
+            Style::default()
+        );
         // Apple's Terminal gets palette colours it can show
         assert_eq!(
-            style_in("#f85149", "dark", Depth::Ansi256).fg,
+            style_in(Look::fg(Role::Red), "dark", Depth::Ansi256).fg,
             Some(Color::Indexed(203))
         );
         assert_eq!(
-            style_in("#f85149", "light", Depth::TrueColor).fg,
+            style_in(Look::fg(Role::Red), "light", Depth::TrueColor).fg,
             Some(Color::Rgb(0xcf, 0x22, 0x2e))
         );
     }

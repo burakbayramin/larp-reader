@@ -2,15 +2,17 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::masks::Look;
 use crate::masks::base::{Line, plain_line, seg};
+use crate::masks::palette::{BLUE, FG, RED};
 use crate::masks::{Mask, Rng, randint};
 
-const LISTING: &[(&str, &str)] = &[
-    ("README.md", "#d4d4d4"),
-    ("docs", "bold #58a6ff"),
-    ("pyproject.toml", "#d4d4d4"),
-    ("src", "bold #58a6ff"),
-    ("tests", "bold #58a6ff"),
+const LISTING: &[(&str, Look)] = &[
+    ("README.md", FG),
+    ("docs", BLUE.bold()),
+    ("pyproject.toml", FG),
+    ("src", BLUE.bold()),
+    ("tests", BLUE.bold()),
 ];
 const GIT_STATUS: &[&str] = &[
     "On branch main",
@@ -116,7 +118,7 @@ pub fn shell_output(
             let mut segs = vec![];
             for (i, (entry, style)) in LISTING.iter().enumerate() {
                 if i > 0 {
-                    segs.push(seg("  ", ""));
+                    segs.push(seg("  ", Look::PLAIN));
                 }
                 segs.push(seg(*entry, *style));
             }
@@ -126,10 +128,11 @@ pub fn shell_output(
                 pos: None,
             }]
         }
-        "pwd" => vec![plain_line(cwd().display().to_string(), "")],
-        _ if command.trim() == "git status" => {
-            GIT_STATUS.iter().map(|t| plain_line(*t, "")).collect()
-        }
+        "pwd" => vec![plain_line(cwd().display().to_string(), Look::PLAIN)],
+        _ if command.trim() == "git status" => GIT_STATUS
+            .iter()
+            .map(|t| plain_line(*t, Look::PLAIN))
+            .collect(),
         _ if TOOLS.contains(&name) => (0..randint(rng, 4, 12))
             .map(|_| mask.noise(rng, width))
             .collect(),
@@ -137,7 +140,7 @@ pub fn shell_output(
             format!(
                 "{name}: The term '{name}' is not recognized as a name of a cmdlet, function, script file, or executable program."
             ),
-            "#f85149",
+            RED,
         )],
         _ => {
             let shell = std::env::var("SHELL").unwrap_or_default();
@@ -147,7 +150,7 @@ pub fn shell_output(
                 .unwrap_or("bash".into());
             vec![plain_line(
                 format!("{shell}: command not found: {name}"),
-                "",
+                Look::PLAIN,
             )]
         }
     })

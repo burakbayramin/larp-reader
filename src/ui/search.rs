@@ -7,7 +7,6 @@ use crate::book::{Book, Pos, match_spans};
 use crate::masks::Line;
 
 pub const NOT_FOUND_MSG: &str = "Pattern not found";
-const HIGHLIGHT: &str = "reverse";
 
 /// The flash after a search wrapped around the end (forward) or the start (backward).
 fn wrap_msg(backward: bool) -> &'static str {
@@ -22,13 +21,13 @@ fn wrap_msg(backward: bool) -> &'static str {
 pub fn highlight(line: &Line, query: &str) -> Line {
     let mut segments = vec![];
     for (text, style) in &line.segments {
-        let spans = if style.split_whitespace().any(|t| t == "book") {
+        let spans = if style.book {
             match_spans(text, query)
         } else {
             vec![]
         };
         if spans.is_empty() {
-            segments.push((text.clone(), style.clone()));
+            segments.push((text.clone(), *style));
             continue;
         }
         let chars: Vec<char> = text.chars().collect();
@@ -36,13 +35,13 @@ pub fn highlight(line: &Line, query: &str) -> Line {
         let mut at = 0;
         for (start, end) in spans {
             if start > at {
-                segments.push((piece(at, start), style.clone()));
+                segments.push((piece(at, start), *style));
             }
-            segments.push((piece(start, end), format!("{style} {HIGHLIGHT}")));
+            segments.push((piece(start, end), style.reverse()));
             at = end;
         }
         if at < chars.len() {
-            segments.push((piece(at, chars.len()), style.clone()));
+            segments.push((piece(at, chars.len()), *style));
         }
     }
     Line {

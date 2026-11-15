@@ -2,6 +2,7 @@
 
 use super::base::{Line, Segment, chrome, chrome_owned, progress_bar_label, seg};
 use super::filler::{Slot, docker_deck};
+use super::look::Look;
 use super::palette::{BLUE, CONTROL, CYAN, DIM, FG, GREEN, YELLOW};
 use super::{Mask, Rng, pick, section};
 use crate::book::{Paragraph, Pos};
@@ -10,7 +11,7 @@ use unicode_width::UnicodeWidthStr;
 
 const BOOK_SVC: &str = "worker-1";
 /// (container, colour), in the order compose lists them when attaching.
-const SERVICES: &[(&str, &str)] = &[
+const SERVICES: &[(&str, Look)] = &[
     ("api-1", YELLOW),
     ("db-1", BLUE),
     ("redis-1", CONTROL),
@@ -21,7 +22,7 @@ const SVC_WIDTH: usize = 8;
 /// Below this the service name is dropped, only the bar stays.
 const WIDE: usize = 30;
 
-fn prefix(svc: &str, colour: &str, width: usize) -> Segment {
+fn prefix(svc: &str, colour: Look, width: usize) -> Segment {
     if width >= WIDE {
         seg(format!("{svc:<SVC_WIDTH$} | "), colour)
     } else {
@@ -59,7 +60,7 @@ impl Mask for DockerMask {
         chrome_owned(
             width,
             vec![
-                prefix(svc, colour, width),
+                prefix(svc, *colour, width),
                 seg(docker_deck(svc).get(self.slot.take()), FG),
             ],
         )
@@ -82,10 +83,7 @@ impl Mask for DockerMask {
             .into_iter()
             .map(|text| {
                 Line::book(
-                    vec![
-                        prefix(BOOK_SVC, CYAN, width),
-                        seg(text, format!("book {FG}")),
-                    ],
+                    vec![prefix(BOOK_SVC, CYAN, width), seg(text, FG.book())],
                     pos,
                 )
             })

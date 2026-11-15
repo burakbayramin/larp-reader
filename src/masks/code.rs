@@ -183,7 +183,7 @@ impl Mask for CodeMask {
             emit(
                 &mut out,
                 self,
-                vec![seg(prefix, COMMENT), seg(text, format!("book {COMMENT}"))],
+                vec![seg(prefix, COMMENT), seg(text, COMMENT.book())],
                 true,
             );
         }
@@ -328,7 +328,7 @@ mod tests {
             assert!(!text.is_empty());
             for l in text {
                 let n = l.segments.len();
-                assert_eq!(l.segments[n - 1].1, format!("book {COMMENT}"));
+                assert_eq!(l.segments[n - 1].1, COMMENT.book());
                 assert_eq!(l.segments[n - 2].1, COMMENT); // the comment marker
             }
         }
@@ -386,10 +386,10 @@ mod tests {
                     .noise_block(10, &mut Rng::seed_from_u64(i as u64), 100)
                     .unwrap()
                 {
-                    let own: std::collections::HashSet<&String> =
+                    let own: std::collections::HashSet<&crate::masks::Look> =
                         l.segments[1..].iter().map(|(_, s)| s).collect();
                     mixed |= own.len() >= 3;
-                    styles.extend(l.segments.iter().map(|(_, s)| s.clone()));
+                    styles.extend(l.segments.iter().map(|(_, s)| *s));
                 }
             }
             assert!(styles.len() >= 5 && mixed, "{lang}: {styles:?}");

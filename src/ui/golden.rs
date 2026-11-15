@@ -19,7 +19,7 @@ use super::search::highlight;
 use super::theme::{Depth, THEMES};
 use crate::book::Paragraph as Para;
 use crate::errors::FccError;
-use crate::masks::{LANGS, Line, MASK_NAMES, get_mask, seeded};
+use crate::masks::{LANGS, Line, Look, MASK_NAMES, get_mask, seeded};
 
 const FIXTURE: &str = "src/ui/golden.txt";
 const DEPTHS: &[(Depth, &str)] = &[
@@ -28,8 +28,8 @@ const DEPTHS: &[(Depth, &str)] = &[
     (Depth::Ansi16, "ansi16"),
 ];
 
-fn resolve(style: &str, theme: &str, depth: Depth) -> Style {
-    super::style::style_in(style, theme, depth)
+fn resolve(look: Look, theme: &str, depth: Depth) -> Style {
+    super::style::style_in(look, theme, depth)
 }
 
 fn base(theme: &str, depth: Depth) -> Style {
@@ -37,17 +37,19 @@ fn base(theme: &str, depth: Depth) -> Style {
 }
 
 /// The app's own chrome styles (input box, status line, side panel).
-fn chrome_styles() -> Vec<(&'static str, &'static str)> {
+fn chrome_styles() -> Vec<(&'static str, Look)> {
+    use super::app::{BOX_BORDER, FG, STATUS_FG};
+    use super::panel::*;
     vec![
-        ("box-border", "#5a5a5a"),
-        ("fg", "#d4d4d4"),
-        ("status", "#858585"),
-        ("panel-border", "#3c3c3c"),
-        ("panel", "#cccccc on #252526"),
-        ("panel-bold", "bold #d4d4d4"),
-        ("panel-key", "#dcdcaa"),
-        ("panel-text", "#cccccc"),
-        ("panel-dim", "#858585"),
+        ("box-border", BOX_BORDER),
+        ("fg", FG),
+        ("status", STATUS_FG),
+        ("panel-border", PANEL_BORDER),
+        ("panel", PANEL),
+        ("panel-bold", PANEL_BOLD),
+        ("panel-key", PANEL_KEY),
+        ("panel-text", PANEL_TEXT),
+        ("panel-dim", PANEL_DIM),
     ]
 }
 
@@ -138,7 +140,7 @@ fn draw(lines: &[Line], theme: &str, depth: Depth) -> Buffer {
                 TLine::from(
                     l.segments
                         .iter()
-                        .map(|(t, s)| Span::styled(t.clone(), resolve(s, theme, depth)))
+                        .map(|(t, s)| Span::styled(t.clone(), resolve(*s, theme, depth)))
                         .collect::<Vec<_>>(),
                 )
             })

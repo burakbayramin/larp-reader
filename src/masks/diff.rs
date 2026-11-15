@@ -27,12 +27,12 @@ impl Mask for DiffMask {
         } else {
             "handler.py"
         };
-        let head = format!("bold {FG}");
+        let head = FG.bold();
         vec![
-            chrome(width, &[(&format!("diff --git a/{path} b/{path}"), &head)]),
+            chrome(width, &[(&format!("diff --git a/{path} b/{path}"), head)]),
             chrome(width, &[("index 3f2a1c4..9b7e0d2 100644", DIM)]),
-            chrome(width, &[(&format!("--- a/{path}"), &head)]),
-            chrome(width, &[(&format!("+++ b/{path}"), &head)]),
+            chrome(width, &[(&format!("--- a/{path}"), head)]),
+            chrome(width, &[(&format!("+++ b/{path}"), head)]),
         ]
     }
 
@@ -72,7 +72,7 @@ impl Mask for DiffMask {
         out.push(self.noise(rng, width));
         for t in texts {
             out.push(Line::book(
-                vec![seg("+ ", GREEN), seg(t, format!("book {GREEN}"))],
+                vec![seg("+ ", GREEN), seg(t, GREEN.book())],
                 pos,
             ));
         }
@@ -89,17 +89,17 @@ impl Mask for DiffMask {
         } else {
             format!("{name}.py")
         };
-        let head = format!("bold {FG}");
+        let head = FG.bold();
         let index = format!(
             "index {}..{} 100644",
             section::hex(chapter, "diff-old", 7),
             section::hex(chapter, "diff-new", 7)
         );
         vec![
-            chrome(width, &[(&format!("diff --git a/{path} b/{path}"), &head)]),
+            chrome(width, &[(&format!("diff --git a/{path} b/{path}"), head)]),
             chrome(width, &[(&index, DIM)]),
-            chrome(width, &[(&format!("--- a/{path}"), &head)]),
-            chrome(width, &[(&format!("+++ b/{path}"), &head)]),
+            chrome(width, &[(&format!("--- a/{path}"), head)]),
+            chrome(width, &[(&format!("+++ b/{path}"), head)]),
         ]
     }
 
@@ -147,7 +147,7 @@ mod tests {
         assert!(book.iter().all(|l| l.plain().starts_with("+ ")));
         assert!(
             book.iter()
-                .all(|l| l.segments.last().unwrap().1 == format!("book {GREEN}"))
+                .all(|l| l.segments.last().unwrap().1 == GREEN.book())
         );
     }
 

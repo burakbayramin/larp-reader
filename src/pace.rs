@@ -37,7 +37,7 @@ pub fn words_in(lines: &[crate::masks::Line]) -> usize {
         .iter()
         .filter(|l| l.is_book)
         .flat_map(|l| &l.segments)
-        .filter(|(_, style)| style.split_whitespace().any(|t| t == "book"))
+        .filter(|(_, look)| look.book)
         .map(|(text, _)| text.split_whitespace().count())
         .sum()
 }
@@ -61,6 +61,7 @@ pub fn learn(wpm: u32, words: usize, seconds: f64) -> Option<u32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::masks::Look;
 
     // -- test_pace.py --
 
@@ -87,16 +88,22 @@ mod tests {
         use crate::masks::base::{Line, seg};
         let lines = [
             Line::book(
-                vec![seg("   1 ", "dim"), seg("iki kelime", "book #fff")],
+                vec![
+                    seg("   1 ", Look::PLAIN),
+                    seg("iki kelime", Look::PLAIN.book()),
+                ],
                 (0, 0),
             ),
             Line {
-                segments: vec![seg("noise noise noise", "")],
+                segments: vec![seg("noise noise noise", Look::PLAIN)],
                 is_book: false,
                 pos: None,
             },
             Line::book(
-                vec![seg("prefix ", ""), seg("üç kelime var", "book")],
+                vec![
+                    seg("prefix ", Look::PLAIN),
+                    seg("üç kelime var", Look::PLAIN.book()),
+                ],
                 (0, 0),
             ),
         ];

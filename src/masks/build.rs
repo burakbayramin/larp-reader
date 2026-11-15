@@ -24,19 +24,13 @@ impl Mask for BuildMask {
     fn header(&mut self, _rng: &mut Rng, width: usize) -> Vec<Line> {
         vec![chrome(
             width,
-            &[
-                ("    Updating", &format!("bold {GREEN}")),
-                (" crates.io index", FG),
-            ],
+            &[("    Updating", GREEN.bold()), (" crates.io index", FG)],
         )]
     }
 
     fn noise(&mut self, _rng: &mut Rng, width: usize) -> Line {
         let name = format!(" {}", crates_deck().get(self.slot.take()));
-        chrome(
-            width,
-            &[("   Compiling", &format!("bold {GREEN}")), (&name, FG)],
-        )
+        chrome(width, &[("   Compiling", GREEN.bold()), (&name, FG)])
     }
 
     fn line_count(&self, para: &Paragraph, width: usize) -> usize {
@@ -51,7 +45,7 @@ impl Mask for BuildMask {
         rng: &mut Rng,
         line_no_start: usize,
     ) -> Vec<Line> {
-        let rail = format!("bold {BLUE}");
+        let rail = BLUE.bold();
         self.slot.set(line_no_start);
         let file = MODULES[line_no_start * 7 % MODULES.len()];
         let col = randint(rng, 5, 20);
@@ -61,29 +55,23 @@ impl Mask for BuildMask {
             chrome(
                 width,
                 &[
-                    ("warning", &format!("bold {YELLOW}")),
-                    (
-                        &format!(": unused variable: `{var}`"),
-                        &format!("bold {FG}"),
-                    ),
+                    ("warning", YELLOW.bold()),
+                    (&format!(": unused variable: `{var}`"), FG.bold()),
                 ],
             ),
             chrome(
                 width,
                 &[
-                    ("  --> ", &rail),
+                    ("  --> ", rail),
                     (&format!("src/{file}.rs:{line_no_start}:{col}"), FG),
                 ],
             ),
-            chrome(width, &[("   |", &rail)]),
+            chrome(width, &[("   |", rail)]),
         ];
         for t in ragged(&para.text, width.saturating_sub(GUTTER.width()).max(1)) {
-            out.push(Line::book(
-                vec![seg(GUTTER, rail.clone()), seg(t, format!("book {FG}"))],
-                pos,
-            ));
+            out.push(Line::book(vec![seg(GUTTER, rail), seg(t, FG.book())], pos));
         }
-        out.push(chrome(width, &[("   |", &rail)]));
+        out.push(chrome(width, &[("   |", rail)]));
         out.push(self.noise(rng, width));
         out
     }
@@ -97,17 +85,17 @@ impl Mask for BuildMask {
             chrome(
                 width,
                 &[
-                    ("warning", &format!("bold {YELLOW}")),
+                    ("warning", YELLOW.bold()),
                     (
                         &format!(": `core-{prev}` (lib) generated {n} warnings"),
-                        &format!("bold {FG}"),
+                        FG.bold(),
                     ),
                 ],
             ),
             chrome(
                 width,
                 &[
-                    ("   Compiling", &format!("bold {GREEN}")),
+                    ("   Compiling", GREEN.bold()),
                     (
                         &format!(
                             " core-{next} v{} (/home/dev/project/crates/{next})",
@@ -175,7 +163,7 @@ mod tests {
         assert!(book.len() > 1 && book.iter().all(|l| l.plain().starts_with("   |  ")));
         assert!(
             book.iter()
-                .all(|l| l.segments.last().unwrap().1 == format!("book {FG}"))
+                .all(|l| l.segments.last().unwrap().1 == FG.book())
         );
     }
 

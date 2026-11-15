@@ -32,11 +32,11 @@ impl Mask for TestMask {
 
     fn header(&mut self, _rng: &mut Rng, width: usize) -> Vec<Line> {
         // pytest centres its banner on the terminal width
-        let bold = format!("bold {FG}");
+        let bold = FG.bold();
         vec![
             chrome(
                 width,
-                &[(&center(" test session starts ", width, '='), &bold)],
+                &[(&center(" test session starts ", width, '='), bold)],
             ),
             chrome(
                 width,
@@ -46,7 +46,7 @@ impl Mask for TestMask {
                 )],
             ),
             chrome(width, &[("rootdir: /home/dev/project", FG)]),
-            chrome(width, &[("collected 380 items", &bold)]),
+            chrome(width, &[("collected 380 items", bold)]),
         ]
     }
 
@@ -75,22 +75,19 @@ impl Mask for TestMask {
             .trim_start_matches("tests/test_")
             .split_once(".py::test_")
             .expect("pool ids have this shape");
-        let fail = format!("bold {RED}");
+        let fail = RED.bold();
         let mut out = vec![
             self.noise(rng, width),
-            chrome(width, &[(&format!("_____ test_{case} _____"), &fail)]),
-            chrome(width, &[("E   ", &fail), ("AssertionError:", &fail)]),
+            chrome(width, &[(&format!("_____ test_{case} _____"), fail)]),
+            chrome(width, &[("E   ", fail), ("AssertionError:", fail)]),
         ];
         for t in ragged(&para.text, width.saturating_sub(4).max(1)) {
-            out.push(Line::book(
-                vec![seg("E   ", fail.clone()), seg(t, format!("book {FG}"))],
-                pos,
-            ));
+            out.push(Line::book(vec![seg("E   ", fail), seg(t, FG.book())], pos));
         }
         let at = format!(":{line_no_start}: AssertionError");
         out.push(chrome(
             width,
-            &[(&format!("tests/test_{fname}.py"), &fail), (&at, FG)],
+            &[(&format!("tests/test_{fname}.py"), fail), (&at, FG)],
         ));
         self.slot.set(line_no_start + 2);
         out.push(self.noise(rng, width));
@@ -156,7 +153,7 @@ mod tests {
         assert!(book.iter().all(|l| l.plain().starts_with("E   ")));
         assert!(
             book.iter()
-                .all(|l| l.segments.last().unwrap().1 == format!("book {FG}"))
+                .all(|l| l.segments.last().unwrap().1 == FG.book())
         );
         let first = lines.iter().position(|l| l.is_book).unwrap();
         assert!(

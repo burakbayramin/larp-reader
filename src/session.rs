@@ -659,7 +659,7 @@ mod tests {
         for l in lines.iter().filter(|l| l.is_book) {
             let mut col = 0;
             for (text, style) in &l.segments {
-                if style.split_whitespace().any(|t| t == "book") {
+                if style.book {
                     let visible: String = text.chars().take(width.saturating_sub(col)).collect();
                     out.extend(visible.split_whitespace().map(String::from));
                 }

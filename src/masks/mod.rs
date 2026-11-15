@@ -15,6 +15,7 @@ pub mod docker;
 pub mod filler;
 pub mod git;
 pub mod log;
+pub mod look;
 pub mod palette;
 pub mod section;
 pub mod snippets;
@@ -22,6 +23,7 @@ pub mod test;
 pub mod time;
 
 pub use base::{Line, Segment};
+pub use look::{Ink, Look, Role};
 
 /// The random source masks draw filler from: seeded, so a paragraph draws the same every time.
 pub type Rng = rand_pcg::Pcg32;
@@ -206,7 +208,7 @@ mod contract {
             .iter()
             .filter(|l| l.is_book)
             .flat_map(|l| &l.segments)
-            .filter(|(_, s)| s.split_whitespace().next() == Some("book"))
+            .filter(|(_, s)| s.book)
             .flat_map(|(t, _)| t.split_whitespace().map(String::from))
             .collect()
     }

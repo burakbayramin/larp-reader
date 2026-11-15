@@ -31,8 +31,8 @@ pub fn partial(line: &Line, shown: usize) -> Line {
         .segments
         .iter()
         .map(|(text, style)| {
-            if !style.split_whitespace().any(|t| t == "book") {
-                return (text.clone(), style.clone());
+            if !style.book {
+                return (text.clone(), *style);
             }
             let mut out = String::new();
             for c in text.chars() {
@@ -43,7 +43,7 @@ pub fn partial(line: &Line, shown: usize) -> Line {
                     out.extend(std::iter::repeat_n(' ', c.width().unwrap_or(0)));
                 }
             }
-            (out, style.clone())
+            (out, *style)
         })
         .collect();
     Line {
@@ -57,7 +57,7 @@ pub fn partial(line: &Line, shown: usize) -> Line {
 pub fn text_chars(line: &Line) -> usize {
     line.segments
         .iter()
-        .filter(|(_, s)| s.split_whitespace().any(|t| t == "book"))
+        .filter(|(_, s)| s.book)
         .map(|(t, _)| t.chars().count())
         .sum()
 }
@@ -135,7 +135,7 @@ impl Feed {
                     TLine::from(
                         l.segments
                             .iter()
-                            .map(|(t, s)| Span::styled(t.clone(), style(s)))
+                            .map(|(t, s)| Span::styled(t.clone(), style(*s)))
                             .collect::<Vec<_>>(),
                     )
                 })
@@ -153,13 +153,18 @@ impl Widget for &Feed {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::masks::Look;
     use crate::masks::base::plain_line;
 
     #[test]
     fn top_or_bottom_anchored_and_capped() {
         let mut f = Feed::default();
         f.set_height(2);
-        f.set_lines((0..5).map(|i| plain_line(i.to_string(), "")).collect());
+        f.set_lines(
+            (0..5)
+                .map(|i| plain_line(i.to_string(), Look::PLAIN))
+                .collect(),
+        );
         assert_eq!(
             f.visible_lines()
                 .iter()
@@ -175,7 +180,11 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec!["3", "4"]
         );
-        f.append((0..MAX_LINES).map(|_| plain_line("x", "")).collect());
+        f.append(
+            (0..MAX_LINES)
+                .map(|_| plain_line("x", Look::PLAIN))
+                .collect(),
+        );
         assert_eq!(f.history_lines().len(), MAX_LINES);
     }
 
@@ -183,9 +192,9 @@ mod tests {
     fn partial_keeps_gutters_and_width_and_hides_the_rest_of_the_text() {
         let l = Line::book(
             vec![
-                ("  12 + ".into(), "dim".into()),
-                ("héllo wörld".into(), "book fg".into()),
-                ("   ".into(), "on red".into()),
+                ("  12 + ".into(), Look::PLAIN),
+                ("héllo wörld".into(), Look::PLAIN.book()),
+                ("   ".into(), Look::PLAIN),
             ],
             (0, 0),
         );
@@ -197,7 +206,7 @@ mod tests {
         let mut f = Feed::default();
         f.set_height(5);
         f.set_bottom_anchored(true);
-        f.append(vec![plain_line("x", ""), l.clone()]);
+        f.append(vec![plain_line("x", Look::PLAIN), l.clone()]);
         f.set_reveal(Some(0));
         let shown: Vec<String> = f.text().lines.iter().map(|t| t.to_string()).collect();
         assert_eq!(shown[1].trim(), "12 +");

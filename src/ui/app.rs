@@ -28,8 +28,9 @@ use crate::book::{Book, Pos};
 use crate::errors::FccError;
 use crate::loaders::load_book;
 use crate::masks::base::{error_lines, plain_line};
+use crate::masks::palette::YELLOW;
 use crate::masks::time::civil;
-use crate::masks::{LANGS, Line, MASK_NAMES, Mask, Rng, get_mask, seeded};
+use crate::masks::{LANGS, Line, Look, MASK_NAMES, Mask, Rng, Role, get_mask, seeded};
 use crate::noise::MAX_NOISE;
 use crate::pace::step_wpm;
 use crate::session::Session;
@@ -43,10 +44,10 @@ pub const FLASH: Duration = Duration::from_secs(2);
 pub const BOX_ROWS: usize = 3;
 /// Shorter windows keep every row for the text.
 const BOX_MIN_ROWS: usize = 10;
-const BOX_BORDER: &str = "#5a5a5a";
+pub(crate) const BOX_BORDER: Look = Look::rgb(0x5a5a5a);
 const WARNING: &str = "warning: window too narrow";
-const STATUS_FG: &str = "#858585";
-const FG: &str = "#d4d4d4";
+pub(crate) const STATUS_FG: Look = Look::fg(Role::Gutter);
+pub(crate) const FG: Look = Look::fg(Role::Text);
 const SAVED_MSG: &str = "cache saved";
 const NO_MARKS_MSG: &str = "cache empty";
 
@@ -291,7 +292,7 @@ impl App {
         let width = self.width();
         let mut lines = vec![];
         if width < MIN_WIDTH {
-            lines.push(plain_line(truncate_cells(WARNING, width), "#d29922"));
+            lines.push(plain_line(truncate_cells(WARNING, width), YELLOW));
         }
         lines.extend(self.notice.iter().cloned());
         let view = self.view_height();

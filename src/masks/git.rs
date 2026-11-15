@@ -4,6 +4,7 @@ use rand::Rng as _;
 
 use super::base::{Line, chrome, seg};
 use super::filler::{Slot, git_paths_deck};
+use super::look::Look;
 use super::palette::{DIM, FG, GREEN, RED, YELLOW};
 use super::time::{EPOCH_DAY, civil, month, weekday};
 use super::{Mask, Rng, pick, randint, section};
@@ -112,7 +113,7 @@ impl Mask for GitMask {
         let ind = indent(width);
         for text in ragged(&para.text, width.saturating_sub(ind).max(1)) {
             out.push(Line::book(
-                vec![seg(" ".repeat(ind), ""), seg(text, format!("book {FG}"))],
+                vec![seg(" ".repeat(ind), Look::PLAIN), seg(text, FG.book())],
                 pos,
             ));
         }

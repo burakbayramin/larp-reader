@@ -34,7 +34,7 @@ fn slash_searches_and_highlights() {
         .visible()
         .iter()
         .flat_map(|l| l.segments.clone())
-        .filter(|(_, s)| s.split_whitespace().any(|t| t == "reverse"))
+        .filter(|(_, s)| s.reverse)
         .map(|(t, _)| t)
         .collect();
     assert!(hits.contains(&"number 7".to_string()), "{hits:?}");
@@ -117,8 +117,8 @@ fn bookmark_is_added_once_saved_and_flashed() {
 fn highlight_splits_only_text_segments() {
     let line = Line::book(
         vec![
-            ("  12 ".into(), "#858585".into()),
-            ("Alfa beta ALFA".into(), "book #d4d4d4".into()),
+            ("  12 ".into(), crate::masks::palette::GUTTER),
+            ("Alfa beta ALFA".into(), crate::masks::palette::FG.book()),
         ],
         (0, 0),
     );
@@ -126,7 +126,7 @@ fn highlight_splits_only_text_segments() {
     let texts: Vec<(&str, bool)> = out
         .segments
         .iter()
-        .map(|(t, s)| (t.as_str(), s.ends_with("reverse")))
+        .map(|(t, s)| (t.as_str(), s.reverse))
         .collect();
     assert_eq!(
         texts,

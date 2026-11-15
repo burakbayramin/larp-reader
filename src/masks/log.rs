@@ -2,6 +2,7 @@
 
 use super::base::{Line, Segment, chrome, chrome_owned, progress_bar_label, seg};
 use super::filler::{Slot, log_deck};
+use super::look::Look;
 use super::palette::{BLUE, CYAN, DIM, FG, GREEN, YELLOW};
 use super::time::{EPOCH_DAY, civil};
 use super::{Mask, Rng, pick, randint, section, weighted};
@@ -28,11 +29,11 @@ const COMPACT_MIN_WIDTH: usize = 60;
 const MAX_STEP_MS: u64 = 700;
 const LINE_MS: u64 = 731;
 
-fn level_style(level: &str) -> String {
+fn level_style(level: &str) -> Look {
     match level {
-        "DEBUG" => BLUE.to_string(),
-        "WARN" => format!("bold {YELLOW}"),
-        _ => GREEN.to_string(),
+        "DEBUG" => BLUE,
+        "WARN" => YELLOW.bold(),
+        _ => GREEN,
     }
 }
 
@@ -170,7 +171,7 @@ impl Mask for LogMask {
         let mut out = vec![self.entry(rng, t, width)];
         for text in ragged(&para.text, Self::body(width)) {
             let mut segs = prefix_segments(self.tick(rng), "INFO", BOOK_SVC, width);
-            segs.push(seg(text, format!("book {FG}")));
+            segs.push(seg(text, FG.book()));
             out.push(Line::book(segs, pos));
         }
         let t = self.tick(rng);
@@ -191,7 +192,7 @@ impl Mask for LogMask {
             _ => format!("consumer rebalanced: partition={n} topic={name}"),
         };
         let mut segs = prefix_segments(t, "INFO", BOOK_SVC, width);
-        segs.push(seg(text, format!("bold {FG}")));
+        segs.push(seg(text, FG.bold()));
         vec![chrome_owned(width, segs)]
     }
 
@@ -254,7 +255,7 @@ mod tests {
         );
         assert!(
             book.iter()
-                .all(|l| l.segments.last().unwrap().1 == format!("book {FG}"))
+                .all(|l| l.segments.last().unwrap().1 == FG.book())
         );
     }
 
@@ -276,7 +277,7 @@ mod tests {
     fn noise_levels_vary_and_have_their_own_colours() {
         let mut m = LogMask::default();
         let mut r = rng(3);
-        let mut by_level: std::collections::HashMap<String, std::collections::HashSet<String>> =
+        let mut by_level: std::collections::HashMap<String, std::collections::HashSet<Look>> =
             Default::default();
         for _ in 0..200 {
             let l = m.noise(&mut r, 120);
@@ -284,11 +285,11 @@ mod tests {
             by_level
                 .entry(l.segments[1].0.trim().to_string())
                 .or_default()
-                .insert(l.segments[1].1.clone());
+                .insert(l.segments[1].1);
         }
         assert_eq!(by_level.len(), 3);
         assert!(by_level.values().all(|s| s.len() == 1));
-        let colours: std::collections::HashSet<&String> = by_level
+        let colours: std::collections::HashSet<&Look> = by_level
             .values()
             .map(|s| s.iter().next().unwrap())
             .collect();
@@ -376,7 +377,7 @@ mod tests {
             lines
                 .iter()
                 .filter(|l| l.is_book)
-                .all(|l| l.segments.last().unwrap().1 == format!("book {FG}"))
+                .all(|l| l.segments.last().unwrap().1 == FG.book())
         );
     }
 }

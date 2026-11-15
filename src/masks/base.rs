@@ -1,18 +1,18 @@
 //! Rendered lines and helpers shared by the masks (`masks/base.py`).
 //!
-//! A style is a space-separated string as in the Python version: colours
-//! (`#d4d4d4`), `on #1f3d27` backgrounds, `bold`, `reverse`, and the internal
-//! marker `book` on segments that carry the text. The UI turns it into
-//! terminal styles; keeping it a string keeps masks and tests simple.
+//! Each segment has a `Look`: colour roles, modifiers, and the `book` flag on
+//! segments that carry the text. The UI resolves it against the theme.
 
 use unicode_width::UnicodeWidthChar;
 
+use super::look::Look;
+use super::palette::RED;
 use crate::book::Pos;
 use crate::errors::FccError;
 use crate::text::wrap;
 
-/// (text, style).
-pub type Segment = (String, String);
+/// (text, look).
+pub type Segment = (String, Look);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Line {
@@ -37,14 +37,14 @@ impl Line {
     }
 }
 
-pub fn seg(text: impl Into<String>, style: impl Into<String>) -> Segment {
-    (text.into(), style.into())
+pub fn seg(text: impl Into<String>, look: Look) -> Segment {
+    (text.into(), look)
 }
 
 /// A non-text line of one styled piece.
-pub fn plain_line(text: impl Into<String>, style: &str) -> Line {
+pub fn plain_line(text: impl Into<String>, look: Look) -> Line {
     Line {
-        segments: vec![seg(text, style)],
+        segments: vec![seg(text, look)],
         is_book: false,
         pos: None,
     }
@@ -74,7 +74,7 @@ pub fn crop(segments: Vec<Segment>, width: usize) -> Vec<Segment> {
 }
 
 /// A non-text line of several styled pieces, cropped to `width` cells.
-pub fn chrome(width: usize, segments: &[(&str, &str)]) -> Line {
+pub fn chrome(width: usize, segments: &[(&str, Look)]) -> Line {
     let owned = segments.iter().map(|(t, s)| seg(*t, *s)).collect();
     Line {
         segments: crop(owned, width.max(1)),
@@ -97,11 +97,7 @@ pub fn fit_lines(lines: Vec<Line>, width: usize) -> Vec<Line> {
     lines
         .into_iter()
         .map(|l| {
-            let style = l
-                .segments
-                .first()
-                .map(|(_, s)| s.clone())
-                .unwrap_or_default();
+            let style = l.segments.first().map(|(_, s)| *s).unwrap_or_default();
             chrome_owned(width, vec![(l.plain(), style)])
         })
         .collect()
@@ -111,12 +107,12 @@ pub fn error_lines(err: &FccError, width: usize) -> Vec<Line> {
     let title = format!(": {}", err.title());
     let mut lines = vec![chrome(
         width,
-        &[("error", "bold #f85149"), (&title, "bold")],
+        &[("error", RED.bold()), (&title, Look::PLAIN.bold())],
     )];
     lines.extend(
         wrap(&err.to_string(), width)
             .into_iter()
-            .map(|t| plain_line(t, "#f85149")),
+            .map(|t| plain_line(t, RED)),
     );
     lines
 }
@@ -138,9 +134,10 @@ mod tests {
 
     #[test]
     fn crop_counts_cells_and_keeps_styles() {
-        let line = chrome(5, &[("ab", "x"), ("cdef", "y")]);
-        assert_eq!(line.segments, vec![seg("ab", "x"), seg("cde", "y")]);
-        assert_eq!(chrome(3, &[("漢字", "x")]).plain(), "漢"); // a wide char that does not fit is dropped
+        let (x, y) = (Look::PLAIN, Look::PLAIN.bold());
+        let line = chrome(5, &[("ab", x), ("cdef", y)]);
+        assert_eq!(line.segments, vec![seg("ab", x), seg("cde", y)]);
+        assert_eq!(chrome(3, &[("漢字", x)]).plain(), "漢"); // a wide char that does not fit is dropped
     }
 
     #[test]
