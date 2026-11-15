@@ -107,6 +107,9 @@ pub struct App {
     pub config: Config,
     state_dir: PathBuf,
     pub session: Option<Session>,
+    /// Where the open text was opened (or resumed): the view's header shows
+    /// there too, as a session greets you whenever it starts.
+    opened_at: Option<crate::book::Pos>,
     /// The mask while no book is open (errors are drawn with it).
     spare_mask: Option<Box<dyn Mask>>,
     /// Error lines shown above the text until the next move.
@@ -161,6 +164,7 @@ impl App {
             config,
             state_dir,
             session: None,
+            opened_at: None,
             spare_mask: Some(mask),
             notice: vec![],
             entry_path: None,
@@ -255,6 +259,7 @@ impl App {
             self.width(),
             pos,
         ));
+        self.opened_at = Some(pos);
         Ok(())
     }
 
@@ -300,7 +305,8 @@ impl App {
         let view = self.view_height();
         let mut watched = None;
         if let Some(s) = self.session.as_mut() {
-            let at_top = s.book.index_of(s.pos()) == 0 && (self.auto || s.line_offset == 0);
+            let start = s.book.index_of(s.pos()) == 0 || self.opened_at == Some(s.pos());
+            let at_top = start && (self.auto || s.line_offset == 0);
             if at_top {
                 let id = s.book.id.clone();
                 lines.extend(s.mask_mut().header(&mut seeded(&id), width));

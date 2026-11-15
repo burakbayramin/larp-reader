@@ -231,3 +231,37 @@ fn the_header_itself_never_changes_with_the_figure() {
     h.advance(Duration::from_secs(4));
     assert_eq!(h.app.feed.history_lines().to_vec(), before);
 }
+
+#[test]
+fn the_welcome_box_greets_a_resumed_session_too() {
+    use crate::masks::agent::SPRITE;
+    let mut h = sample_with(30, agent(), 80, 40);
+    h.press(&["space", "space", "space"]);
+    let pos = h.session().pos();
+    assert_ne!(pos, (0, 0));
+    assert!(
+        !h.screen().contains(SPRITE[0]),
+        "only where the session started"
+    );
+    h.press(&["q"]);
+    let mut again = Harness {
+        app: App::new(
+            Some(h.dir.join("sample.txt")),
+            agent(),
+            Theme::default(),
+            h.state_dir(),
+            80,
+            40,
+            h.now,
+        ),
+        now: h.now,
+        _dir: tempfile::tempdir().unwrap(),
+        dir: h.dir.clone(),
+    };
+    assert_eq!(again.session().pos(), pos);
+    for row in SPRITE {
+        assert!(again.screen().contains(row), "{row:?}:\n{}", again.screen());
+    }
+    again.press(&["space"]);
+    assert!(!again.screen().contains(SPRITE[0]), "gone once you move on");
+}
