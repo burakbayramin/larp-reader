@@ -580,3 +580,19 @@ fn an_empty_request_just_closes_the_box() {
     assert!(h.app.ask.is_none() && h.app.reply.is_none());
     assert!(h.screen().contains("Try"));
 }
+
+#[test]
+fn the_box_and_the_report_keep_out_of_each_other_s_way() {
+    let mut h = sample_with(10, agent(), 80, 24);
+    h.press(&["i"]);
+    type_text(&mut h, "Sort the imports");
+    assert!(h.app.report.is_none(), "S is typed into the box");
+    assert!(h.screen().contains("Sort the imports"));
+    h.press(&["enter"]);
+    assert!(h.app.reply.is_some());
+    h.press(&["S"]); // a key during the reply only ends it
+    assert!(h.app.reply.is_none());
+    assert!(h.app.report.is_none());
+    h.press(&["S"]); // now it opens
+    assert!(h.app.report.is_some());
+}
