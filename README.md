@@ -72,6 +72,7 @@ gerçek bir geliştirme oturumu.
 | `o` / `O` | klasördeki sonraki / önceki kitaba geç (her kitabın yeri ayrı saklanır) |
 | `Esc` | yan panel: kısayollar ve klasördeki kitaplar; panel açıkken `1`-`9` ile listeden kitap aç |
 | `` ` `` | panik: anında sahte çıktı akışı ya da sahte shell (panel, menü veya arama açıksa onu da kapatır) |
+| `S` | okuma istatistikleri: o anki görünümün çıktısı gibi çizilen bir rapor; herhangi bir tuş kapatır, `` ` `` anında gizler |
 | `q` | ilerlemeyi kaydet ve çık |
 
 Menüde `Tab`/`Up`/`Down` ile alan değiştirilir, `Left`/`Right` ile değer seçilir,
@@ -83,6 +84,16 @@ ekranda kalır (220 WPM'de 11 kelimelik bir satır 3 saniye). Hız elle sayfa
 sürede okuduğun ölçülür ve kayıtlı hız yavaşça buna yaklaşır. Çok hızlı geçilen
 (2 sn altı) ya da uzun süre açık kalan (5 dk üstü) ekranlar ve panik modunda
 geçen süre hesaba katılmaz.
+
+İstatistikler: `S` günlük okunan kelimeyi ve süreyi (bugün, bu hafta, art arda gün sayısı, ortalama
+hız, açık metnin bitmesine kalan süre, son 14 günün çubuk grafiği) görünümün üslubunda bir rapor
+olarak gösterir. Bir ekran, hız öğrenmedeki kuralla (2 sn - 5 dk arası, en az 15 kelime) okunmuş
+sayılır ve ekrandan ayrılırken kaydedilir; hızlı geçilen ekranlar ve panikte geçen süre sayılmaz.
+Otomatik akışta gösterilen satırlar da sayılır. Veriler ilerleme dosyasının yanındaki `stats.json`
+içinde (yerel tarihe göre gün gün kelime ve saniye, metin başına toplam) tutulur ve ilerlemeyle aynı
+anda kaydedilir; kitabın adı ya da metni hiçbir yerde saklanmaz, yalnızca kitap kimliği. Bozuk dosya
+`stats.json.bak` olarak yedeklenir ve istatistikler sıfırdan başlar. Durum satırının sağında, sığarsa,
+bugünkü kelime sayısı görünür.
 
 `agent` görünümü bir kod ajanı oturumu gibi akar: `⏺ Update(...)` diff'leri, `⏺ Bash(...)`
 komut çıktıları, `Read`/`Search` çağrıları ve yapılacaklar listesi. Paragrafların çoğu

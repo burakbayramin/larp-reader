@@ -19,6 +19,7 @@ use super::input::{InputEvent, LineInput};
 use super::menu::{Menu, MenuResult, section_label};
 use super::panel;
 use super::reply::Reply;
+use super::report::Report;
 use super::search::{self, Search};
 use super::shell::{shell_output, shell_prompt};
 use super::theme::{THEMES, Theme};
@@ -158,6 +159,8 @@ pub struct App {
     stats_dirty: bool,
     /// A fixed local day instead of the calendar's (tests).
     pub day_override: Option<i64>,
+    /// The statistics screen, while it is up.
+    pub report: Option<Report>,
 }
 
 impl App {
@@ -212,6 +215,7 @@ impl App {
             stats: Stats::default(),
             stats_dirty: false,
             day_override: None,
+            report: None,
         };
         app.stats = load_stats(&app.state_dir);
         if let Some(e) = mask_error {
@@ -399,6 +403,7 @@ impl App {
         if self.panic
             || self.flash.is_some()
             || self.menu.is_some()
+            || self.report.is_some()
             || self.shell.is_some()
             || self.search.is_open()
         {
@@ -441,6 +446,10 @@ impl App {
     pub fn draw_in(&self, frame: &mut Frame, theme: &Theme) {
         if let Some(menu) = &self.menu {
             menu.draw(frame, theme);
+            return;
+        }
+        if let Some(report) = &self.report {
+            report.draw(&self.current_mask_name(), frame, theme);
             return;
         }
         let base = theme.base();
@@ -566,6 +575,10 @@ impl App {
             self.quit_and_save();
             return;
         }
+        if self.report.take().is_some() {
+            self.redraw(); // back to the text: its reading time starts over
+            return; // any key closes the report
+        }
         if let Some(field) = self.shell.as_mut() {
             if let InputEvent::Submit(command) = field.handle(key) {
                 self.run_shell(&command);
@@ -633,6 +646,7 @@ impl App {
             KeyCode::Char(':') => self.open_menu(),
             KeyCode::Char('t') => self.cycle_theme(),
             KeyCode::Char('i') => self.focus_box(),
+            KeyCode::Char('S') => self.open_report(),
             KeyCode::Char('\'') => self.jump_mark(true),
             KeyCode::Char('"') => self.jump_mark(false),
             _ => {}
@@ -756,6 +770,7 @@ impl App {
         self.bank_reading();
         self.search.close();
         self.menu = None;
+        self.report = None;
         self.panel = false;
         let shell = self.config.hide == "shell";
         self.feed.set_height(self.view_height()); // the input box comes and goes with hiding
@@ -970,6 +985,32 @@ impl App {
         };
         let mask = self.current_mask_name();
         self.menu = Some(Menu::new(&mask, &self.config, marks, sections));
+    }
+
+    /// Open the statistics screen: what was read so far, and the time left.
+    fn open_report(&mut self) {
+        if self.panic {
+            return;
+        }
+        self.pacer.forget_view(self.now); // the report is not reading time
+        self.bank_reading();
+        self.panel = false;
+        let day = self.today();
+        let remaining = self.session.as_ref().map(|s| {
+            let from = s.book.index_of(s.pos());
+            s.book
+                .chapters
+                .iter()
+                .flat_map(|c| &c.paragraphs)
+                .skip(from)
+                .map(|p| p.text.split_whitespace().count() as u64)
+                .sum()
+        });
+        self.report = Some(Report::new(&self.stats, day, self.config.wpm, remaining));
+    }
+
+    fn today(&self) -> i64 {
+        self.day_override.unwrap_or_else(local_today)
     }
 
     fn on_menu_result(&mut self, result: MenuResult) {
@@ -1210,7 +1251,7 @@ impl App {
         };
         // the text on screen had its reading time: it was read
         let (shown, id) = (self.pacer.shown_words(), s.book.id.clone());
-        if shown > 0 {
+        if shown > 0 && self.report.is_none() {
             let secs = line_delay(shown, self.config.wpm);
             let day = self.day_override.unwrap_or_else(local_today);
             self.stats.record(day, &id, shown, secs);

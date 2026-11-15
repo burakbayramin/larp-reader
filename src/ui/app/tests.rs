@@ -259,5 +259,6 @@ mod menu;
 mod navigate;
 mod pacing;
 mod panel;
+mod report;
 mod stats;
 mod views;

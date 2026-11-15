@@ -39,6 +39,7 @@ const KEYS: &[(&str, &str)] = &[
     ("b", "mark this place"),
     ("' / \"", "next / prev mark"),
     ("i", "ask (agent view)"),
+    ("S", "stats"),
     (":", "config"),
     ("`", "hide / unhide"),
     ("esc", "this panel"),
