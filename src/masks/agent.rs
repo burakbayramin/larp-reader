@@ -464,6 +464,13 @@ pub const SHOW_EVERY: Duration = Duration::from_millis(4000);
 pub const SHOW_FOR: Duration = Duration::from_millis(1200);
 /// How long each step lasts while text streams.
 pub const STEP_FOR: Duration = Duration::from_millis(360);
+/// The version the welcome box names; fixed under test so recorded screens
+/// hold across releases.
+#[cfg(not(test))]
+const SHOWN_VERSION: &str = env!("CARGO_PKG_VERSION");
+#[cfg(test)]
+const SHOWN_VERSION: &str = "0.0.0";
+
 /// The welcome box needs this many cells; narrower screens go without it.
 const WELCOME_MIN: usize = 34;
 const WELCOME_MAX: usize = 58;
@@ -504,7 +511,7 @@ fn welcome(width: usize) -> Vec<Line> {
     }
     let w = width.min(WELCOME_MAX);
     let room = w - 4 - SPRITE[0].width() - 2;
-    let version = format!("larpr v{}", env!("CARGO_PKG_VERSION"));
+    let version = format!("larpr v{SHOWN_VERSION}");
     let texts = [
         (version.as_str(), FG.bold()),
         ("role: senior engineer (self-appointed)", DIM),
