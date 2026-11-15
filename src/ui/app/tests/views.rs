@@ -60,14 +60,14 @@ fn n_and_shift_n_change_filler_within_bounds() {
 #[test]
 fn t_cycles_themes_and_saves_the_choice() {
     let mut h = Harness::sample(80, 24);
-    assert_eq!(h.app.config.theme, "dark");
+    assert_eq!(h.app.config.theme, "monokai");
     h.press(&["t"]);
-    assert_eq!(h.app.config.theme, "light");
-    assert_eq!(crate::state::load_config(&h.state_dir()).theme, "light");
-    h.press(&["t"; 5]);
-    assert_eq!(h.app.config.theme, "dark"); // round the six themes
+    assert_eq!(h.app.config.theme, "dark");
+    assert_eq!(crate::state::load_config(&h.state_dir()).theme, "dark");
+    h.press(&["t"; 6]);
+    assert_eq!(h.app.config.theme, "monokai"); // round the seven themes
     h.press(&["`", "t"]);
-    assert_eq!(h.app.config.theme, "dark"); // not while hidden
+    assert_eq!(h.app.config.theme, "monokai"); // not while hidden
 }
 
 #[test]
@@ -75,8 +75,8 @@ fn the_app_draws_in_its_own_theme_and_t_keeps_the_depth() {
     use crate::ui::theme::Depth;
     use ratatui::style::Color;
     let mut h = Harness::sample(80, 24);
-    h.app.theme = Theme::new("dark", Depth::Ansi256);
-    h.press(&["t"]);
+    h.app.theme = Theme::new("monokai", Depth::Ansi256);
+    h.press(&["t", "t"]); // monokai, dark, light
     assert_eq!(h.app.theme, Theme::new("light", Depth::Ansi256));
     let mut t = Terminal::new(TestBackend::new(80, 24)).unwrap();
     t.draw(|f| h.app.draw(f)).unwrap();

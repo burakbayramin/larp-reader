@@ -87,6 +87,31 @@ fn light(role: Role) -> Paint {
     })
 }
 
+/// Monokai on pure black, as a 256-colour terminal shows a coding session:
+/// cyan declarations, pink control words, lime calls, beige strings, violet
+/// numbers, deep green and red diff backgrounds.
+fn monokai(role: Role) -> Paint {
+    Hex(match role {
+        Role::Background => 0x000000,
+        Role::Text | Role::PanelText | Role::Type | Role::Variable => 0xf5f5f5,
+        Role::Gutter | Role::PanelBorder => 0x6f6f6f,
+        Role::Dim | Role::Comment => 0x878787,
+        Role::Keyword => 0x5fd7ff,
+        Role::Control => 0xff005f,
+        Role::Function => 0xafd700,
+        Role::String => 0xd7d787,
+        Role::Number | Role::Constant => 0xaf87ff,
+        Role::Green => 0x87d787,
+        Role::Yellow => 0xffd700,
+        Role::Red => 0xd75f5f,
+        Role::Blue => 0x5f5fff,
+        Role::Cyan => 0x5fd7d7,
+        Role::AddedBackground => 0x005f00,
+        Role::RemovedBackground => 0x5f0000,
+        Role::PanelBackground => 0x1c1c1c,
+    })
+}
+
 /// Colour-blind friendly: blue for added / passing, orange for removed / failing.
 fn daltonized(role: Role, dark: bool) -> Option<Paint> {
     Some(Hex(match (role, dark) {
@@ -208,20 +233,20 @@ pub struct Theme {
 }
 
 impl Default for Theme {
-    /// Dark, 24-bit.
+    /// Monokai, 24-bit.
     fn default() -> Theme {
-        Theme::new("dark", Depth::TrueColor)
+        Theme::new("monokai", Depth::TrueColor)
     }
 }
 
 impl Theme {
-    /// The theme called `name` (dark if there is none such) at `depth`.
+    /// The theme called `name` (monokai if there is none such) at `depth`.
     pub fn new(name: &str, depth: Depth) -> Theme {
         let name = THEMES
             .iter()
             .find(|t| **t == name)
             .copied()
-            .unwrap_or("dark");
+            .unwrap_or("monokai");
         Theme { name, depth }
     }
 
@@ -237,6 +262,7 @@ impl Theme {
     fn paint(&self, role: Role) -> Paint {
         let dark = Hex(role.dark());
         match self.name {
+            "monokai" => monokai(role),
             "light" => light(role),
             "dark-daltonized" => daltonized(role, true).unwrap_or(dark),
             "light-daltonized" => daltonized(role, false).unwrap_or_else(|| light(role)),
@@ -313,11 +339,25 @@ mod tests {
     }
 
     #[test]
-    fn unknown_names_fall_back_to_dark() {
-        assert_eq!(Theme::new("nope", Depth::Ansi16).name(), "dark");
+    fn monokai_lands_on_the_256_colours_of_a_terminal_coding_session() {
+        let at = |role| color("monokai", Depth::Ansi256, role);
+        let idx = |i| Some(Color::Indexed(i));
+        assert_eq!(at(Role::Background), idx(16));
+        assert_eq!(at(Role::Keyword), idx(81));
+        assert_eq!(at(Role::Control), idx(197));
+        assert_eq!(at(Role::Function), idx(148));
+        assert_eq!(at(Role::String), idx(186));
+        assert_eq!(at(Role::Number), idx(141));
+        assert_eq!(at(Role::AddedBackground), idx(22));
+        assert_eq!(at(Role::RemovedBackground), idx(52));
+    }
+
+    #[test]
+    fn unknown_names_fall_back_to_monokai() {
+        assert_eq!(Theme::new("nope", Depth::Ansi16).name(), "monokai");
         assert_eq!(Theme::new("nope", Depth::Ansi16).depth(), Depth::Ansi16);
         assert_eq!(Theme::new("light", Depth::TrueColor).name(), "light");
-        assert_eq!(Theme::default(), Theme::new("dark", Depth::TrueColor));
+        assert_eq!(Theme::default(), Theme::new("monokai", Depth::TrueColor));
     }
 
     #[test]

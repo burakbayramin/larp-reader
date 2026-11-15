@@ -21,6 +21,7 @@ use crate::pace::{DEFAULT_WPM, clamp_wpm};
 pub const HIDE_STYLES: &[&str] = &["stream", "shell"];
 /// Colour themes, in the order `t` cycles through them.
 pub const THEMES: &[&str] = &[
+    "monokai",
     "dark",
     "light",
     "dark-daltonized",
@@ -52,7 +53,7 @@ impl Default for Config {
             wpm: DEFAULT_WPM,
             auto: false,
             hide: "stream".into(),
-            theme: "dark".into(),
+            theme: "monokai".into(),
         }
     }
 }
@@ -529,7 +530,7 @@ mod tests {
         );
         assert_eq!(
             config_with(d.path(), json!({"theme": "neon"})).theme,
-            "dark"
+            "monokai"
         );
     }
 

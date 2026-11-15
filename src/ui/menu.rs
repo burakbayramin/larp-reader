@@ -374,7 +374,7 @@ mod tests {
                 wpm: 240,
                 noise: 3,
                 hide: "shell".into(),
-                theme: "light".into()
+                theme: "dark".into()
             }
         );
     }

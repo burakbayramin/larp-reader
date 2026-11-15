@@ -106,13 +106,10 @@ fn menu_path_opens_a_file_and_a_bad_one_hides_its_name() {
 fn menu_sets_the_theme() {
     let mut h = Harness::sample(100, 30);
     h.press(&[":"]);
-    assert!(h.screen().contains("theme: < dark >"));
+    assert!(h.screen().contains("theme: < monokai >"));
     h.app.menu.as_mut().unwrap().focus("theme");
     h.press(&["right", "right", "enter"]);
-    assert_eq!(h.app.config.theme, "dark-daltonized");
-    assert_eq!(h.app.theme.name(), "dark-daltonized");
-    assert_eq!(
-        crate::state::load_config(&h.state_dir()).theme,
-        "dark-daltonized"
-    );
+    assert_eq!(h.app.config.theme, "light");
+    assert_eq!(h.app.theme.name(), "light");
+    assert_eq!(crate::state::load_config(&h.state_dir()).theme, "light");
 }
