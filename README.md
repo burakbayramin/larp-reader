@@ -1,145 +1,198 @@
 # larp-reader
 
-Terminal e-kitap okuyucusu; metni bir geliştirici aracının çıktısı gibi gösterir
-(`code`, `log`, `diff`, `test`, `build`, `git`, `docker`, `agent` görünümleri). Yoldan geçen biri bir derleme
-aracına baktığınızı sanır.
+**Terminalde kitap oku, çalışıyormuş gibi görün.**
 
-İsim, argodaki *larp* fiilinden geliyor: rol yapmak, öyleymiş gibi davranmak.
-larp-reader ile kitap okurken çalışıyormuş gibi yaparsınız. `agent` görünümünün
-karşılama kutusundaki figür de aynısını yapıyor: karton miğferli, köpük kılıçlı bir
-rol yapımcısı gibi poz veriyor, ara sıra kılıcını kaldırıp savuruyor, kılıç
-bazen sarkıyor (köpük sonuçta), yazı akarken de olduğu yerde yürüyor.
+larp-reader e-kitabınızı terminalde açar ve her satırı bir geliştirici aracının
+çıktısı gibi gösterir: kod, derleme logu, diff, test raporu ya da bir kod ajanının
+oturumu. Yanınızdan geçen biri ekrana bakınca bir derlemeyi izlediğinizi sanır.
+Biri iyice yaklaşırsa tek tuşla kitap tamamen kaybolur.
 
-## Kurulum
+İsim argodaki *larp*'tan geliyor: rol yapmak, öyleymiş gibi davranmak.
+Komutun adı kısaca `larpr`.
 
-Windows, macOS (Apple Silicon ve Intel) ve Linux için hazır programlar
-[Releases](../../releases) sayfasında. Arşivi açıp `larpr` (Windows'ta `larpr.exe`)
-dosyasını PATH'teki bir klasöre koymanız yeterli; başka bir şey kurmak gerekmez.
+```
+╭──────────────────────────────────────────────────────╮
+│  ▄█████▄ │  larpr v0.7.0                              │
+│  █ ▀ ▀ █ │  role: senior engineer (self-appointed)    │
+│  ▐█████▌▄┼  cwd: ~/work/api                           │
+│   ▟▛ ▜▙  █  armor: cardboard, sword: foam             │
+╰──────────────────────────────────────────────────────╯
 
-[cargo-binstall](https://github.com/cargo-bins/cargo-binstall) kuruluysa hazır programı
-derlemeden indirip kurar:
+⏺ Update(src/cache/store.py)
+  ⎿  Updated src/cache/store.py with 4 additions and 1 removal
+    212       def evict(self, key: str) -> None:
+    213 -         self._hits.pop(key, None)
+    213 +         O sabah erkenden uyandı, pencereyi açtı
+    214 +         ve uzun uzun denizi seyretti.
+```
+
+Yeşil satırlar kitabınız; geri kalan her şey sahte.
+
+## Hızlı başlangıç
+
+1. [Releases](../../releases) sayfasından işletim sisteminize uygun arşivi indirin
+   (Windows, macOS Apple Silicon / Intel, Linux).
+2. Arşivi açın, içindeki `larpr` (Windows'ta `larpr.exe`) dosyasını PATH'teki bir
+   klasöre koyun. Başka bir şey kurmanız gerekmez.
+3. Kitabınızı açın:
+
+```
+larpr build kitap.epub
+```
+
+Bir dahaki sefere `larpr build` yazmanız yeterli: en son okuduğunuz kitap kaldığınız
+yerden açılır.
+
+Okumak için `Space`, çıkmak için `q`. Biri gelirse: `` ` `` (backtick).
+
+## Panik tuşu
+
+`` ` `` tuşuna bastığınız an kitaptan tek kelime kalmaz; ekranı o anki görünüme uygun
+sahte çıktı doldurur. Aynı tuşla kaldığınız yere dönersiniz.
+
+İsterseniz panik tuşu bunun yerine çalışan bir sahte terminal açar
+(`--hide=shell`): `ls`, `pwd`, `git status` beklenen çıktıyı verir, `npm`, `pytest`,
+`cargo` gibi komutlar çıktı basar, bilinmeyen komutlar `command not found` der.
+
+Dosya adı ekranda hiçbir zaman görünmez; `--help` ve `--version` bile bir derleme
+aracınınki gibi durur.
+
+## Görünümler
+
+`m` ile görünümler arasında geçersiniz (`M` geri):
+
+| Görünüm | Neye benzer |
+| --- | --- |
+| `code` | Bir editörde açık, bol belgelenmiş kaynak kod; kitabınız fonksiyonların açıklama yorumları olarak görünür (`l` ile dil: Python, TypeScript, Go, Rust, Java, C#) |
+| `log` | Zaman damgalı uygulama logları |
+| `diff` | Bir `git diff` çıktısı |
+| `test` | Akan bir pytest oturumu |
+| `build` | `cargo build` benzeri derleme çıktısı |
+| `git` | `git log --stat` |
+| `docker` | `docker compose up` logları |
+| `agent` | Kod yazan bir yapay zekâ ajanının oturumu: araç çağrıları, renkli diff'ler, alt ajanlar |
+
+Araya karışan sahte satırların miktarını `n` / `N` ile ayarlarsınız. Sahte satırlar
+binlerce farklı satırdan seçilir, kısa sürede kendini tekrar etmez.
+
+### agent görünümü
+
+En inandırıcı görünüm bu. Açılışta bir karşılama kutusu ve karton miğferli, köpük
+kılıçlı küçük bir figür çıkar: ara sıra kılıcını savurur, kılıç bazen bükülür, metin
+akarken yerinde yürür.
+
+Biri yanınıza gelirse `i` ile alttaki kutuya bir şey yazıp `Enter`'a basın; örneğin
+"add retries to the upload client". Ajan birkaç saniye isteğiniz üzerinde çalışıyormuş
+gibi yapar: düşünür, dosya okur, komut çalıştırır, diff gösterir ve kısa bir özetle
+bitirir. Bu sırada ekranda kitaptan hiçbir şey kalmaz. Bitince ya da herhangi bir tuşa
+basınca kitap kaldığı yerden devam eder.
+
+## Kendiliğinden akış
+
+`a` ile metin kendi kendine akar, tıpkı çalışan bir komutun çıktısı gibi. Hız okuma
+hızınıza göredir; `+` / `-` ile ayarlanır. Program siz elle sayfa çevirdikçe
+gerçek hızınızı öğrenir ve kendini ona göre ayarlar.
+
+Ekranı bölmek de işe yarar: bir tarafta larpr, diğer tarafta gerçek işiniz
+(Windows Terminal'de `Alt+Shift+D`).
+
+## Okuma istatistikleri
+
+`S` ne kadar okuduğunuzu gösterir: bugün ve bu hafta okunan sayfa ve süre, kaç gündür
+aralıksız okuduğunuz, ortalama hızınız, kitabın bitmesine kalan süre ve son 14 günün
+küçük bir grafiği. Rapor da o anki görünümün kılığına girer: `git` görünümünde
+`git log --stat`, `test` görünümünde pytest özeti gibi durur.
+
+Yalnızca gerçekten okuduğunuz sayfalar sayılır; hızla geçtiğiniz sayfalar ve panik
+ekranında geçen süre sayılmaz.
+
+## Tuşlar
+
+| Tuş | Ne yapar |
+| --- | --- |
+| `Space` / `PgDn` | sonraki sayfa |
+| `u` / `PgUp` | önceki sayfa |
+| `j` / `k` (ya da oklar) | bir satır ileri / geri |
+| `]` / `[` | sonraki bölüm / bölüm başı |
+| `/` | kitapta ara; `f` / `F` sonraki / önceki sonuç |
+| `b` | yer imi koy; `'` / `"` sonraki / önceki yer imi |
+| `a` | kendiliğinden akışı aç / kapat; `+` / `-` hız |
+| `m` / `M` | görünüm değiştir |
+| `l` / `L` | kod dilini değiştir (`code` görünümü) |
+| `n` / `N` | sahte satırları artır / azalt |
+| `t` | renk temasını değiştir |
+| `i` | `agent` görünümünde kutuya istek yaz |
+| `S` | okuma istatistikleri |
+| `o` / `O` | aynı klasördeki sonraki / önceki kitap |
+| `Esc` | yan panel: tüm kısayollar ve klasördeki kitaplar (`1`-`9` ile aç) |
+| `:` | ayar menüsü |
+| `` ` `` | panik: her şeyi anında gizle / geri getir |
+| `q` | kaydet ve çık |
+
+Her kitabın yeri, yer imleri ve ayarlarınız kendiliğinden kaydedilir.
+
+## Renk temaları
+
+Varsayılan tema `monokai`: tam siyah zemin üzerinde kod renkleri; Apple Terminal dahil
+her terminalde aynı görünür. `t` ile diğer temalara geçebilirsiniz:
+
+- `dark`, `light`: koyu ve açık editör renkleri
+- `dark-daltonized`, `light-daltonized`: renk körlüğüne uygun; yeşil/kırmızı yerine mavi/turuncu
+- `dark-ansi`, `light-ansi`: terminalinizin kendi renk şemasını kullanır
+
+Terminaliniz 24 bit rengi desteklemiyorsa renkler en yakın 256 ya da 16 renge
+çevrilir; bir şey yapmanız gerekmez.
+
+## Desteklenen biçimler
+
+EPUB, PDF, MOBI / AZW / AZW3, FB2, DOCX, ODT, RTF, TXT / Markdown ve HTML.
+
+Bilgisayarınızda [Calibre](https://calibre-ebook.com) kuruluysa listede olmayan
+biçimler (XPS, CBZ, DJVU …) de açılır. DRM korumalı dosyalar açılmaz; taranmış
+(yalnızca resimden oluşan) PDF'ler de okunamaz.
+
+## Başlatırken seçenekler
+
+Çoğunu program içinden tuşlarla da değiştirebilirsiniz; burada verdikleriniz
+kaydedilir.
+
+```
+larpr build kitap.epub --mask=agent --auto --wpm=300
+```
+
+| Seçenek | Ne işe yarar |
+| --- | --- |
+| `--mask` | açılış görünümü: `code`, `log`, `diff`, `test`, `build`, `git`, `docker`, `agent` |
+| `--lang` | `code` görünümünün dili: `python`, `typescript`, `go`, `rust`, `java`, `csharp` |
+| `--noise` | sahte satır miktarı, 0-5 |
+| `--auto` | kendiliğinden akışla başla |
+| `--wpm` | okuma hızı, dakikada kelime (60-1500, varsayılan 220) |
+| `--hide` | panik tuşu ne göstersin: `stream` (akan çıktı) ya da `shell` (sahte terminal) |
+| `--theme` | renk teması (yukarıya bakın) |
+
+## Diğer kurulum yolları
+
+[cargo-binstall](https://github.com/cargo-bins/cargo-binstall) kullanıyorsanız hazır
+programı tek komutla indirir:
 
 ```
 cargo binstall --git https://github.com/burakbayramin/larp-reader larp-reader
 ```
 
-Kaynaktan derlemek için (Rust 1.88+):
+Rust kuruluysa (1.88 ya da yenisi) kaynaktan derleyebilirsiniz:
 
 ```
 cargo install --git https://github.com/burakbayramin/larp-reader
-# ya da repo klasöründe
-cargo install --path .
 ```
 
-Kurulumu doğrulamak için: `larpr --version`.
+Kurulduğunu görmek için: `larpr --version`.
 
-Komutun adı `larpr`. Ayarlar ve ilerleme `~/.config/larpr` (Windows'ta
-`%APPDATA%\larpr`) klasöründe tutulur. Daha önce `fcc` adıyla kullandıysanız eski
-klasör ilk açılışta buraya taşınır; her kitap kaldığı yerden açılır.
+## Verileriniz
 
-## Kullanım
+Her şey bilgisayarınızda kalır; program internete bağlanmaz. Ayarlar, kaldığınız
+yerler ve istatistikler `~/.config/larpr` klasöründedir (Windows'ta `%APPDATA%\larpr`).
+Kitapların adı ya da içeriği hiçbir dosyaya yazılmaz; kitaplar yalnızca bir kimlik
+numarasıyla tanınır.
 
-```
-larpr build <dosya> --mask=code --lang=python --noise=2
-```
-
-- `--mask`: `code`, `log`, `diff`, `test`, `build`, `git` (`git log --stat`), `docker` (`docker compose up` logları), `agent` (kod yazan bir ajan oturumu: araç çağrıları, yeşil/kırmızı diff'ler, komut çıktıları)
-- `--lang`: `python`, `typescript`, `go`, `rust`, `java`, `csharp` (code görünümü için)
-- `--noise`: araya karışan sahte çıktı miktarı (0-5)
-- `--auto`: otomatik akış
-- `--wpm`: okuma hızı, dakikada kelime (60-1500, varsayılan 220); otomatik akış buna göre ilerler
-- `--hide`: panik tuşu ne göstersin: `stream` (akan sahte çıktı) veya `shell` (komut yazılabilen sahte shell)
-- `--theme`: renk teması: `monokai` (varsayılan; tam siyah zemin üzerinde Monokai renkleri), `dark`, `light`, `dark-daltonized`, `light-daltonized` (renk körlüğüne uygun: yeşil/kırmızı yerine mavi/turuncu), `dark-ansi`, `light-ansi` (terminalin kendi 16 rengi)
-- Dosya verilmezse en son açılan kitaptan devam edilir.
-
-Windows Terminal'de ekranı bölmek için `Alt+Shift+D`: bir tarafta kitap, diğer tarafta
-gerçek bir geliştirme oturumu.
-
-## Tuşlar
-
-| Tuş | İşlev |
-| --- | --- |
-| `Space` / `PgDn` | bir sayfa ileri |
-| `u` / `PgUp` | bir sayfa geri |
-| `Down` / `j` | bir satır ileri |
-| `Up` / `k` | bir satır geri |
-| `]` / `[` | sonraki bölüm / bölüm başı, oradaysa önceki bölüm |
-| `/` | metinde ara (büyük-küçük harf ve İ/ı fark etmez); eşleşmeler vurgulanır |
-| `f` / `F` | sonraki / önceki eşleşme (sona gelince başa sarar) |
-| `a` | otomatik akışı aç/kapat |
-| `+` / `-` | okuma hızını ~%10 artır / azalt (`throttle 240/min` mesajı) |
-| `m` / `M` | görünümü değiştir: sonraki / önceki (code, log, diff, test, build, git, docker, agent) |
-| `l` / `L` | kod dilini değiştir: sonraki / önceki (code görünümüne geçer) |
-| `n` / `N` | gürültüyü artır / azalt |
-| `b` | yer imi ekle (`cache saved` mesajı) |
-| `'` / `"` | sonraki / önceki yer imine git |
-| `t` | renk temasını değiştir (monokai, dark, light, daltonized, ansi) |
-| `i` | `agent` görünümünde alttaki kutuya bir istek yaz (`Enter` gönderir, `Esc` vazgeçer); diğer görünümlerde bir şey yapmaz |
-| `:` | ayar menüsü (dosya aç, görünüm, dil, okuma hızı, gürültü, panik biçimi, tema, yer imleri, bölümler) |
-| `o` / `O` | klasördeki sonraki / önceki kitaba geç (her kitabın yeri ayrı saklanır) |
-| `Esc` | yan panel: kısayollar ve klasördeki kitaplar; panel açıkken `1`-`9` ile listeden kitap aç |
-| `` ` `` | panik: anında sahte çıktı akışı ya da sahte shell (panel, menü veya arama açıksa onu da kapatır) |
-| `S` | okuma istatistikleri: o anki görünümün çıktısı gibi çizilen bir rapor; herhangi bir tuş kapatır, `` ` `` anında gizler |
-| `q` | ilerlemeyi kaydet ve çık |
-
-Menüde `Tab`/`Up`/`Down` ile alan değiştirilir, `Left`/`Right` ile değer seçilir,
-`Enter` uygular.
-
-Otomatik akış okuma hızına göre ilerler: her satır, içindeki kelime sayısına göre
-ekranda kalır (220 WPM'de 11 kelimelik bir satır 3 saniye). Hız elle sayfa
-çevirdikçe öğrenilir: `Space` ile her ekran geçişinde o ekrandaki kelimeleri ne kadar
-sürede okuduğun ölçülür ve kayıtlı hız yavaşça buna yaklaşır. Çok hızlı geçilen
-(2 sn altı) ya da uzun süre açık kalan (5 dk üstü) ekranlar ve panik modunda
-geçen süre hesaba katılmaz.
-
-İstatistikler: `S` günlük okunan kelimeyi ve süreyi (bugün, bu hafta, art arda gün sayısı, ortalama
-hız, açık metnin bitmesine kalan süre, son 14 günün çubuk grafiği) görünümün üslubunda bir rapor
-olarak gösterir. Bir ekran, hız öğrenmedeki kuralla (2 sn - 5 dk arası, en az 15 kelime) okunmuş
-sayılır ve ekrandan ayrılırken kaydedilir; hızlı geçilen ekranlar ve panikte geçen süre sayılmaz.
-Otomatik akışta gösterilen satırlar da sayılır. Veriler ilerleme dosyasının yanındaki `stats.json`
-içinde (yerel tarihe göre gün gün kelime ve saniye, metin başına toplam) tutulur ve ilerlemeyle aynı
-anda kaydedilir; kitabın adı ya da metni hiçbir yerde saklanmaz, yalnızca kitap kimliği. Bozuk dosya
-`stats.json.bak` olarak yedeklenir ve istatistikler sıfırdan başlar. Durum satırının sağında, sığarsa,
-bugünkü kelime sayısı görünür.
-
-`agent` görünümü bir kod ajanı oturumu gibi akar: `⏺ Update(...)` diff'leri, `⏺ Bash(...)`
-komut çıktıları, `Read`/`Search` çağrıları ve yapılacaklar listesi. Paragrafların çoğu
-diff'te eklenen (yeşil) satırlar, kalanı ajanın açıklama metni olarak görünür. Dolgu kodu
-binlerce farklı satırlık havuzlardan sırayla okunur, bu yüzden uzun süre aynı satır
-tekrar etmez. Sürekli akış için: `larpr build kitap.epub --mask=agent --auto`.
-Biri yanınıza gelirse `i` ile alttaki kutuya bir istek yazıp `Enter`'a basın: isteğiniz
-`> ...` olarak ekrana düşer ve ajan birkaç saniye "üzerinde çalışır" (düşünür, dosya
-okur, komut çalıştırır, diff gösterir, kısa bir özetle bitirir). Aynı istek hep aynı
-cevabı alır; cevap bitince ya da herhangi bir tuşa basınca metin kaldığı yerde geri
-gelir. Bu sırada otomatik akış bekler, panik tuşu her şeyi anında gizler.
-
-Sahte shell (`--hide=shell` ya da menüde `on hide: shell`): panik tuşuna basınca
-gerçek bir prompt çıkar (Windows'ta `PS C:\...>`, macOS/Linux'ta kullanıcı@makine).
-`ls`, `pwd`, `git status`, `clear` beklenen çıktıyı verir; `npm`, `pytest`, `cargo`,
-`docker` gibi araçlar o anki görünümün çıktısını basar; bilinmeyen komutlar
-`command not found` verir. Kitaba dönmek için yine `` ` ``.
-
-## Renkler
-
-Terminal 24 bit renk destekliyorsa (`COLORTERM=truecolor`; iTerm2, Windows Terminal,
-VS Code, WezTerm, Ghostty …) renkler olduğu gibi gösterilir. macOS 26 öncesindeki
-Terminal uygulaması gibi desteklemeyenlerde en yakın 256 renge, gerekirse 16 renge
-çevrilir. Terminalinizin kendi renk şemasıyla uyumlu olsun isterseniz `dark-ansi` /
-`light-ansi` temalarını deneyin.
-
-Varsayılan `monokai` teması tam siyah zemin üzerinde çalışır: tanımlar camgöbeği,
-`for`/`if` gibi akış sözcükleri pembe, çağrılar fıstık yeşili, metinler bej, sayılar
-mor; diff satırları koyu yeşil ve koyu kırmızı zeminli. Renkler 256 renkli
-terminalin kendi tonlarına denk düşecek şekilde seçildi, Apple Terminal'de de aynı
-görünür. Daha önce başka bir tema seçtiyseniz `t` ile `monokai`'ye dönebilirsiniz.
-
-## Desteklenen biçimler
-
-EPUB, PDF, MOBI/AZW/AZW3, FB2, DOCX, ODT, RTF, TXT/Markdown, HTML.
-Bunların dışındaki biçimler (XPS, CBZ, DJVU …) Calibre kuruluysa `ebook-convert` ile
-EPUB'a çevrilip açılır (Calibre yedek yol olarak kullanılır). DRM'li dosyalar açılmaz.
-
-## Kapsam dışı
-
-- Taranmış belgeler için OCR
-- DRM çözme
+Daha önce programı eski adıyla (`fcc`) kullandıysanız ayarlarınız ilk açılışta yeni
+klasöre taşınır.
