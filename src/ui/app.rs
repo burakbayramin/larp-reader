@@ -10,7 +10,6 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use ratatui::Frame;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Constraint, Layout};
-use ratatui::style::Style;
 use ratatui::widgets::Paragraph;
 
 use rand::SeedableRng;
@@ -21,8 +20,7 @@ use super::menu::{Menu, MenuResult, section_label};
 use super::panel;
 use super::search::{self, Search};
 use super::shell::{shell_output, shell_prompt};
-use super::style::{base, style};
-use super::theme::{self, THEMES};
+use super::theme::{THEMES, Theme};
 use super::timer::{Clock, Pacer};
 use crate::book::{Book, Pos};
 use crate::errors::FccError;
@@ -142,18 +140,21 @@ pub struct App {
     pub menu: Option<Menu>,
     /// The side panel with the keys and the folder's files.
     pub panel: bool,
+    /// The colour theme and depth everything is drawn in.
+    pub theme: Theme,
 }
 
 impl App {
+    /// `theme` is the configured theme at the terminal's colour depth.
     pub fn new(
         path: Option<PathBuf>,
         config: Config,
+        theme: Theme,
         state_dir: PathBuf,
         cols: u16,
         rows: u16,
         now: Instant,
     ) -> App {
-        theme::set(&config.theme, theme::current().1);
         let (mask, mask_error) = resolve_mask(&config);
         let mut app = App {
             path,
@@ -188,6 +189,7 @@ impl App {
             search: Search::default(),
             menu: None,
             panel: false,
+            theme,
         };
         if let Some(e) = mask_error {
             app.notice.extend(error_lines(&e, app.width()));
@@ -359,15 +361,17 @@ impl App {
     }
 
     pub fn draw(&self, frame: &mut Frame) {
-        self.draw_with(frame, base());
+        self.draw_in(frame, &self.theme);
     }
 
-    /// Draw on a screen painted with `base` (the theme's background and text).
-    pub fn draw_with(&self, frame: &mut Frame, base: Style) {
+    /// Draw in `theme` (the app's own, but tests may pick another).
+    pub fn draw_in(&self, frame: &mut Frame, theme: &Theme) {
         if let Some(menu) = &self.menu {
-            menu.draw_with(frame, base);
+            menu.draw(frame, theme);
             return;
         }
+        let base = theme.base();
+        let style = |look: Look| theme.style(look);
         frame.render_widget(ratatui::widgets::Block::default().style(base), frame.area());
         let input = self.prompt_box();
         let box_rows = if input.is_some() { BOX_ROWS as u16 } else { 0 };
@@ -377,7 +381,7 @@ impl App {
             Constraint::Length(1),
         ])
         .areas(frame.area());
-        frame.render_widget(&self.feed, feed);
+        frame.render_widget(Paragraph::new(self.feed.text(theme)), feed);
         if let Some(placeholder) = input {
             use ratatui::text::{Line as TLine, Span};
             use ratatui::widgets::{Block, BorderType, Borders};
@@ -407,13 +411,13 @@ impl App {
             );
         }
         if self.panel {
-            panel::draw_panel(frame, self.entry_path.as_deref());
+            panel::draw_panel(frame, theme, self.entry_path.as_deref());
         }
     }
 
     /// The side panel's text: the keys, then the folder's openable files.
-    pub fn panel_text(&self) -> Vec<ratatui::text::Line<'static>> {
-        panel::panel_text(self.entry_path.as_deref())
+    pub fn panel_text(&self, theme: &Theme) -> Vec<ratatui::text::Line<'static>> {
+        panel::panel_text(theme, self.entry_path.as_deref())
     }
 
     /// The mask in use: the open session's, or the one kept for errors.
@@ -690,8 +694,8 @@ impl App {
     }
 
     fn use_theme(&mut self, name: &str) {
-        self.config.theme = name.to_string();
-        theme::set(name, theme::current().1);
+        self.theme = Theme::new(name, self.theme.depth());
+        self.config.theme = self.theme.name().to_string();
     }
 
     fn cycle_theme(&mut self) {

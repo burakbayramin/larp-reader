@@ -55,7 +55,7 @@ fn deadline_is_near_only_while_the_label_animates() {
 /// The newest text line of the stream, as drawn on screen.
 fn newest_drawn(h: &Harness) -> (Line, String) {
     let line = h.app.feed.history_lines().last().unwrap().clone();
-    let text = h.app.feed.text();
+    let text = h.app.feed.text(&h.app.theme);
     (line, text.lines.last().unwrap().to_string())
 }
 

@@ -7,7 +7,6 @@ pub mod menu;
 pub mod panel;
 pub mod search;
 pub mod shell;
-pub mod style;
 pub mod theme;
 pub mod timer;
 

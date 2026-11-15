@@ -50,7 +50,7 @@ fn main() -> ExitCode {
         Ok(Outcome::Run(path, config)) => (path, config),
     };
 
-    fcc::ui::theme::set(&config.theme, fcc::ui::theme::detect_depth_from_env());
+    let theme = fcc::ui::theme::Theme::new(&config.theme, fcc::ui::theme::detect_depth_from_env());
     let mut terminal = ratatui::init(); // restores the terminal on a real panic
     let restore_and_report = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
@@ -62,6 +62,7 @@ fn main() -> ExitCode {
     let mut app = App::new(
         Some(path),
         config,
+        theme,
         state_dir,
         size.width,
         size.height,

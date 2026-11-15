@@ -4,7 +4,7 @@ use super::*;
 
 fn panel(h: &Harness) -> String {
     h.app
-        .panel_text()
+        .panel_text(&h.app.theme)
         .iter()
         .map(|l| {
             l.spans

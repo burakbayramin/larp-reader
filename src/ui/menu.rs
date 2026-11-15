@@ -12,6 +12,7 @@ use ratatui::widgets::Paragraph;
 use unicode_width::UnicodeWidthStr;
 
 use super::input::{InputEvent, LineInput};
+use super::theme::Theme;
 use crate::book::Pos;
 use crate::masks::{LANGS, MASK_NAMES};
 use crate::state::{Config, HIDE_STYLES, THEMES};
@@ -266,12 +267,9 @@ impl Menu {
         MenuResult::Stay
     }
 
-    pub fn draw(&self, frame: &mut Frame) {
-        self.draw_with(frame, super::style::base());
-    }
-
-    /// Draw on a screen painted with `base` (the theme's background and text).
-    pub fn draw_with(&self, frame: &mut Frame, base: Style) {
+    /// Draw on a screen painted with `theme`'s background and text.
+    pub fn draw(&self, frame: &mut Frame, theme: &Theme) {
+        let base = theme.base();
         let focused = Style::default().add_modifier(Modifier::REVERSED);
         let line = |text: String, on: bool| {
             if on {

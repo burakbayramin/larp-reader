@@ -1,13 +1,15 @@
 //! Colour themes and what the terminal can show.
 //!
-//! Masks speak in the dark theme's colours (VS Code Dark+). A theme maps each
-//! of those to its own colour when drawing, and the result is brought down to
-//! the terminal's depth: 24-bit where it is supported, else the nearest of the
-//! 256 xterm colours (Apple's Terminal before macOS 26) or of the 16 ANSI ones.
+//! Masks speak in colour roles (`masks::Role`), valued in the dark theme
+//! (VS Code Dark+). A `Theme` maps each role to its own colour when drawing,
+//! and the result is brought down to the terminal's depth: 24-bit where it is
+//! supported, else the nearest of the 256 xterm colours (Apple's Terminal
+//! before macOS 26) or of the 16 ANSI ones. The app owns the theme in use and
+//! passes it to whatever draws.
 
-use std::sync::RwLock;
+use ratatui::style::{Color, Modifier, Style};
 
-use ratatui::style::Color;
+use crate::masks::{Ink, Look, Role};
 
 pub use crate::state::THEMES;
 
@@ -48,33 +50,6 @@ pub fn detect_depth_from_env() -> Depth {
     )
 }
 
-/// The dark theme's colours, as the masks write them, and what each means.
-const DARK: &[(&str, &str)] = &[
-    ("#1e1e1e", "background"),
-    ("#d4d4d4", "text"),
-    ("#858585", "gutter"),
-    ("#6a9955", "comment"),
-    ("#569cd6", "keyword"),
-    ("#c586c0", "control"),
-    ("#dcdcaa", "function"),
-    ("#4ec9b0", "type"),
-    ("#ce9178", "string"),
-    ("#b5cea8", "number"),
-    ("#9cdcfe", "variable"),
-    ("#4fc1ff", "constant"),
-    ("#3fb950", "green"),
-    ("#d29922", "yellow"),
-    ("#f85149", "red"),
-    ("#58a6ff", "blue"),
-    ("#39c5cf", "cyan"),
-    ("#6e7681", "dim"),
-    ("#1f3d27", "added background"),
-    ("#4b1f22", "removed background"),
-    ("#252526", "panel background"),
-    ("#cccccc", "panel text"),
-    ("#3c3c3c", "panel border"),
-];
-
 /// A colour in a theme: a 24-bit value, a terminal palette colour, or the terminal's own default.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Paint {
@@ -86,85 +61,67 @@ enum Paint {
 use Paint::{Default as Term, Hex, Named};
 
 /// Light: VS Code Light+ code colours with GitHub's terminal and diff colours.
-fn light(role: &str) -> Paint {
+fn light(role: Role) -> Paint {
     Hex(match role {
-        "background" => 0xffffff,
-        "text" | "panel text" => 0x1f2328,
-        "gutter" | "dim" => 0x6e7781,
-        "comment" => 0x008000,
-        "keyword" => 0x0000ff,
-        "control" => 0xaf00db,
-        "function" => 0x795e26,
-        "type" => 0x267f99,
-        "string" => 0xa31515,
-        "number" => 0x098658,
-        "variable" => 0x001080,
-        "constant" => 0x0070c1,
-        "green" => 0x1a7f37,
-        "yellow" => 0x9a6700,
-        "red" => 0xcf222e,
-        "blue" => 0x0969da,
-        "cyan" => 0x1b7c83,
-        "added background" => 0xdafbe1,
-        "removed background" => 0xffebe9,
-        "panel background" => 0xf6f8fa,
-        "panel border" => 0xd0d7de,
-        _ => return Term,
+        Role::Background => 0xffffff,
+        Role::Text | Role::PanelText => 0x1f2328,
+        Role::Gutter | Role::Dim => 0x6e7781,
+        Role::Comment => 0x008000,
+        Role::Keyword => 0x0000ff,
+        Role::Control => 0xaf00db,
+        Role::Function => 0x795e26,
+        Role::Type => 0x267f99,
+        Role::String => 0xa31515,
+        Role::Number => 0x098658,
+        Role::Variable => 0x001080,
+        Role::Constant => 0x0070c1,
+        Role::Green => 0x1a7f37,
+        Role::Yellow => 0x9a6700,
+        Role::Red => 0xcf222e,
+        Role::Blue => 0x0969da,
+        Role::Cyan => 0x1b7c83,
+        Role::AddedBackground => 0xdafbe1,
+        Role::RemovedBackground => 0xffebe9,
+        Role::PanelBackground => 0xf6f8fa,
+        Role::PanelBorder => 0xd0d7de,
     })
 }
 
 /// Colour-blind friendly: blue for added / passing, orange for removed / failing.
-fn daltonized(role: &str, dark: bool) -> Option<Paint> {
+fn daltonized(role: Role, dark: bool) -> Option<Paint> {
     Some(Hex(match (role, dark) {
-        ("green", true) => 0x58a6ff,
-        ("red", true) => 0xf0883e,
-        ("added background", true) => 0x12304a,
-        ("removed background", true) => 0x4a2a14,
-        ("comment", true) => 0x8b949e,
-        ("green", false) => 0x0969da,
-        ("red", false) => 0xbc4c00,
-        ("added background", false) => 0xddf4ff,
-        ("removed background", false) => 0xfff1e5,
-        ("comment", false) => 0x57606a,
+        (Role::Green, true) => 0x58a6ff,
+        (Role::Red, true) => 0xf0883e,
+        (Role::AddedBackground, true) => 0x12304a,
+        (Role::RemovedBackground, true) => 0x4a2a14,
+        (Role::Comment, true) => 0x8b949e,
+        (Role::Green, false) => 0x0969da,
+        (Role::Red, false) => 0xbc4c00,
+        (Role::AddedBackground, false) => 0xddf4ff,
+        (Role::RemovedBackground, false) => 0xfff1e5,
+        (Role::Comment, false) => 0x57606a,
         _ => return None,
     }))
 }
 
 /// Only the terminal's 16 colours, so its own palette decides the shades.
-fn ansi(role: &str, dark: bool) -> Paint {
+fn ansi(role: Role, dark: bool) -> Paint {
     let bright = |c: Color, dim: Color| Named(if dark { c } else { dim });
     match role {
-        "background" | "text" | "panel text" | "panel background" => Term,
-        "gutter" | "dim" | "panel border" => Named(Color::DarkGray),
-        "comment" | "green" => Named(Color::Green),
-        "keyword" | "blue" => Named(Color::Blue),
-        "control" => Named(Color::Magenta),
-        "function" | "yellow" => Named(Color::Yellow),
-        "type" | "cyan" => Named(Color::Cyan),
-        "string" => bright(Color::LightRed, Color::Red),
-        "number" => bright(Color::LightGreen, Color::Green),
-        "variable" => bright(Color::LightBlue, Color::Blue),
-        "constant" => bright(Color::LightCyan, Color::Cyan),
-        "red" => Named(Color::Red),
-        "added background" => Named(Color::Green),
-        "removed background" => Named(Color::Red),
-        _ => Term,
-    }
-}
-
-/// The colour `hex` (a dark-theme colour) has in `theme`; other hex values pass through.
-fn paint(theme: &str, hex: u32) -> Paint {
-    let key = format!("#{hex:06x}");
-    let Some((_, role)) = DARK.iter().find(|(h, _)| *h == key) else {
-        return Hex(hex);
-    };
-    match theme {
-        "light" => light(role),
-        "dark-daltonized" => daltonized(role, true).unwrap_or(Hex(hex)),
-        "light-daltonized" => daltonized(role, false).unwrap_or_else(|| light(role)),
-        "dark-ansi" => ansi(role, true),
-        "light-ansi" => ansi(role, false),
-        _ => Hex(hex),
+        Role::Background | Role::Text | Role::PanelText | Role::PanelBackground => Term,
+        Role::Gutter | Role::Dim | Role::PanelBorder => Named(Color::DarkGray),
+        Role::Comment | Role::Green => Named(Color::Green),
+        Role::Keyword | Role::Blue => Named(Color::Blue),
+        Role::Control => Named(Color::Magenta),
+        Role::Function | Role::Yellow => Named(Color::Yellow),
+        Role::Type | Role::Cyan => Named(Color::Cyan),
+        Role::String => bright(Color::LightRed, Color::Red),
+        Role::Number => bright(Color::LightGreen, Color::Green),
+        Role::Variable => bright(Color::LightBlue, Color::Blue),
+        Role::Constant => bright(Color::LightCyan, Color::Cyan),
+        Role::Red => Named(Color::Red),
+        Role::AddedBackground => Named(Color::Green),
+        Role::RemovedBackground => Named(Color::Red),
     }
 }
 
@@ -240,48 +197,106 @@ pub fn nearest_16(hex: u32) -> Color {
     }
 }
 
-/// A mask colour as the terminal should get it, in `theme` at `depth`.
-pub fn color(theme: &str, depth: Depth, hex: u32) -> Option<Color> {
-    match paint(theme, hex) {
-        Term => None,
-        Named(c) => Some(c),
-        Hex(h) => Some(match depth {
-            Depth::TrueColor => {
-                let (r, g, b) = rgb(h);
-                Color::Rgb(r as u8, g as u8, b as u8)
-            }
-            Depth::Ansi256 => Color::Indexed(nearest_256(h)),
-            Depth::Ansi16 => nearest_16(h),
-        }),
+/// The default text on the default background.
+const BASE: Look = Look::fg(Role::Text).on(Role::Background);
+
+/// A colour theme (one of `THEMES`) at the terminal's colour depth.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Theme {
+    name: &'static str,
+    depth: Depth,
+}
+
+impl Default for Theme {
+    /// Dark, 24-bit.
+    fn default() -> Theme {
+        Theme::new("dark", Depth::TrueColor)
     }
 }
 
-static CURRENT: RwLock<Option<(String, Depth)>> = RwLock::new(None);
-
-/// Use `theme` (and `depth`) for everything drawn from now on.
-pub fn set(theme: &str, depth: Depth) {
-    let name = if THEMES.contains(&theme) {
-        theme
-    } else {
-        "dark"
-    };
-    if let Ok(mut c) = CURRENT.write() {
-        *c = Some((name.to_string(), depth));
+impl Theme {
+    /// The theme called `name` (dark if there is none such) at `depth`.
+    pub fn new(name: &str, depth: Depth) -> Theme {
+        let name = THEMES
+            .iter()
+            .find(|t| **t == name)
+            .copied()
+            .unwrap_or("dark");
+        Theme { name, depth }
     }
-}
 
-/// The theme and depth in use (dark, 24-bit until `set` is called).
-pub fn current() -> (String, Depth) {
-    CURRENT
-        .read()
-        .ok()
-        .and_then(|c| c.clone())
-        .unwrap_or_else(|| ("dark".into(), Depth::TrueColor))
+    pub fn name(&self) -> &'static str {
+        self.name
+    }
+
+    pub fn depth(&self) -> Depth {
+        self.depth
+    }
+
+    /// What `role` is painted with in this theme.
+    fn paint(&self, role: Role) -> Paint {
+        let dark = Hex(role.dark());
+        match self.name {
+            "light" => light(role),
+            "dark-daltonized" => daltonized(role, true).unwrap_or(dark),
+            "light-daltonized" => daltonized(role, false).unwrap_or_else(|| light(role)),
+            "dark-ansi" => ansi(role, true),
+            "light-ansi" => ansi(role, false),
+            _ => dark,
+        }
+    }
+
+    /// A colour as the terminal should get it; None leaves the terminal's own.
+    pub fn color(&self, ink: Ink) -> Option<Color> {
+        let paint = match ink {
+            Ink::Role(r) => self.paint(r),
+            Ink::Rgb(h) => Hex(h),
+        };
+        match paint {
+            Term => None,
+            Named(c) => Some(c),
+            Hex(h) => Some(match self.depth {
+                Depth::TrueColor => {
+                    let (r, g, b) = rgb(h);
+                    Color::Rgb(r as u8, g as u8, b as u8)
+                }
+                Depth::Ansi256 => Color::Indexed(nearest_256(h)),
+                Depth::Ansi16 => nearest_16(h),
+            }),
+        }
+    }
+
+    /// The terminal style for a look; `book` (the internal text marker) never shows.
+    pub fn style(&self, look: Look) -> Style {
+        let mut out = Style::default();
+        if look.bold {
+            out = out.add_modifier(Modifier::BOLD);
+        }
+        if look.reverse {
+            out = out.add_modifier(Modifier::REVERSED);
+        }
+        if let Some(c) = look.fg.and_then(|i| self.color(i)) {
+            out = out.fg(c);
+        }
+        if let Some(c) = look.bg.and_then(|i| self.color(i)) {
+            out = out.bg(c);
+        }
+        out
+    }
+
+    /// The screen's base style (background and text); the ansi themes leave the terminal's own.
+    pub fn base(&self) -> Style {
+        self.style(BASE)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn color(theme: &str, depth: Depth, role: Role) -> Option<Color> {
+        Theme::new(theme, depth).color(Ink::Role(role))
+    }
 
     #[test]
     fn depth_comes_from_colorterm_and_term() {
@@ -298,17 +313,25 @@ mod tests {
     }
 
     #[test]
+    fn unknown_names_fall_back_to_dark() {
+        assert_eq!(Theme::new("nope", Depth::Ansi16).name(), "dark");
+        assert_eq!(Theme::new("nope", Depth::Ansi16).depth(), Depth::Ansi16);
+        assert_eq!(Theme::new("light", Depth::TrueColor).name(), "light");
+        assert_eq!(Theme::default(), Theme::new("dark", Depth::TrueColor));
+    }
+
+    #[test]
     fn dark_keeps_its_colours_and_light_swaps_them() {
         assert_eq!(
-            color("dark", Depth::TrueColor, 0x6a9955),
+            color("dark", Depth::TrueColor, Role::Comment),
             Some(Color::Rgb(0x6a, 0x99, 0x55))
         );
         assert_eq!(
-            color("light", Depth::TrueColor, 0x6a9955),
+            color("light", Depth::TrueColor, Role::Comment),
             Some(Color::Rgb(0x00, 0x80, 0x00))
         );
         assert_eq!(
-            color("light", Depth::TrueColor, 0x123456),
+            Theme::new("light", Depth::TrueColor).color(Ink::Rgb(0x123456)),
             Some(Color::Rgb(0x12, 0x34, 0x56))
         ); // not a theme colour
     }
@@ -317,8 +340,8 @@ mod tests {
     fn daltonized_themes_avoid_red_against_green() {
         for theme in ["dark-daltonized", "light-daltonized"] {
             let (added, removed) = (
-                color(theme, Depth::TrueColor, 0x3fb950),
-                color(theme, Depth::TrueColor, 0xf85149),
+                color(theme, Depth::TrueColor, Role::Green),
+                color(theme, Depth::TrueColor, Role::Red),
             );
             let Some(Color::Rgb(r, g, b)) = added else {
                 panic!()
@@ -334,14 +357,14 @@ mod tests {
     #[test]
     fn ansi_themes_use_the_terminal_palette() {
         assert_eq!(
-            color("dark-ansi", Depth::TrueColor, 0x3fb950),
+            color("dark-ansi", Depth::TrueColor, Role::Green),
             Some(Color::Green)
         );
         assert_eq!(
-            color("light-ansi", Depth::TrueColor, 0xce9178),
+            color("light-ansi", Depth::TrueColor, Role::String),
             Some(Color::Red)
         );
-        assert_eq!(color("dark-ansi", Depth::TrueColor, 0xd4d4d4), None); // the terminal's own text colour
+        assert_eq!(color("dark-ansi", Depth::TrueColor, Role::Text), None); // the terminal's own text colour
     }
 
     #[test]
@@ -351,11 +374,14 @@ mod tests {
         assert_eq!(nearest_256(0x808080), 244);
         assert_eq!(nearest_256(0xff0000), 196);
         assert_eq!(
-            color("dark", Depth::Ansi256, 0x1e1e1e),
+            color("dark", Depth::Ansi256, Role::Background),
             Some(Color::Indexed(234))
         );
         assert_eq!(nearest_16(0xf85149), Color::LightRed);
-        assert_eq!(color("dark", Depth::Ansi16, 0x3fb950), Some(Color::Green));
+        assert_eq!(
+            color("dark", Depth::Ansi16, Role::Green),
+            Some(Color::Green)
+        );
         assert_eq!(nearest_16(0x569cd6), Color::LightBlue);
         assert_eq!(nearest_16(0xd4d4d4), Color::Gray);
         assert_eq!(nearest_16(0x1e1e1e), Color::Black);
@@ -363,11 +389,62 @@ mod tests {
     }
 
     #[test]
-    fn every_theme_maps_every_mask_colour() {
+    fn looks_become_colours_backgrounds_and_modifiers() {
+        let look = Look::fg(Role::Red)
+            .bold()
+            .on(Role::AddedBackground)
+            .reverse()
+            .book();
+        let dark = Theme::new("dark", Depth::TrueColor);
+        let s = dark.style(look);
+        assert_eq!(s.fg, Some(Color::Rgb(0xf8, 0x51, 0x49)));
+        assert_eq!(s.bg, Some(Color::Rgb(0x1f, 0x3d, 0x27)));
+        assert!(s.add_modifier.contains(Modifier::BOLD | Modifier::REVERSED));
+        assert_eq!(dark.style(Look::PLAIN.book()), Style::default());
+        // Apple's Terminal gets palette colours it can show
+        assert_eq!(
+            Theme::new("dark", Depth::Ansi256)
+                .style(Look::fg(Role::Red))
+                .fg,
+            Some(Color::Indexed(203))
+        );
+        assert_eq!(
+            Theme::new("light", Depth::TrueColor)
+                .style(Look::fg(Role::Red))
+                .fg,
+            Some(Color::Rgb(0xcf, 0x22, 0x2e))
+        );
+    }
+
+    #[test]
+    fn base_style_paints_background_per_theme_and_depth() {
+        let base = |t: &str, d: Depth| Theme::new(t, d).base();
+        let dark = base("dark", Depth::TrueColor);
+        assert_eq!(dark.bg, Some(Color::Rgb(0x1e, 0x1e, 0x1e)));
+        assert_eq!(dark.fg, Some(Color::Rgb(0xd4, 0xd4, 0xd4)));
+        let light = base("light", Depth::TrueColor);
+        assert_eq!(light.bg, Some(Color::Rgb(0xff, 0xff, 0xff)));
+        assert_eq!(light.fg, Some(Color::Rgb(0x1f, 0x23, 0x28)));
+        for t in ["dark-daltonized", "light-daltonized"] {
+            assert!(base(t, Depth::TrueColor).bg.is_some(), "{t}");
+        }
+        for t in ["dark-ansi", "light-ansi"] {
+            assert_eq!(base(t, Depth::TrueColor), Style::default(), "{t}");
+        }
+        assert!(matches!(
+            base("light", Depth::Ansi256).bg,
+            Some(Color::Indexed(_))
+        ));
+    }
+
+    #[test]
+    fn every_theme_maps_every_role_at_every_depth() {
         for theme in THEMES {
-            for (hex, _) in DARK {
-                let h = u32::from_str_radix(&hex[1..], 16).unwrap();
-                let _ = color(theme, Depth::Ansi256, h);
+            for depth in [Depth::TrueColor, Depth::Ansi256, Depth::Ansi16] {
+                let t = Theme::new(theme, depth);
+                for role in Role::ALL {
+                    let _ = t.color(Ink::Role(role));
+                }
             }
         }
     }

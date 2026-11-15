@@ -67,6 +67,7 @@ fn q_saves_progress_and_reopening_resumes() {
     let again = App::new(
         Some(h.dir.join("sample.txt")),
         cfg(),
+        Theme::default(),
         h.state_dir(),
         80,
         24,

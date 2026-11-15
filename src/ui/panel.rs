@@ -9,7 +9,7 @@ use ratatui::Frame;
 use ratatui::text::{Line as TLine, Span};
 use ratatui::widgets::{Block, Borders, Clear, Padding, Paragraph};
 
-use super::style::style;
+use super::theme::Theme;
 use crate::loaders::{suffix, supported_extensions};
 use crate::masks::{Look, Role};
 
@@ -97,7 +97,8 @@ pub fn listed_target(current: Option<&str>, n: usize) -> Option<PathBuf> {
 }
 
 /// The side panel's text: the keys, then the folder's openable files.
-pub fn panel_text(current: Option<&str>) -> Vec<TLine<'static>> {
+pub fn panel_text(theme: &Theme, current: Option<&str>) -> Vec<TLine<'static>> {
+    let style = |look: Look| theme.style(look);
     let (bold, key_style, text_style, dim) = (
         style(PANEL_BOLD),
         style(PANEL_KEY),
@@ -143,7 +144,8 @@ pub fn panel_text(current: Option<&str>) -> Vec<TLine<'static>> {
 }
 
 /// Draw the panel over the right edge of the screen.
-pub fn draw_panel(frame: &mut Frame, current: Option<&str>) {
+pub fn draw_panel(frame: &mut Frame, theme: &Theme, current: Option<&str>) {
+    let style = |look: Look| theme.style(look);
     let area = frame.area();
     let width = PANEL_WIDTH.min(area.width);
     let rect = ratatui::layout::Rect {
@@ -158,5 +160,8 @@ pub fn draw_panel(frame: &mut Frame, current: Option<&str>) {
         .padding(Padding::new(2, 2, 1, 1))
         .style(style(PANEL));
     frame.render_widget(Clear, rect);
-    frame.render_widget(Paragraph::new(panel_text(current)).block(block), rect);
+    frame.render_widget(
+        Paragraph::new(panel_text(theme, current)).block(block),
+        rect,
+    );
 }

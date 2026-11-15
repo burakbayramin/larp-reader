@@ -16,7 +16,7 @@ use sha2::{Digest, Sha256};
 
 use super::feed::partial;
 use super::search::highlight;
-use super::theme::{Depth, THEMES};
+use super::theme::{Depth, THEMES, Theme};
 use crate::book::Paragraph as Para;
 use crate::errors::FccError;
 use crate::masks::{LANGS, Line, Look, MASK_NAMES, get_mask, seeded};
@@ -29,11 +29,11 @@ const DEPTHS: &[(Depth, &str)] = &[
 ];
 
 fn resolve(look: Look, theme: &str, depth: Depth) -> Style {
-    super::style::style_in(look, theme, depth)
+    Theme::new(theme, depth).style(look)
 }
 
 fn base(theme: &str, depth: Depth) -> Style {
-    super::style::base_in(theme, depth)
+    Theme::new(theme, depth).base()
 }
 
 /// The app's own chrome styles (input box, status line, side panel).

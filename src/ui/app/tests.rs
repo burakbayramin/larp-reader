@@ -79,7 +79,7 @@ impl Harness {
         std::fs::create_dir_all(&st).unwrap();
         let dir_path = dir.path().to_path_buf();
         Harness {
-            app: App::new(path, config, st, cols, rows, now),
+            app: App::new(path, config, Theme::default(), st, cols, rows, now),
             now,
             _dir: dir,
             dir: dir_path,
@@ -132,12 +132,12 @@ impl Harness {
             .join("\n")
     }
 
-    /// The screen's cells drawn with the base style of `theme`.
+    /// The screen's cells drawn in `theme`, 24-bit.
     pub fn cells(&self, theme: &str) -> ratatui::buffer::Buffer {
-        let base = crate::ui::style::base_in(theme, theme::Depth::TrueColor);
+        let theme = Theme::new(theme, crate::ui::theme::Depth::TrueColor);
         let mut t =
             Terminal::new(TestBackend::new(self.app.cols as u16, self.app.rows as u16)).unwrap();
-        t.draw(|f| self.app.draw_with(f, base)).unwrap();
+        t.draw(|f| self.app.draw_in(f, &theme)).unwrap();
         t.backend().buffer().clone()
     }
 

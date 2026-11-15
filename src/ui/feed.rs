@@ -1,12 +1,9 @@
 //! The scrolling text area (`ui/feed.py`): masked lines, shown from the top or, while
 //! streaming, from the bottom like a terminal.
 
-use ratatui::buffer::Buffer;
-use ratatui::layout::Rect;
 use ratatui::text::{Line as TLine, Span, Text};
-use ratatui::widgets::{Paragraph, Widget};
 
-use super::style::style;
+use super::theme::Theme;
 use crate::masks::Line;
 
 /// Lines kept for scrollback while streaming.
@@ -113,7 +110,8 @@ impl Feed {
         &self.lines
     }
 
-    pub fn text(&self) -> Text<'static> {
+    /// The visible lines as `theme` draws them (no wrapping: long lines are cut at the edge).
+    pub fn text(&self, theme: &Theme) -> Text<'static> {
         let visible = self.visible_lines();
         let typing = match self.reveal {
             Some(n) if self.bottom && !visible.is_empty() => Some((visible.len() - 1, n)),
@@ -135,18 +133,12 @@ impl Feed {
                     TLine::from(
                         l.segments
                             .iter()
-                            .map(|(t, s)| Span::styled(t.clone(), style(*s)))
+                            .map(|(t, s)| Span::styled(t.clone(), theme.style(*s)))
                             .collect::<Vec<_>>(),
                     )
                 })
                 .collect::<Vec<_>>(),
         )
-    }
-}
-
-impl Widget for &Feed {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        Paragraph::new(self.text()).render(area, buf); // no wrapping: long lines are cut at the edge
     }
 }
 
@@ -208,7 +200,12 @@ mod tests {
         f.set_bottom_anchored(true);
         f.append(vec![plain_line("x", Look::PLAIN), l.clone()]);
         f.set_reveal(Some(0));
-        let shown: Vec<String> = f.text().lines.iter().map(|t| t.to_string()).collect();
+        let shown: Vec<String> = f
+            .text(&Theme::default())
+            .lines
+            .iter()
+            .map(|t| t.to_string())
+            .collect();
         assert_eq!(shown[1].trim(), "12 +");
         assert_eq!(f.history_lines()[1], l); // the history has it all
         f.append(vec![]);

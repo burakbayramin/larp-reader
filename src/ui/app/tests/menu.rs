@@ -110,6 +110,7 @@ fn menu_sets_the_theme() {
     h.app.menu.as_mut().unwrap().focus("theme");
     h.press(&["right", "right", "enter"]);
     assert_eq!(h.app.config.theme, "dark-daltonized");
+    assert_eq!(h.app.theme.name(), "dark-daltonized");
     assert_eq!(
         crate::state::load_config(&h.state_dir()).theme,
         "dark-daltonized"

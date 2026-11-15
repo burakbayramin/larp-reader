@@ -70,6 +70,21 @@ fn t_cycles_themes_and_saves_the_choice() {
     assert_eq!(h.app.config.theme, "dark"); // not while hidden
 }
 
+#[test]
+fn the_app_draws_in_its_own_theme_and_t_keeps_the_depth() {
+    use crate::ui::theme::Depth;
+    use ratatui::style::Color;
+    let mut h = Harness::sample(80, 24);
+    h.app.theme = Theme::new("dark", Depth::Ansi256);
+    h.press(&["t"]);
+    assert_eq!(h.app.theme, Theme::new("light", Depth::Ansi256));
+    let mut t = Terminal::new(TestBackend::new(80, 24)).unwrap();
+    t.draw(|f| h.app.draw(f)).unwrap();
+    let light_bg = Theme::new("light", Depth::Ansi256).base().bg;
+    assert!(matches!(light_bg, Some(Color::Indexed(_))));
+    assert_eq!(Some(t.backend().buffer()[(0, 0)].bg), light_bg);
+}
+
 // -- test_no_filename_on_screen.py --
 
 #[test]
@@ -81,6 +96,7 @@ fn bad_input_at_startup_hides_the_file_name() {
         let app = App::new(
             Some(path),
             cfg(),
+            Theme::default(),
             d.path().join("st"),
             80,
             24,
