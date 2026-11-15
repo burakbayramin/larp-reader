@@ -44,6 +44,8 @@ pub enum Kind {
     Edit,
     /// The text as narration.
     Say,
+    /// The text as the summary after a few sub-agents ran in parallel.
+    Team,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,16 +55,23 @@ pub struct Layout {
     pub removed: usize,
     /// Unchanged lines shown above the change.
     pub before: usize,
+    /// Sub-agents listed above a `Team` summary.
+    pub agents: usize,
 }
 
 /// How a paragraph is laid out; from its text alone, so it can be counted without drawing.
 pub fn layout(text: &str) -> Layout {
     let h = crc32fast::hash(text.as_bytes());
-    let kind = if h % 10 < 3 { Kind::Say } else { Kind::Edit };
+    let kind = match h % 10 {
+        0..3 if (h >> 16).is_multiple_of(2) => Kind::Team,
+        0..3 => Kind::Say,
+        _ => Kind::Edit,
+    };
     Layout {
         kind,
         removed: (h >> 4) as usize % 4,
         before: 1 + (h >> 8) as usize % 2,
+        agents: 2 + (h >> 12) as usize % 2,
     }
 }
 
@@ -180,6 +189,47 @@ fn edit_head(width: usize, path: &str, adds: usize, rems: usize) -> Vec<Line> {
     ]
 }
 
+/// What each sub-agent is called.
+const ROLES: &[&str] = &["Explore", "Plan", "Review", "Test", "Docs", "Debug"];
+
+/// A batch of sub-agents run in parallel: a header and one tree row each.
+/// `running`: still going ("Running 3 agents…"), else finished.
+fn agents(width: usize, slot: usize, n: usize, running: bool) -> Vec<Line> {
+    let head = if running {
+        format!("Running {n} agents…")
+    } else {
+        format!("{n} agents finished")
+    };
+    let mut out = vec![chrome(
+        width,
+        &[
+            (&format!("{BULLET} "), if running { YELLOW } else { GREEN }),
+            (&head, FG.bold()),
+        ],
+    )];
+    for k in 0..n {
+        let tree = if k + 1 == n {
+            "   └─ "
+        } else {
+            "   ├─ "
+        };
+        let uses = 3 + (slot * 7 + k * 5) % 19;
+        let tokens = (40 + (slot * 13 + k * 31) % 260) as f64 / 10.0;
+        let role = ROLES[(slot + k) % ROLES.len()];
+        out.push(chrome_owned(
+            width,
+            vec![
+                seg(tree, DIM),
+                seg(role, FG.bold()),
+                seg(": ", DIM),
+                seg(tasks_deck().get(slot * 3 + k), FG),
+                seg(format!(" · {uses} tool uses · {tokens:.1}k tokens"), DIM),
+            ],
+        ));
+    }
+    out
+}
+
 #[derive(Default)]
 pub struct AgentMask {
     /// Slot (line number) where the filler after the last paragraph starts.
@@ -249,6 +299,34 @@ impl AgentMask {
                 out.extend(self.output(cmd, slot, rng, width));
                 out.push(blank(width));
                 out
+            }
+            "agents" => {
+                let n = randint(rng, 2, 4);
+                let mut out = agents(width, slot, n, true);
+                out.push(result(
+                    width,
+                    true,
+                    vec![seg("Waiting for agents to finish…", DIM)],
+                ));
+                out.push(blank(width));
+                out
+            }
+            "write" => {
+                let path = files_deck().get(slot + 1);
+                vec![
+                    tool(width, "Write", path),
+                    result(
+                        width,
+                        true,
+                        vec![
+                            seg("Wrote ", FG),
+                            seg(randint(rng, 12, 160).to_string(), FG.bold()),
+                            seg(" lines to ", FG),
+                            seg(path, FG.bold()),
+                        ],
+                    ),
+                    blank(width),
+                ]
             }
             "todos" => {
                 let n = randint(rng, 2, 3);
@@ -478,6 +556,9 @@ impl Mask for AgentMask {
         let lay = layout(&para.text);
         match lay.kind {
             Kind::Say => ragged_count(&para.text, width.saturating_sub(2).max(1)) + 1,
+            Kind::Team => {
+                1 + lay.agents + ragged_count(&para.text, width.saturating_sub(2).max(1)) + 1
+            }
             Kind::Edit => {
                 2 + lay.before + lay.removed + ragged_count(&para.text, body_width(width)) + 1 + 1
             }
@@ -494,8 +575,13 @@ impl Mask for AgentMask {
     ) -> Vec<Line> {
         let lay = layout(&para.text);
         let slot = line_no_start;
-        if lay.kind == Kind::Say {
-            let mut out: Vec<Line> = ragged(&para.text, width.saturating_sub(2).max(1))
+        if lay.kind != Kind::Edit {
+            let mut out = if lay.kind == Kind::Team {
+                agents(width, slot, lay.agents, false)
+            } else {
+                vec![]
+            };
+            let said: Vec<Line> = ragged(&para.text, width.saturating_sub(2).max(1))
                 .into_iter()
                 .enumerate()
                 .map(|(k, text)| {
@@ -507,6 +593,7 @@ impl Mask for AgentMask {
                     Line::book(vec![seg(lead, FG), seg(text, FG.book())], pos)
                 })
                 .collect();
+            out.extend(said);
             out.push(blank(width));
             self.next = slot + out.len();
             return out;
@@ -549,7 +636,10 @@ impl Mask for AgentMask {
             if out.len() >= count {
                 break;
             }
-            let kind = self.pick_kind(&["read", "search", "bash", "todos", "edit"], rng);
+            let kind = self.pick_kind(
+                &["read", "search", "bash", "todos", "edit", "agents", "write"],
+                rng,
+            );
             // a unit's slot is the line number it starts on: unique, like the text's own
             let unit = self.unit(kind, self.next + out.len(), rng, width);
             if unit.len() <= count - out.len() {
@@ -571,7 +661,12 @@ impl Mask for AgentMask {
     /// Next line of an endless session, for the hidden screen.
     fn noise(&mut self, rng: &mut Rng, width: usize) -> Line {
         if self.stream.is_empty() {
-            let kind = self.pick_kind(&["read", "search", "bash", "todos", "edit", "edit"], rng);
+            let kind = self.pick_kind(
+                &[
+                    "read", "search", "bash", "todos", "edit", "edit", "agents", "write",
+                ],
+                rng,
+            );
             let unit = self.unit(kind, STREAM_BASE + self.stream_n, rng, width);
             if random(rng) < 0.15 {
                 self.stream.push_back(chrome(width, &[(THINKING, DIM)]));
@@ -764,6 +859,56 @@ mod tests {
     }
 
     // -- test_agent.py --
+
+    #[test]
+    fn some_paragraphs_come_after_a_batch_of_sub_agents() {
+        let kinds: Vec<Kind> = (0..300)
+            .map(|i| layout(&format!("paragraf {i}")).kind)
+            .collect();
+        let teams = kinds.iter().filter(|k| **k == Kind::Team).count();
+        let says = kinds.iter().filter(|k| **k == Kind::Say).count();
+        assert!((20..80).contains(&teams), "{teams}");
+        assert!((20..80).contains(&says), "{says}");
+
+        let mut m = AgentMask::default();
+        for start in [0, 40, 90] {
+            let p = para_of_kind(Kind::Team, start);
+            for width in [40, 80, 120] {
+                let lines = m.render(&p, (0, 0), width, &mut rng(1), 40);
+                assert_eq!(lines.len(), m.line_count(&p, width), "{width}");
+                let n = layout(&p.text).agents;
+                assert!(lines[0].plain().contains(&format!("{n} agents finished")));
+                assert!(lines[n].plain().trim_start().starts_with("└─"));
+                assert!(lines[1..=n].iter().all(|l| !l.is_book));
+                let shown: String = lines
+                    .iter()
+                    .flat_map(|l| l.segments.iter())
+                    .filter(|(_, look)| look.book)
+                    .map(|(t, _)| t.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                let words = |t: &str| t.split_whitespace().map(str::to_owned).collect::<Vec<_>>();
+                assert_eq!(words(&shown), words(&p.text));
+                for l in &lines {
+                    assert!(l.plain().width() <= width, "{width}: {}", l.plain());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn the_session_now_and_then_runs_agents_and_writes_files() {
+        let mut m = AgentMask::default();
+        let mut r = rng(7);
+        let stream: Vec<String> = (0..600).map(|_| m.noise(&mut r, 100).plain()).collect();
+        assert!(stream.iter().any(|l| l.contains("agents…")), "agents");
+        assert!(stream.iter().any(|l| l.contains("Write(")), "write");
+        for l in &stream {
+            for w in ["book", "reader", "okuyucu"] {
+                assert!(!l.to_lowercase().contains(w), "{l}");
+            }
+        }
+    }
 
     #[test]
     fn layout_is_picked_from_the_text_and_mixes_kinds() {
