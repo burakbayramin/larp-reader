@@ -159,7 +159,6 @@ edildi). Plan:
   - ilerlemeyi iki bilgisayar arasında eşitleme (ilerleme dosyası paylaşılan bir klasörde);
   - tuşları ayar dosyasından değiştirebilme.
 - **Küçük işler:**
-  - GitHub depo açıklaması hâlâ Türkçe, README İngilizce; açıklamayı da İngilizce yapmak.
   - `LICENSE`'taki telif satırı şu an `burakbayramin`; istenirse tam ad yazılabilir.
 
 ### 3. Teknik borç ve bilinen kusurlar
