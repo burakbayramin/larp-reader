@@ -1,14 +1,12 @@
 # larp-reader
 
-**Terminalde kitap oku, çalışıyormuş gibi görün.**
+larp-reader opens your e-book in the terminal and dresses every line up as
+developer-tool output: source code, a build log, a diff, a test run or an AI coding
+agent's session. Anyone walking past your screen sees someone watching a build.
+If they come closer, one key makes the book disappear completely.
 
-larp-reader e-kitabınızı terminalde açar ve her satırı bir geliştirici aracının
-çıktısı gibi gösterir: kod, derleme logu, diff, test raporu ya da bir kod ajanının
-oturumu. Yanınızdan geçen biri ekrana bakınca bir derlemeyi izlediğinizi sanır.
-Biri iyice yaklaşırsa tek tuşla kitap tamamen kaybolur.
-
-İsim argodaki *larp*'tan geliyor: rol yapmak, öyleymiş gibi davranmak.
-Komutun adı kısaca `larpr`.
+The name comes from the slang *larp*: to pretend, to act the part. The command is
+`larpr` for short.
 
 ```
 ╭──────────────────────────────────────────────────────╮
@@ -22,177 +20,177 @@ Komutun adı kısaca `larpr`.
   ⎿  Updated src/cache/store.py with 4 additions and 1 removal
     212       def evict(self, key: str) -> None:
     213 -         self._hits.pop(key, None)
-    213 +         O sabah erkenden uyandı, pencereyi açtı
-    214 +         ve uzun uzun denizi seyretti.
+    213 +         Call me Ishmael. Some years ago, never mind how
+    214 +         long precisely, having little or no money in my purse
 ```
 
-Yeşil satırlar kitabınız; geri kalan her şey sahte.
+The green lines are your book; everything else is fake.
 
-## Hızlı başlangıç
+## Quick start
 
-1. [Releases](../../releases) sayfasından işletim sisteminize uygun arşivi indirin
+1. Download the archive for your system from the [Releases](../../releases) page
    (Windows, macOS Apple Silicon / Intel, Linux).
-2. Arşivi açın, içindeki `larpr` (Windows'ta `larpr.exe`) dosyasını PATH'teki bir
-   klasöre koyun. Başka bir şey kurmanız gerekmez.
-3. Kitabınızı açın:
+2. Unpack it and put `larpr` (`larpr.exe` on Windows) in a folder on your PATH.
+   Nothing else to install.
+3. Open your book:
 
 ```
-larpr build kitap.epub
+larpr build book.epub
 ```
 
-Bir dahaki sefere `larpr build` yazmanız yeterli: en son okuduğunuz kitap kaldığınız
-yerden açılır.
+Next time just type `larpr build`: the last book you read opens where you left off.
 
-Okumak için `Space`, çıkmak için `q`. Biri gelirse: `` ` `` (backtick).
+`Space` to read, `q` to quit. Someone coming? `` ` `` (backtick).
 
-## Panik tuşu
+## The panic key
 
-`` ` `` tuşuna bastığınız an kitaptan tek kelime kalmaz; ekranı o anki görünüme uygun
-sahte çıktı doldurur. Aynı tuşla kaldığınız yere dönersiniz.
+The moment you press `` ` ``, not a single word of the book stays on screen; fake
+output that matches the current view fills it instead. Press it again to get back
+to where you were.
 
-İsterseniz panik tuşu bunun yerine çalışan bir sahte terminal açar
-(`--hide=shell`): `ls`, `pwd`, `git status` beklenen çıktıyı verir, `npm`, `pytest`,
-`cargo` gibi komutlar çıktı basar, bilinmeyen komutlar `command not found` der.
+You can make the panic key open a working fake shell instead (`--hide=shell`):
+`ls`, `pwd` and `git status` give the output you'd expect, tools like `npm`,
+`pytest` or `cargo` print output, and unknown commands say `command not found`.
 
-Dosya adı ekranda hiçbir zaman görünmez; `--help` ve `--version` bile bir derleme
-aracınınki gibi durur.
+The file name never appears on screen; even `--help` and `--version` look like a
+build tool's.
 
-## Görünümler
+## Views
 
-`m` ile görünümler arasında geçersiniz (`M` geri):
+Switch views with `m` (`M` goes back):
 
-| Görünüm | Neye benzer |
+| View | Looks like |
 | --- | --- |
-| `code` | Bir editörde açık, bol belgelenmiş kaynak kod; kitabınız fonksiyonların açıklama yorumları olarak görünür (`l` ile dil: Python, TypeScript, Go, Rust, Java, C#) |
-| `log` | Zaman damgalı uygulama logları |
-| `diff` | Bir `git diff` çıktısı |
-| `test` | Akan bir pytest oturumu |
-| `build` | `cargo build` benzeri derleme çıktısı |
+| `code` | Well-documented source code in an editor; your book shows up as the functions' doc comments (`l` changes the language: Python, TypeScript, Go, Rust, Java, C#) |
+| `log` | Timestamped application logs |
+| `diff` | `git diff` output |
+| `test` | A running pytest session |
+| `build` | `cargo build`-style compiler output |
 | `git` | `git log --stat` |
-| `docker` | `docker compose up` logları |
-| `agent` | Kod yazan bir yapay zekâ ajanının oturumu: araç çağrıları, renkli diff'ler, alt ajanlar |
+| `docker` | `docker compose up` logs |
+| `agent` | An AI coding agent at work: tool calls, coloured diffs, sub-agents |
 
-Araya karışan sahte satırların miktarını `n` / `N` ile ayarlarsınız. Sahte satırlar
-binlerce farklı satırdan seçilir, kısa sürede kendini tekrar etmez.
+`n` / `N` set how much fake output is mixed in. The fake lines are drawn from
+thousands of different ones, so they don't repeat any time soon.
 
-### agent görünümü
+### The agent view
 
-En inandırıcı görünüm bu. Açılışta bir karşılama kutusu ve karton miğferli, köpük
-kılıçlı küçük bir figür çıkar: ara sıra kılıcını savurur, kılıç bazen bükülür, metin
-akarken yerinde yürür.
+The most convincing view. It opens with a welcome box and a small figure in a
+cardboard helmet with a foam sword: now and then it swings the sword, sometimes the
+sword bends, and it marches in place while text streams.
 
-Biri yanınıza gelirse `i` ile alttaki kutuya bir şey yazıp `Enter`'a basın; örneğin
-"add retries to the upload client". Ajan birkaç saniye isteğiniz üzerinde çalışıyormuş
-gibi yapar: düşünür, dosya okur, komut çalıştırır, diff gösterir ve kısa bir özetle
-bitirir. Bu sırada ekranda kitaptan hiçbir şey kalmaz. Bitince ya da herhangi bir tuşa
-basınca kitap kaldığı yerden devam eder.
+If someone walks up, press `i`, type something into the box at the bottom and hit
+`Enter`, say "add retries to the upload client". The agent pretends to work on it
+for a few seconds: it thinks, reads files, runs commands, shows a diff and wraps up
+with a short summary. Nothing from the book is on screen meanwhile. When it's done,
+or when you press any key, the book continues where it was.
 
-## Kendiliğinden akış
+## Auto scroll
 
-`a` ile metin kendi kendine akar, tıpkı çalışan bir komutun çıktısı gibi. Hız okuma
-hızınıza göredir; `+` / `-` ile ayarlanır. Program siz elle sayfa çevirdikçe
-gerçek hızınızı öğrenir ve kendini ona göre ayarlar.
+With `a` the text scrolls by itself, like the output of a running command. The
+speed follows your reading speed; adjust it with `+` / `-`. As you turn pages by
+hand, larpr learns how fast you actually read and adapts.
 
-Ekranı bölmek de işe yarar: bir tarafta larpr, diğer tarafta gerçek işiniz
-(Windows Terminal'de `Alt+Shift+D`).
+Splitting the terminal works well too: larpr on one side, your real work on the
+other (`Alt+Shift+D` in Windows Terminal).
 
-## Okuma istatistikleri
+## Reading stats
 
-`S` ne kadar okuduğunuzu gösterir: bugün ve bu hafta okunan sayfa ve süre, kaç gündür
-aralıksız okuduğunuz, ortalama hızınız, kitabın bitmesine kalan süre ve son 14 günün
-küçük bir grafiği. Rapor da o anki görünümün kılığına girer: `git` görünümünde
-`git log --stat`, `test` görünümünde pytest özeti gibi durur.
+`S` shows how much you've read: pages and time today and this week, how many days in
+a row you've been reading, your average speed, the time left to finish the book, and
+a small chart of the last 14 days. The report is disguised as well: in the `git`
+view it looks like `git log --stat`, in the `test` view like a pytest summary.
 
-Yalnızca gerçekten okuduğunuz sayfalar sayılır; hızla geçtiğiniz sayfalar ve panik
-ekranında geçen süre sayılmaz.
+Only pages you actually read count; pages you flip through quickly and time spent
+on the panic screen don't.
 
-## Tuşlar
+## Keys
 
-| Tuş | Ne yapar |
+| Key | What it does |
 | --- | --- |
-| `Space` / `PgDn` | sonraki sayfa |
-| `u` / `PgUp` | önceki sayfa |
-| `j` / `k` (ya da oklar) | bir satır ileri / geri |
-| `]` / `[` | sonraki bölüm / bölüm başı |
-| `/` | kitapta ara; `f` / `F` sonraki / önceki sonuç |
-| `b` | yer imi koy; `'` / `"` sonraki / önceki yer imi |
-| `a` | kendiliğinden akışı aç / kapat; `+` / `-` hız |
-| `m` / `M` | görünüm değiştir |
-| `l` / `L` | kod dilini değiştir (`code` görünümü) |
-| `n` / `N` | sahte satırları artır / azalt |
-| `t` | renk temasını değiştir |
-| `i` | `agent` görünümünde kutuya istek yaz |
-| `S` | okuma istatistikleri |
-| `o` / `O` | aynı klasördeki sonraki / önceki kitap |
-| `Esc` | yan panel: tüm kısayollar ve klasördeki kitaplar (`1`-`9` ile aç) |
-| `:` | ayar menüsü |
-| `` ` `` | panik: her şeyi anında gizle / geri getir |
-| `q` | kaydet ve çık |
+| `Space` / `PgDn` | next page |
+| `u` / `PgUp` | previous page |
+| `j` / `k` (or arrows) | one line down / up |
+| `]` / `[` | next chapter / start of chapter |
+| `/` | search the book; `f` / `F` next / previous match |
+| `b` | set a bookmark; `'` / `"` next / previous bookmark |
+| `a` | auto scroll on / off; `+` / `-` speed |
+| `m` / `M` | change view |
+| `l` / `L` | change code language (`code` view) |
+| `n` / `N` | more / less fake output |
+| `t` | change colour theme |
+| `i` | type a request into the box (`agent` view) |
+| `S` | reading stats |
+| `o` / `O` | next / previous book in the same folder |
+| `Esc` | side panel: all shortcuts and the books in the folder (open with `1`-`9`) |
+| `:` | settings menu |
+| `` ` `` | panic: hide everything at once / bring it back |
+| `q` | save and quit |
 
-Her kitabın yeri, yer imleri ve ayarlarınız kendiliğinden kaydedilir.
+Your place in every book, your bookmarks and your settings are saved automatically.
 
-## Renk temaları
+## Colour themes
 
-Varsayılan tema `monokai`: tam siyah zemin üzerinde kod renkleri; Apple Terminal dahil
-her terminalde aynı görünür. `t` ile diğer temalara geçebilirsiniz:
+The default theme is `monokai`: code colours on a pure black background, looking
+the same in every terminal, Apple Terminal included. Press `t` for the others:
 
-- `dark`, `light`: koyu ve açık editör renkleri
-- `dark-daltonized`, `light-daltonized`: renk körlüğüne uygun; yeşil/kırmızı yerine mavi/turuncu
-- `dark-ansi`, `light-ansi`: terminalinizin kendi renk şemasını kullanır
+- `dark`, `light`: dark and light editor colours
+- `dark-daltonized`, `light-daltonized`: colour-blind friendly, blue/orange instead of green/red
+- `dark-ansi`, `light-ansi`: use your terminal's own colour scheme
 
-Terminaliniz 24 bit rengi desteklemiyorsa renkler en yakın 256 ya da 16 renge
-çevrilir; bir şey yapmanız gerekmez.
+If your terminal doesn't support 24-bit colour, colours are mapped to the nearest
+256 or 16; there's nothing to set up.
 
-## Desteklenen biçimler
+## Supported formats
 
-EPUB, PDF, MOBI / AZW / AZW3, FB2, DOCX, ODT, RTF, TXT / Markdown ve HTML.
+EPUB, PDF, MOBI / AZW / AZW3, FB2, DOCX, ODT, RTF, TXT / Markdown and HTML.
 
-Bilgisayarınızda [Calibre](https://calibre-ebook.com) kuruluysa listede olmayan
-biçimler (XPS, CBZ, DJVU …) de açılır. DRM korumalı dosyalar açılmaz; taranmış
-(yalnızca resimden oluşan) PDF'ler de okunamaz.
+With [Calibre](https://calibre-ebook.com) installed, formats not on this list (XPS,
+CBZ, DJVU …) open too. DRM-protected files don't open, and scanned PDFs (pages that
+are only images) can't be read.
 
-## Başlatırken seçenekler
+## Start-up options
 
-Çoğunu program içinden tuşlarla da değiştirebilirsiniz; burada verdikleriniz
-kaydedilir.
+You can change most of these with keys inside the program as well; whatever you
+pass here is saved.
 
 ```
-larpr build kitap.epub --mask=agent --auto --wpm=300
+larpr build book.epub --mask=agent --auto --wpm=300
 ```
 
-| Seçenek | Ne işe yarar |
+| Option | What it does |
 | --- | --- |
-| `--mask` | açılış görünümü: `code`, `log`, `diff`, `test`, `build`, `git`, `docker`, `agent` |
-| `--lang` | `code` görünümünün dili: `python`, `typescript`, `go`, `rust`, `java`, `csharp` |
-| `--noise` | sahte satır miktarı, 0-5 |
-| `--auto` | kendiliğinden akışla başla |
-| `--wpm` | okuma hızı, dakikada kelime (60-1500, varsayılan 220) |
-| `--hide` | panik tuşu ne göstersin: `stream` (akan çıktı) ya da `shell` (sahte terminal) |
-| `--theme` | renk teması (yukarıya bakın) |
+| `--mask` | view to start in: `code`, `log`, `diff`, `test`, `build`, `git`, `docker`, `agent` |
+| `--lang` | language of the `code` view: `python`, `typescript`, `go`, `rust`, `java`, `csharp` |
+| `--noise` | amount of fake output, 0-5 |
+| `--auto` | start with auto scroll |
+| `--wpm` | reading speed in words per minute (60-1500, default 220) |
+| `--hide` | what the panic key shows: `stream` (scrolling output) or `shell` (fake shell) |
+| `--theme` | colour theme (see above) |
 
-## Diğer kurulum yolları
+## Other ways to install
 
-[cargo-binstall](https://github.com/cargo-bins/cargo-binstall) kullanıyorsanız hazır
-programı tek komutla indirir:
+With [cargo-binstall](https://github.com/cargo-bins/cargo-binstall), one command
+fetches the ready-made program:
 
 ```
 cargo binstall --git https://github.com/burakbayramin/larp-reader larp-reader
 ```
 
-Rust kuruluysa (1.88 ya da yenisi) kaynaktan derleyebilirsiniz:
+With Rust installed (1.88 or newer) you can build it from source:
 
 ```
 cargo install --git https://github.com/burakbayramin/larp-reader
 ```
 
-Kurulduğunu görmek için: `larpr --version`.
+To check it's installed: `larpr --version`.
 
-## Verileriniz
+## Your data
 
-Her şey bilgisayarınızda kalır; program internete bağlanmaz. Ayarlar, kaldığınız
-yerler ve istatistikler `~/.config/larpr` klasöründedir (Windows'ta `%APPDATA%\larpr`).
-Kitapların adı ya da içeriği hiçbir dosyaya yazılmaz; kitaplar yalnızca bir kimlik
-numarasıyla tanınır.
+Everything stays on your computer; the program never goes online. Settings, your
+place in each book and your stats live in `~/.config/larpr` (`%APPDATA%\larpr` on
+Windows). Book titles and contents are never written to any file; books are known
+only by an ID number.
 
-Daha önce programı eski adıyla (`fcc`) kullandıysanız ayarlarınız ilk açılışta yeni
-klasöre taşınır.
+If you used the program under its old name (`fcc`), your settings move to the new
+folder the first time you start it.
