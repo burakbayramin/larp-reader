@@ -1,4 +1,4 @@
-# fcc
+# larp-reader
 
 Terminal e-kitap okuyucusu; metni bir geliştirici aracının çıktısı gibi gösterir
 (`code`, `log`, `diff`, `test`, `build`, `git`, `docker`, `agent` görünümleri). Yoldan geçen biri bir derleme
@@ -7,26 +7,27 @@ aracına baktığınızı sanır.
 ## Kurulum
 
 Windows, macOS (Apple Silicon ve Intel) ve Linux için hazır programlar
-[Releases](../../releases) sayfasında. Arşivi açıp `fcc` (Windows'ta `fcc.exe`)
+[Releases](../../releases) sayfasında. Arşivi açıp `larpr` (Windows'ta `larpr.exe`)
 dosyasını PATH'teki bir klasöre koymanız yeterli; başka bir şey kurmak gerekmez.
 
 Kaynaktan derlemek için (Rust 1.88+):
 
 ```
-cargo install --git https://github.com/burakbayramin/fcc
+cargo install --git https://github.com/burakbayramin/larp-reader
 # ya da repo klasöründe
 cargo install --path .
 ```
 
-Kurulumu doğrulamak için: `fcc --version`.
+Kurulumu doğrulamak için: `larpr --version`.
 
-Daha önceki Python sürümünü kullandıysanız ayar ve ilerleme dosyalarınız aynen
-okunur; her kitap kaldığı yerden açılır.
+Komutun adı `larpr`. Ayarlar ve ilerleme `~/.config/larpr` (Windows'ta
+`%APPDATA%\larpr`) klasöründe tutulur. Daha önce `fcc` adıyla kullandıysanız eski
+klasör ilk açılışta buraya taşınır; her kitap kaldığı yerden açılır.
 
 ## Kullanım
 
 ```
-fcc build <dosya> --mask=code --lang=python --noise=2
+larpr build <dosya> --mask=code --lang=python --noise=2
 ```
 
 - `--mask`: `code`, `log`, `diff`, `test`, `build`, `git` (`git log --stat`), `docker` (`docker compose up` logları), `agent` (kod yazan bir ajan oturumu: araç çağrıları, yeşil/kırmızı diff'ler, komut çıktıları)
@@ -80,7 +81,7 @@ geçen süre hesaba katılmaz.
 komut çıktıları, `Read`/`Search` çağrıları ve yapılacaklar listesi. Paragrafların çoğu
 diff'te eklenen (yeşil) satırlar, kalanı ajanın açıklama metni olarak görünür. Dolgu kodu
 binlerce farklı satırlık havuzlardan sırayla okunur, bu yüzden uzun süre aynı satır
-tekrar etmez. Sürekli akış için: `fcc build kitap.epub --mask=agent --auto`.
+tekrar etmez. Sürekli akış için: `larpr build kitap.epub --mask=agent --auto`.
 
 Sahte shell (`--hide=shell` ya da menüde `on hide: shell`): panik tuşuna basınca
 gerçek bir prompt çıkar (Windows'ta `PS C:\...>`, macOS/Linux'ta kullanıcı@makine).

@@ -25,8 +25,8 @@ jobs:
       - run: cargo build --release --locked
       - uses: actions/upload-artifact@v4
         with:
-          name: fcc-${{ matrix.os }}
+          name: larpr-${{ matrix.os }}
           path: |
-            target/release/fcc
-            target/release/fcc.exe
+            target/release/larpr
+            target/release/larpr.exe
           if-no-files-found: error

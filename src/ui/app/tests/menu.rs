@@ -8,7 +8,7 @@ fn menu_changes_settings_and_saves_them() {
     h.press(&[":"]);
     assert!(h.app.menu.is_some());
     let screen = h.screen().to_lowercase();
-    assert!(screen.contains("fcc config") && screen.contains("target: < code >"));
+    assert!(screen.contains("larpr config") && screen.contains("target: < code >"));
     for w in ["book", "reader", "okuyucu"] {
         assert!(!screen.contains(w));
     }

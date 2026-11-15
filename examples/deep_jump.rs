@@ -1,9 +1,9 @@
 //! Times deep jumps in a long synthetic book: `cargo run --release --example deep_jump`.
 use std::time::Instant;
 
-use fcc::book::{Book, Chapter, Paragraph};
-use fcc::masks::{MASK_NAMES, get_mask};
-use fcc::session::Session;
+use larp_reader::book::{Book, Chapter, Paragraph};
+use larp_reader::masks::{MASK_NAMES, get_mask};
+use larp_reader::session::Session;
 
 const WORDS: &[&str] = &[
     "the",

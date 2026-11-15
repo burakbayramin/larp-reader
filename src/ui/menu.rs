@@ -278,7 +278,7 @@ impl Menu {
                 TLine::raw(text)
             }
         };
-        let mut lines = vec![TLine::raw("fcc config")];
+        let mut lines = vec![TLine::raw("larpr config")];
         let path = if self.path.value.is_empty() && self.focus != Focus::Path {
             "input: path".to_string()
         } else {

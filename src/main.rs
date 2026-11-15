@@ -2,8 +2,8 @@ use std::io;
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
-use fcc::cli::{Outcome, resolve};
-use fcc::ui::app::App;
+use larp_reader::cli::{Outcome, resolve};
+use larp_reader::ui::app::App;
 use ratatui::crossterm::event::{self, Event, KeyEventKind};
 
 /// Longest wait for input before timers are checked again.
@@ -34,7 +34,7 @@ fn run(app: &mut App, terminal: &mut ratatui::DefaultTerminal) -> io::Result<()>
 }
 
 fn main() -> ExitCode {
-    let state_dir = match fcc::state::state_dir() {
+    let state_dir = match larp_reader::state::state_dir() {
         Ok(d) => d,
         Err(e) => {
             eprintln!("error: cannot create state folder: {}", e.kind());
@@ -50,11 +50,14 @@ fn main() -> ExitCode {
         Ok(Outcome::Run(path, config)) => (path, config),
     };
 
-    let theme = fcc::ui::theme::Theme::new(&config.theme, fcc::ui::theme::detect_depth_from_env());
+    let theme = larp_reader::ui::theme::Theme::new(
+        &config.theme,
+        larp_reader::ui::theme::detect_depth_from_env(),
+    );
     let mut terminal = ratatui::init(); // restores the terminal on a real panic
     let restore_and_report = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
-        if !fcc::panic_is_quiet() {
+        if !larp_reader::panic_is_quiet() {
             restore_and_report(info);
         }
     }));

@@ -1,6 +1,6 @@
 name: release
 
-# Push a tag like v0.5.0 to build fcc for every platform and attach the
+# Push a tag like v0.5.0 to build larpr for every platform and attach the
 # archives to a GitHub release of that name.
 on:
   push:
@@ -44,9 +44,9 @@ jobs:
       - run: cargo build --release --locked --target ${{ matrix.target }}
       - name: Package
         run: |
-          name="fcc-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          name="larp-reader-${GITHUB_REF_NAME}-${{ matrix.target }}"
           mkdir -p "dist/$name"
-          bin="target/${{ matrix.target }}/release/fcc"
+          bin="target/${{ matrix.target }}/release/larpr"
           [ -f "$bin.exe" ] && bin="$bin.exe"
           cp "$bin" README.md "dist/$name/"
           cd dist

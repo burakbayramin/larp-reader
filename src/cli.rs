@@ -1,4 +1,4 @@
-//! Command line (`cli.py`): `fcc build [FILE] [--mask …] [--lang …] [--noise …] [--auto] [--wpm …] [--hide …]`.
+//! Command line (`cli.py`): `larpr build [FILE] [--mask …] [--lang …] [--noise …] [--auto] [--wpm …] [--hide …]`.
 //!
 //! Like `--version`, `--help` reads like a build tool's and never says what the
 //! program really does.
@@ -18,7 +18,11 @@ use crate::state::{
 };
 
 #[derive(Parser, Debug)]
-#[command(name = "fcc", about = "fcc build tool", disable_version_flag = true)]
+#[command(
+    name = "larpr",
+    about = "larpr build tool",
+    disable_version_flag = true
+)]
 struct Cli {
     /// Print version
     #[arg(short = 'V', long, action = clap::ArgAction::Version)]
@@ -62,7 +66,7 @@ struct BuildArgs {
 
 fn command() -> clap::Command {
     static VERSION: std::sync::OnceLock<String> = std::sync::OnceLock::new();
-    let version = VERSION.get_or_init(|| crate::version().trim_start_matches("fcc ").to_string());
+    let version = VERSION.get_or_init(|| crate::version().trim_start_matches("larpr ").to_string());
     Cli::command().version(version.as_str())
 }
 
@@ -82,7 +86,7 @@ where
     I: IntoIterator<Item = T>,
     T: Into<OsString> + Clone,
 {
-    let argv = std::iter::once(OsString::from("fcc")).chain(argv.into_iter().map(Into::into));
+    let argv = std::iter::once(OsString::from("larpr")).chain(argv.into_iter().map(Into::into));
     let matches = command().try_get_matches_from(argv)?;
     let cli = Cli::from_arg_matches(&matches)?;
     let args = match cli.cmd {
@@ -158,7 +162,7 @@ mod tests {
         assert_eq!(e.kind(), clap::error::ErrorKind::DisplayVersion);
         let out = e.to_string();
         assert!(
-            out.starts_with(&format!("fcc {} (", env!("CARGO_PKG_VERSION"))),
+            out.starts_with(&format!("larpr {} (", env!("CARGO_PKG_VERSION"))),
             "{out}"
         );
         assert!(forbidden(&out).is_empty());

@@ -35,14 +35,14 @@ pub fn panic_is_quiet() -> bool {
     QUIET.with(|q| q.get())
 }
 
-/// `fcc --version`: looks like a compiler's, never names what the program really is.
+/// `larpr --version`: looks like a compiler's, never names what the program really is.
 pub fn version() -> String {
     let target = if cfg!(windows) {
         "x86_64-pc-windows-msvc".to_string()
     } else {
         format!("{}-unknown-linux-gnu", std::env::consts::ARCH)
     };
-    format!("fcc {} ({target})", env!("CARGO_PKG_VERSION"))
+    format!("larpr {} ({target})", env!("CARGO_PKG_VERSION"))
 }
 
 #[cfg(test)]
@@ -52,7 +52,7 @@ mod tests {
     #[test]
     fn version_looks_like_a_build_tool() {
         let v = version();
-        assert!(v.starts_with(&format!("fcc {} (", env!("CARGO_PKG_VERSION"))));
+        assert!(v.starts_with(&format!("larpr {} (", env!("CARGO_PKG_VERSION"))));
         for word in ["book", "reader", "okuyucu"] {
             assert!(!v.to_lowercase().contains(word));
         }

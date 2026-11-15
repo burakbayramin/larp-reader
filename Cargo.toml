@@ -1,11 +1,18 @@
 [package]
-name = "fcc"
+name = "larp-reader"
 version = "0.5.1"
 edition = "2024"
 rust-version = "1.88"
-description = "fcc build tool"
+description = "larpr build tool"
 license = "MIT"
 publish = false
+
+[lib]
+name = "larp_reader"
+
+[[bin]]
+name = "larpr"
+path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4.6.7", features = ["derive"] }

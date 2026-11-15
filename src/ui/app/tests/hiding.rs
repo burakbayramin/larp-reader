@@ -126,7 +126,7 @@ fn a_long_prompt_scrolls_so_the_typed_text_stays_in_view() {
     );
     assert_eq!(tail_fitting("short$ ", 40), "short$ ");
     let mut h = shell_harness();
-    h.app.prompt = format!("runner@{}:~/work/fcc$ ", "x".repeat(100));
+    h.app.prompt = format!("runner@{}:~/work/larpr$ ", "x".repeat(100));
     h.press(&["`"]);
     type_text(&mut h, "git status");
     assert!(
