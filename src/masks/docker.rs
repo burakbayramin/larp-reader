@@ -111,6 +111,20 @@ impl Mask for DockerMask {
     fn progress_label(&self, done: usize, total: usize, _width: usize) -> String {
         progress_bar_label(done, total, 10, "Extracting")
     }
+
+    fn status_right(
+        &self,
+        done: usize,
+        total: usize,
+        elapsed: std::time::Duration,
+    ) -> Vec<super::base::Segment> {
+        let _ = (done, total, elapsed);
+        vec![
+            super::base::seg("● 5/5 running", super::palette::GREEN),
+            super::base::seg("  ·  ", super::palette::DIM),
+            super::base::seg("compose: dev", super::palette::BLUE),
+        ]
+    }
 }
 
 #[cfg(test)]

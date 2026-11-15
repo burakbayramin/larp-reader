@@ -106,6 +106,22 @@ impl Mask for DiffMask {
     fn progress_label(&self, done: usize, total: usize, _width: usize) -> String {
         progress_bar_label(done, total, 10, "Diffing")
     }
+
+    fn status_right(
+        &self,
+        done: usize,
+        total: usize,
+        elapsed: std::time::Duration,
+    ) -> Vec<super::base::Segment> {
+        let _ = (total, elapsed);
+        vec![
+            super::base::seg(format!("+{}", 12 + done * 3), super::palette::GREEN),
+            super::base::seg(" ", super::palette::DIM),
+            super::base::seg(format!("-{}", 4 + done), super::palette::RED),
+            super::base::seg("  ·  ", super::palette::DIM),
+            super::base::seg(format!("{} files", 2 + done / 9), super::palette::FG),
+        ]
+    }
 }
 
 #[cfg(test)]

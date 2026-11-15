@@ -107,6 +107,25 @@ impl Mask for TestMask {
         let pct = (done * 100).checked_div(total).unwrap_or(0).min(100);
         format!("[{pct:3}%] collected {total} items")
     }
+
+    fn status_right(
+        &self,
+        done: usize,
+        total: usize,
+        elapsed: std::time::Duration,
+    ) -> Vec<super::base::Segment> {
+        let _ = total;
+        vec![
+            super::base::seg(format!("✓ {} passed", done * 3), super::palette::GREEN),
+            super::base::seg("  ·  ", super::palette::DIM),
+            super::base::seg(format!("{} skipped", done / 40), super::palette::YELLOW),
+            super::base::seg("  ·  ", super::palette::DIM),
+            super::base::seg(
+                format!("{:.2}s", 0.4 + elapsed.as_secs_f64()),
+                super::palette::BLUE,
+            ),
+        ]
+    }
 }
 
 #[cfg(test)]

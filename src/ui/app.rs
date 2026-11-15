@@ -341,6 +341,30 @@ impl App {
         }
     }
 
+    /// The status line in colour: the label's parts coloured, and the view's
+    /// own extras at the right end when the window has room for them. A flash
+    /// message stays plain.
+    pub fn status_segments(&self) -> Vec<crate::masks::Segment> {
+        use unicode_width::UnicodeWidthStr;
+        let text = self.status_text();
+        let (Some(s), None) = (self.session.as_ref(), self.flash.as_ref()) else {
+            return vec![(text, STATUS_FG)];
+        };
+        let mut out = crate::masks::base::colour_label(&text);
+        let (done, total) = s.progress();
+        let right = s
+            .mask()
+            .status_right(done, total, self.pacer.elapsed(self.now));
+        let left_w = text.width();
+        let right_w: usize = right.iter().map(|(t, _)| t.width()).sum();
+        let room = self.cols;
+        if !right.is_empty() && left_w + 2 + right_w < room {
+            out.push((" ".repeat(room - left_w - right_w - 1), STATUS_FG));
+            out.extend(right);
+        }
+        out
+    }
+
     /// The status line shows a label that moves on its own, so the screen needs
     /// redrawing often. Never while hidden: the hidden screen redraws on its own
     /// timer (or waits at a prompt) and keeps idle use low.
@@ -427,8 +451,14 @@ impl App {
             frame.render_widget(Paragraph::new(line).style(base.patch(style(FG))), status);
             frame.set_cursor_position((x, status.y));
         } else {
+            let line = ratatui::text::Line::from(
+                self.status_segments()
+                    .into_iter()
+                    .map(|(t, look)| ratatui::text::Span::styled(t, style(look)))
+                    .collect::<Vec<_>>(),
+            );
             frame.render_widget(
-                Paragraph::new(self.status_text()).style(base.patch(style(STATUS_FG))),
+                Paragraph::new(line).style(base.patch(style(STATUS_FG))),
                 status,
             );
         }

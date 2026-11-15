@@ -199,6 +199,23 @@ impl Mask for LogMask {
     fn progress_label(&self, done: usize, total: usize, _width: usize) -> String {
         progress_bar_label(done, total, 10, "Tailing")
     }
+
+    fn status_right(
+        &self,
+        done: usize,
+        total: usize,
+        elapsed: std::time::Duration,
+    ) -> Vec<super::base::Segment> {
+        let _ = total;
+        let rate = 40 + (done * 7 + elapsed.as_secs() as usize) % 60;
+        vec![
+            super::base::seg("● live", super::palette::GREEN),
+            super::base::seg("  ·  ", super::palette::DIM),
+            super::base::seg(format!("{rate} lines/s"), super::palette::CYAN),
+            super::base::seg("  ·  ", super::palette::DIM),
+            super::base::seg("prod-eu-1", super::palette::BLUE),
+        ]
+    }
 }
 
 #[cfg(test)]

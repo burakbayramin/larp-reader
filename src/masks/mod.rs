@@ -160,6 +160,18 @@ pub trait Mask {
     /// A little figure in the header that moves: pairs of (row as the header
     /// draws it, row to show now). The app swaps them in at draw time, so the
     /// header itself never changes. `active`: text is streaming. None: no figure.
+    /// Extra status pieces drawn at the right end of the status line, like a
+    /// tool's own status bar (branch, counters, mode). Dropped when the
+    /// window is too narrow. Never carries text of the book.
+    fn status_right(
+        &self,
+        _done: usize,
+        _total: usize,
+        _elapsed: std::time::Duration,
+    ) -> Vec<base::Segment> {
+        vec![]
+    }
+
     fn sprite(
         &self,
         _elapsed: std::time::Duration,

@@ -228,6 +228,24 @@ impl Mask for CodeMask {
         let pct = (done * 100).checked_div(total).unwrap_or(0).min(100);
         format!(" {}  {done}/{total}  {pct}%", file(self.lang))
     }
+
+    fn status_right(
+        &self,
+        done: usize,
+        total: usize,
+        elapsed: std::time::Duration,
+    ) -> Vec<super::base::Segment> {
+        let _ = (total, elapsed);
+        let mut name = self.lang.to_string();
+        if let Some(first) = name.get_mut(..1) {
+            first.make_ascii_uppercase();
+        }
+        vec![
+            super::base::seg(format!("Ln {}, Col 1", done + 1), super::palette::GUTTER),
+            super::base::seg("  UTF-8  LF  ", super::palette::DIM),
+            super::base::seg(name, super::palette::KEYWORD),
+        ]
+    }
 }
 
 #[cfg(test)]

@@ -117,3 +117,52 @@ fn bad_input_at_startup_hides_the_file_name() {
         }
     }
 }
+
+#[test]
+fn the_status_line_is_coloured_and_has_the_view_s_extras_when_there_is_room() {
+    use crate::masks::MASK_NAMES;
+    use unicode_width::UnicodeWidthStr;
+    for name in MASK_NAMES {
+        let config = Config {
+            mask: (*name).into(),
+            ..cfg()
+        };
+        let h = sample_with(10, config.clone(), 120, 24);
+        let segs = h.app.status_segments();
+        let text: String = segs.iter().map(|(t, _)| t.as_str()).collect();
+        assert!(text.starts_with(&h.app.status_text()), "{name}: {text}");
+        assert!(text.width() < 120, "{name}: fits: {text}");
+        assert!(
+            text.width() > h.app.status_text().width(),
+            "{name}: extras: {text}"
+        );
+        let looks: std::collections::HashSet<_> = segs.iter().map(|(_, l)| *l).collect();
+        assert!(looks.len() >= 3, "{name}: colours: {segs:?}");
+        for w in ["book", "reader", "okuyucu", "sample"] {
+            assert!(!text.to_lowercase().contains(w), "{name}: {w}");
+        }
+        assert!(h.status().starts_with(&h.app.status_text()));
+
+        // a narrow window keeps only the label
+        let narrow = sample_with(10, config, 40, 24);
+        let text: String = narrow
+            .app
+            .status_segments()
+            .into_iter()
+            .map(|(t, _)| t)
+            .collect();
+        assert_eq!(text, narrow.app.status_text(), "{name}");
+    }
+    // a flash message stays plain
+    let mut h = sample_with(
+        10,
+        Config {
+            mask: "agent".into(),
+            ..cfg()
+        },
+        120,
+        24,
+    );
+    h.press(&["+"]);
+    assert_eq!(h.app.status_segments().len(), 1);
+}

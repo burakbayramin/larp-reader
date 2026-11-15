@@ -111,6 +111,22 @@ impl Mask for BuildMask {
     fn progress_label(&self, done: usize, total: usize, _width: usize) -> String {
         progress_bar_label(done, total, 10, "Building")
     }
+
+    fn status_right(
+        &self,
+        done: usize,
+        total: usize,
+        elapsed: std::time::Duration,
+    ) -> Vec<super::base::Segment> {
+        let _ = (total, elapsed);
+        vec![
+            super::base::seg("jobs: 8", super::palette::BLUE),
+            super::base::seg("  ·  ", super::palette::DIM),
+            super::base::seg(format!("warnings: {}", done / 37), super::palette::YELLOW),
+            super::base::seg("  ·  ", super::palette::DIM),
+            super::base::seg("release", super::palette::GREEN),
+        ]
+    }
 }
 
 #[cfg(test)]

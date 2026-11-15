@@ -604,6 +604,22 @@ impl Mask for AgentMask {
         )
     }
 
+    fn status_right(
+        &self,
+        done: usize,
+        total: usize,
+        elapsed: std::time::Duration,
+    ) -> Vec<super::base::Segment> {
+        let _ = (total, elapsed);
+        let edits = 3 + done / 4;
+        vec![
+            super::base::seg("▸▸ accept edits on", super::palette::CONTROL),
+            super::base::seg("  ·  ", super::palette::DIM),
+            super::base::seg("⎇ main", super::palette::GREEN),
+            super::base::seg(format!(" +{edits}"), super::palette::YELLOW),
+        ]
+    }
+
     fn animated_label(
         &self,
         done: usize,

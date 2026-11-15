@@ -164,6 +164,23 @@ impl Mask for GitMask {
         let pct = (done * 100).checked_div(total).unwrap_or(0).min(100);
         format!("Resolving deltas: {pct:3}% ({done}/{total})")
     }
+
+    fn status_right(
+        &self,
+        done: usize,
+        total: usize,
+        elapsed: std::time::Duration,
+    ) -> Vec<super::base::Segment> {
+        let _ = (total, elapsed);
+        vec![
+            super::base::seg("⎇ main", super::palette::GREEN),
+            super::base::seg(" ", super::palette::DIM),
+            super::base::seg(format!("↑{}", done % 4), super::palette::CYAN),
+            super::base::seg(format!(" ↓{}", done / 50), super::palette::CYAN),
+            super::base::seg("  ·  ", super::palette::DIM),
+            super::base::seg("origin", super::palette::BLUE),
+        ]
+    }
 }
 
 #[cfg(test)]
