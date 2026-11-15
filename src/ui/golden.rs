@@ -100,6 +100,17 @@ fn samples() -> Vec<(String, Vec<Line>)> {
         shell.extend(super::shell::shell_output(cmd, m.as_mut(), &mut rng, 80).unwrap());
     }
     out.push(("shell".into(), shell));
+    // The agent's bullet is ● on Windows (⏺ elsewhere); the fixture is
+    // recorded with ⏺ so it holds on every platform.
+    if cfg!(windows) {
+        for (_, lines) in &mut out {
+            for line in lines {
+                for (text, _) in &mut line.segments {
+                    *text = text.replace('●', "⏺");
+                }
+            }
+        }
+    }
     out
 }
 
