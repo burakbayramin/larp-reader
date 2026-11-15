@@ -28,11 +28,20 @@ The green lines are your book; everything else is fake.
 
 ## Quick start
 
+On macOS or Linux with [Homebrew](https://brew.sh):
+
+```
+brew install burakbayramin/tap/larpr
+```
+
+Otherwise:
+
 1. Download the archive for your system from the [Releases](../../releases) page
    (Windows, macOS Apple Silicon / Intel, Linux).
 2. Unpack it and put `larpr` (`larpr.exe` on Windows) in a folder on your PATH.
    Nothing else to install.
-3. Open your book:
+
+Then open your book:
 
 ```
 larpr build book.epub
