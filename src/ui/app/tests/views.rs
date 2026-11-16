@@ -1,6 +1,7 @@
 //! Views, languages, filler, themes, and file names kept off screen.
 
 use super::*;
+use crate::masks::MASK_NAMES;
 
 // -- test_app_switch.py, test_help_and_inputs.py, test_menu_bookmarks.py --
 
@@ -120,7 +121,6 @@ fn bad_input_at_startup_hides_the_file_name() {
 
 #[test]
 fn the_status_line_is_coloured_and_has_the_view_s_extras_when_there_is_room() {
-    use crate::masks::MASK_NAMES;
     use unicode_width::UnicodeWidthStr;
     for name in MASK_NAMES {
         let config = Config {
