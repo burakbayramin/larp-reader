@@ -6,7 +6,7 @@ code/java monokai truecolor 0a1c6f96afd49a7b
 code/csharp monokai truecolor 590389cc2ad04bc8
 log/python monokai truecolor ac69e5099404d5c0
 diff/python monokai truecolor 72e002ce8a7f3a15
-test/python monokai truecolor 87af642665642ee7
+test/python monokai truecolor 316a458f59057781
 build/python monokai truecolor 4313eb5cc9c68e78
 git/python monokai truecolor 3a37e3771f6cfc20
 docker/python monokai truecolor 6801df3194405ffc
@@ -21,7 +21,7 @@ code/java monokai ansi256 b8093e5dfb38754d
 code/csharp monokai ansi256 a136aecee4937c10
 log/python monokai ansi256 707d462a64ea49a0
 diff/python monokai ansi256 918eece12a9a8e7d
-test/python monokai ansi256 706d8be42bebddc2
+test/python monokai ansi256 8e12c075e3acb871
 build/python monokai ansi256 e330a8880ef7ffe0
 git/python monokai ansi256 eee524f826603e6a
 docker/python monokai ansi256 9c92af55e988c06b
@@ -36,7 +36,7 @@ code/java monokai ansi16 6f1f97bd91e2ae04
 code/csharp monokai ansi16 49a51c52ad03c59c
 log/python monokai ansi16 75b3a1281ff93f22
 diff/python monokai ansi16 a103fa5642ceeccc
-test/python monokai ansi16 d195ee33c09b03b9
+test/python monokai ansi16 2abb35215e43e5f9
 build/python monokai ansi16 1ff4644fd07a915e
 git/python monokai ansi16 14b9757f5a191817
 docker/python monokai ansi16 7d6e312cb3d4e7b7
@@ -51,7 +51,7 @@ code/java dark truecolor 4b9f6600360bab0f
 code/csharp dark truecolor 4622356affbad47b
 log/python dark truecolor 65e0c03c062d470b
 diff/python dark truecolor a740304b145f2f35
-test/python dark truecolor e68c1f931fa9d954
+test/python dark truecolor 8bf1ddcb61f6824f
 build/python dark truecolor d2fc0d59dd94951d
 git/python dark truecolor 91c9cfbb6eb4f367
 docker/python dark truecolor 69521ee1a62cf5c2
@@ -66,7 +66,7 @@ code/java dark ansi256 aad7a382c6d7d661
 code/csharp dark ansi256 d0eec044632281a5
 log/python dark ansi256 f99fa6c7f417a231
 diff/python dark ansi256 17f52637e2e7642a
-test/python dark ansi256 93d9985890477a94
+test/python dark ansi256 2d8b5dba1478225d
 build/python dark ansi256 1d89997ef1b12c77
 git/python dark ansi256 5680422b3f141c7b
 docker/python dark ansi256 3e1f6f1dceb10681
@@ -81,7 +81,7 @@ code/java dark ansi16 7e10bfda40684e9c
 code/csharp dark ansi16 a239bbff54a28e8b
 log/python dark ansi16 05945b502405b085
 diff/python dark ansi16 2834097a6f6ba0ec
-test/python dark ansi16 7c7cbf52d94e26c3
+test/python dark ansi16 62806583905b4d32
 build/python dark ansi16 c417b2a3fc8315a8
 git/python dark ansi16 9bcaa7451a716ff8
 docker/python dark ansi16 d187c359795afbfd
@@ -96,7 +96,7 @@ code/java light truecolor d5d2a4cbe3fb3fe8
 code/csharp light truecolor b75a020f2f8f0316
 log/python light truecolor 94a53cc57816ddd2
 diff/python light truecolor 299613c8cd9ee736
-test/python light truecolor a3ad87fffa96cc46
+test/python light truecolor 0b7b29971f7522ba
 build/python light truecolor f031eaf65bebe5b7
 git/python light truecolor 7b0f9c2428c2b210
 docker/python light truecolor 4e9c1914ac92597b
@@ -111,7 +111,7 @@ code/java light ansi256 cc8832fe57ace598
 code/csharp light ansi256 5507c4816d75ac27
 log/python light ansi256 4462943cbe26f9c0
 diff/python light ansi256 62ce537ae1ea2de2
-test/python light ansi256 1b5eb7352019aae8
+test/python light ansi256 3991abbcbe013647
 build/python light ansi256 d06d3d472b2d4d78
 git/python light ansi256 6452c194b69fa887
 docker/python light ansi256 2639377b6403a7cb
@@ -126,7 +126,7 @@ code/java light ansi16 69d1b31b7bd1c706
 code/csharp light ansi16 ae3d9314522bc6e1
 log/python light ansi16 003bbfdd35310354
 diff/python light ansi16 60cff4fbca7ef47e
-test/python light ansi16 f60367fd522f7440
+test/python light ansi16 7ac67630f95a89c6
 build/python light ansi16 9ba1fc177315e2df
 git/python light ansi16 61be6b847ef85bed
 docker/python light ansi16 398bbe5bd76afefe
@@ -141,7 +141,7 @@ code/java dark-daltonized truecolor 3cbd84ba280712a2
 code/csharp dark-daltonized truecolor 3027323a1990e0a9
 log/python dark-daltonized truecolor f6e84430a853e0bf
 diff/python dark-daltonized truecolor ac866a19b265f8aa
-test/python dark-daltonized truecolor 88f1bc08a81a4a92
+test/python dark-daltonized truecolor 94a315b806d9ee81
 build/python dark-daltonized truecolor 6e71cd76fe5acf40
 git/python dark-daltonized truecolor e24478b1f13e021f
 docker/python dark-daltonized truecolor 3193a2f9761adc98
@@ -156,7 +156,7 @@ code/java dark-daltonized ansi256 ad043f59c7bced0e
 code/csharp dark-daltonized ansi256 e6193caefeb03462
 log/python dark-daltonized ansi256 c1e8067eacb131e1
 diff/python dark-daltonized ansi256 46702e3267b13191
-test/python dark-daltonized ansi256 b82c080e57aca3a8
+test/python dark-daltonized ansi256 465022d7267aef81
 build/python dark-daltonized ansi256 d5d6ed174d0120b6
 git/python dark-daltonized ansi256 9662a324d2d62f56
 docker/python dark-daltonized ansi256 bac8a05b796ca580
@@ -171,7 +171,7 @@ code/java dark-daltonized ansi16 2d1e38e9e665565c
 code/csharp dark-daltonized ansi16 11534541a6c3f0aa
 log/python dark-daltonized ansi16 76a17b87ef96ceca
 diff/python dark-daltonized ansi16 308f6d9b125eb132
-test/python dark-daltonized ansi16 c9cf5efaadee5da6
+test/python dark-daltonized ansi16 0becc978cebc24ea
 build/python dark-daltonized ansi16 c4ed30e58f54aa42
 git/python dark-daltonized ansi16 2825af338135b4e4
 docker/python dark-daltonized ansi16 bf8bbb9238bc4d1d
@@ -186,7 +186,7 @@ code/java light-daltonized truecolor 0df0c86a6f128f84
 code/csharp light-daltonized truecolor 7702aec0105b4a6d
 log/python light-daltonized truecolor b78a7a7dee22d295
 diff/python light-daltonized truecolor 5d79a654d1239724
-test/python light-daltonized truecolor 26791560a920b479
+test/python light-daltonized truecolor 3ff7f1a9c5ae41e9
 build/python light-daltonized truecolor 1eb097892bcc9b47
 git/python light-daltonized truecolor 712f7ed6e689ea17
 docker/python light-daltonized truecolor 58e0c3e86b23150a
@@ -201,7 +201,7 @@ code/java light-daltonized ansi256 a357fd1654fa3277
 code/csharp light-daltonized ansi256 5c19fa67b2cd656c
 log/python light-daltonized ansi256 374160b813220045
 diff/python light-daltonized ansi256 a96209037e57d4ba
-test/python light-daltonized ansi256 562e1e922b23eab4
+test/python light-daltonized ansi256 2e8d29e8554bb7c8
 build/python light-daltonized ansi256 01c1119e4f4010cd
 git/python light-daltonized ansi256 7a45cb0d29811ff4
 docker/python light-daltonized ansi256 31bc7a9328b669ba
@@ -216,7 +216,7 @@ code/java light-daltonized ansi16 5d58a9de5b3dcd27
 code/csharp light-daltonized ansi16 c1ef88238d670683
 log/python light-daltonized ansi16 beea7a1b00bfe0a1
 diff/python light-daltonized ansi16 12678ea8c6033b7a
-test/python light-daltonized ansi16 cf9bdbb4ee91a439
+test/python light-daltonized ansi16 8174a1620bdf61e6
 build/python light-daltonized ansi16 42f1f965ff675df6
 git/python light-daltonized ansi16 a19fcdf29b80f1bd
 docker/python light-daltonized ansi16 2cdaafeace5745d3
@@ -231,7 +231,7 @@ code/java dark-ansi truecolor 7fd034736f97d4e0
 code/csharp dark-ansi truecolor 4b2f26d585d427cf
 log/python dark-ansi truecolor a18f0af009a393ba
 diff/python dark-ansi truecolor 816b9c21e2b83193
-test/python dark-ansi truecolor 2f9423a7daf1f097
+test/python dark-ansi truecolor 4d2c280eab2a84e2
 build/python dark-ansi truecolor c99ffeeac344bd6d
 git/python dark-ansi truecolor 72d40427986093d5
 docker/python dark-ansi truecolor 3cf0a44c5af22a7c
@@ -246,7 +246,7 @@ code/java dark-ansi ansi256 7fd034736f97d4e0
 code/csharp dark-ansi ansi256 4b2f26d585d427cf
 log/python dark-ansi ansi256 a18f0af009a393ba
 diff/python dark-ansi ansi256 816b9c21e2b83193
-test/python dark-ansi ansi256 2f9423a7daf1f097
+test/python dark-ansi ansi256 4d2c280eab2a84e2
 build/python dark-ansi ansi256 c99ffeeac344bd6d
 git/python dark-ansi ansi256 72d40427986093d5
 docker/python dark-ansi ansi256 3cf0a44c5af22a7c
@@ -261,7 +261,7 @@ code/java dark-ansi ansi16 7fd034736f97d4e0
 code/csharp dark-ansi ansi16 4b2f26d585d427cf
 log/python dark-ansi ansi16 a18f0af009a393ba
 diff/python dark-ansi ansi16 816b9c21e2b83193
-test/python dark-ansi ansi16 2f9423a7daf1f097
+test/python dark-ansi ansi16 4d2c280eab2a84e2
 build/python dark-ansi ansi16 c99ffeeac344bd6d
 git/python dark-ansi ansi16 72d40427986093d5
 docker/python dark-ansi ansi16 3cf0a44c5af22a7c
@@ -276,7 +276,7 @@ code/java light-ansi truecolor f138eb6ba42706b4
 code/csharp light-ansi truecolor 28178562757fe002
 log/python light-ansi truecolor a18f0af009a393ba
 diff/python light-ansi truecolor 9a7d633481f71511
-test/python light-ansi truecolor 2f9423a7daf1f097
+test/python light-ansi truecolor 4d2c280eab2a84e2
 build/python light-ansi truecolor c99ffeeac344bd6d
 git/python light-ansi truecolor 72d40427986093d5
 docker/python light-ansi truecolor 3cf0a44c5af22a7c
@@ -291,7 +291,7 @@ code/java light-ansi ansi256 f138eb6ba42706b4
 code/csharp light-ansi ansi256 28178562757fe002
 log/python light-ansi ansi256 a18f0af009a393ba
 diff/python light-ansi ansi256 9a7d633481f71511
-test/python light-ansi ansi256 2f9423a7daf1f097
+test/python light-ansi ansi256 4d2c280eab2a84e2
 build/python light-ansi ansi256 c99ffeeac344bd6d
 git/python light-ansi ansi256 72d40427986093d5
 docker/python light-ansi ansi256 3cf0a44c5af22a7c
@@ -306,7 +306,7 @@ code/java light-ansi ansi16 f138eb6ba42706b4
 code/csharp light-ansi ansi16 28178562757fe002
 log/python light-ansi ansi16 a18f0af009a393ba
 diff/python light-ansi ansi16 9a7d633481f71511
-test/python light-ansi ansi16 2f9423a7daf1f097
+test/python light-ansi ansi16 4d2c280eab2a84e2
 build/python light-ansi ansi16 c99ffeeac344bd6d
 git/python light-ansi ansi16 72d40427986093d5
 docker/python light-ansi ansi16 3cf0a44c5af22a7c

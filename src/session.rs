@@ -117,6 +117,8 @@ impl Session {
         let mut rng = seeded(&self.seed(pos));
         let count = self.noise_count(pos);
         let mut lines = if self.opens_chapter(pos) {
+            self.mask
+                .set_progress(self.book.index_of(pos), self.book.paragraph_count());
             self.mask.transition(pos.0, self.width, start)
         } else {
             vec![]
@@ -600,6 +602,17 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+
+    #[test]
+    fn the_test_mask_transition_shows_how_far_into_the_text_it_is() {
+        // chapters 1..=4 of 3 paragraphs: 12 in all, chapter 2 opens after 3 of them
+        let book = chaptered_book(4, 3, 5);
+        let mut s = Session::new(book, get_mask("test", "python").unwrap(), 0, 80, (1, 0));
+        for (chapter, want) in [(2, "[ 25%]"), (3, "[ 50%]"), (4, "[ 75%]")] {
+            let first = s.paragraph_lines((chapter, 0))[0].plain();
+            assert!(first.ends_with(want), "{first}");
         }
     }
 

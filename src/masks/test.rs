@@ -20,9 +20,16 @@ fn center(text: &str, width: usize, fill: char) -> String {
     format!("{}{text}{}", f.repeat(left), f.repeat(marg - left))
 }
 
+/// Percent of the run done, as pytest's progress column shows it.
+fn percent(done: usize, total: usize) -> usize {
+    (done * 100).checked_div(total).unwrap_or(0).min(100)
+}
+
 #[derive(Default)]
 pub struct TestMask {
     slot: Slot,
+    /// Paragraphs before the one being rendered, and all of them.
+    progress: (usize, usize),
 }
 
 impl Mask for TestMask {
@@ -99,13 +106,16 @@ impl Mask for TestMask {
         let name = format!("tests/test_{}.py ", section::name(chapter, 0));
         let mut dots = ".".repeat(4 + chapter * 7 % 17);
         dots.push('F');
-        let pct = format!(" [{:3}%]", 3 + chapter * 29 % 95);
+        let pct = format!(" [{:3}%]", percent(self.progress.0, self.progress.1));
         vec![chrome(width, &[(&name, FG), (&dots, GREEN), (&pct, DIM)])]
     }
 
+    fn set_progress(&mut self, done: usize, total: usize) {
+        self.progress = (done, total);
+    }
+
     fn progress_label(&self, done: usize, total: usize, _width: usize) -> String {
-        let pct = (done * 100).checked_div(total).unwrap_or(0).min(100);
-        format!("[{pct:3}%] collected {total} items")
+        format!("[{:3}%] collected {total} items", percent(done, total))
     }
 
     fn status_right(
@@ -194,6 +204,18 @@ mod tests {
             );
             assert!(p.ends_with("%]") && !n.is_book);
         }
+    }
+
+    #[test]
+    fn transition_percentage_is_the_real_progress() {
+        let mut m = TestMask::default();
+        for (done, total, want) in [(0, 10, "[  0%]"), (3, 12, "[ 25%]"), (10, 10, "[100%]")] {
+            m.set_progress(done, total);
+            let line = m.transition(4, 80, 1)[0].plain();
+            assert!(line.ends_with(want), "{line}");
+        }
+        m.set_progress(5, 0); // an empty text doesn't divide by zero
+        assert!(m.transition(4, 80, 1)[0].plain().ends_with("[  0%]"));
     }
 
     #[test]

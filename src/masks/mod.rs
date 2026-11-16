@@ -118,6 +118,11 @@ pub trait Mask {
     /// how many lines there are must not depend on it.
     fn transition(&self, chapter: usize, width: usize, line_no_start: usize) -> Vec<Line>;
 
+    /// Where the paragraph about to be rendered sits in the text: `done`
+    /// paragraphs come before it, out of `total`. The session says so before
+    /// asking for its `transition`, for masks that show real progress there.
+    fn set_progress(&mut self, _done: usize, _total: usize) {}
+
     /// One line of filler.
     fn noise(&mut self, rng: &mut Rng, width: usize) -> Line;
 
