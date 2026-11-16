@@ -7,13 +7,15 @@
 mod commands;
 mod draw;
 mod keys;
+mod save;
+mod timing;
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use rand::SeedableRng;
 
-use super::feed::{Feed, text_chars};
+use super::feed::Feed;
 use super::input::LineInput;
 use super::menu::{Menu, MenuResult};
 use super::panel;
@@ -22,18 +24,15 @@ use super::report::Report;
 use super::search::{self, Search};
 use super::shell::shell_prompt;
 use super::theme::Theme;
-use super::timer::{Clock, Pacer};
+use super::timer::Pacer;
 use crate::book::{Book, Pos};
 use crate::errors::FccError;
 use crate::loaders::load_book;
 use crate::masks::base::{error_lines, plain_line};
-use crate::masks::time::{civil, local_today};
+use crate::masks::time::local_today;
 use crate::masks::{Line, Look, Mask, Rng, Role, get_mask, seeded};
-use crate::pace::line_delay;
 use crate::session::Session;
-use crate::state::{
-    Config, Entry, last_entry, load_progress, load_stats, save_progress, save_stats,
-};
+use crate::state::{Config, last_entry, load_progress, load_stats};
 use crate::stats::Stats;
 
 pub const MIN_WIDTH: usize = 40;
@@ -68,22 +67,6 @@ fn valid_pos(book: &Book, pos: Pos) -> Pos {
     } else {
         (0, 0)
     }
-}
-
-/// Local-time-free `2026-11-12T10:04:05` (UTC) for the progress file's `updated_at`.
-fn timestamp() -> String {
-    let secs = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0) as i64;
-    let (y, m, d) = civil(secs.div_euclid(86_400));
-    let s = secs.rem_euclid(86_400);
-    format!(
-        "{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}",
-        s / 3600,
-        s / 60 % 60,
-        s % 60
-    )
 }
 
 pub struct App {
@@ -263,180 +246,6 @@ impl App {
         ));
         self.opened_at = Some(pos);
         Ok(())
-    }
-
-    // -- time ----------------------------------------------------------------
-
-    /// The next moment `on_time` has something to do.
-    pub fn next_deadline(&self) -> Instant {
-        let mut at = self.next_autosave;
-        if let Some((_, until)) = &self.flash {
-            at = at.min(*until);
-        }
-        if let Some(t) = self.pacer.next_deadline(self.now, self.animating()) {
-            at = at.min(t);
-        }
-        if let Some(r) = &self.reply {
-            at = at.min(r.due());
-        }
-        at
-    }
-
-    pub fn on_time(&mut self, now: Instant) {
-        self.now = now;
-        self.pacer.type_on(now, self.panic, &mut self.feed);
-        if self.pacer.is_due(now) {
-            self.timer_fired();
-        }
-        self.play_reply();
-        if let Some((_, until)) = &self.flash
-            && now >= *until
-        {
-            self.flash = None;
-        }
-        if now >= self.next_autosave {
-            self.try_save();
-            self.next_autosave = now + AUTOSAVE;
-        }
-    }
-
-    fn restart_timer(&mut self) {
-        let clock = if self.panic {
-            Clock::Hidden {
-                shell: self.config.hide == "shell",
-            }
-        } else if self.auto && self.session.is_some() && !self.busy() {
-            Clock::Auto
-        } else {
-            Clock::Idle
-        };
-        self.pacer.restart(clock, self.now, self.config.wpm);
-    }
-
-    fn timer_fired(&mut self) {
-        self.pacer.stop();
-        self.tick();
-        if self.panic {
-            self.restart_timer();
-            return;
-        }
-        if self.auto && !self.panic && self.pacer.due().is_none() {
-            self.pacer.schedule_line(self.now, self.config.wpm);
-        }
-    }
-
-    /// One stream step: the next line of text, with the filler before it.
-    pub fn tick(&mut self) {
-        if self.panic {
-            let width = self.width();
-            let mut rng = self.panic_rng.clone();
-            let line = self.mask_mut().noise(&mut rng, width);
-            self.panic_rng = rng;
-            self.feed.append(vec![line]);
-            return;
-        }
-        if !self.auto || self.busy() {
-            return;
-        }
-        let Some(s) = self.session.as_mut() else {
-            return;
-        };
-        // the text on screen had its reading time: it was read
-        let (shown, id) = (self.pacer.shown_words(), s.book.id.clone());
-        if shown > 0 && self.report.is_none() {
-            let secs = line_delay(shown, self.config.wpm);
-            let day = self.day_override.unwrap_or_else(local_today);
-            self.stats.record(day, &id, shown, secs);
-            self.stats_dirty = true;
-        }
-        let (out, finished) = self.pacer.next_lines(s);
-        let types = s.mask().typewriter();
-        if !out.is_empty() {
-            let out = self.search.highlighted(out);
-            let chars = out.last().filter(|l| l.is_book).map(text_chars);
-            self.feed.append(out);
-            if let Some(chars) = chars.filter(|&c| types && c > 0) {
-                self.pacer
-                    .start_typing(chars, self.now, self.config.wpm, &mut self.feed);
-            }
-        }
-        if finished {
-            // end of text: back to manual mode so the paging keys work again
-            self.pacer.stop();
-            self.auto = false;
-            self.redraw();
-        }
-    }
-
-    pub fn timer_due(&self) -> Option<Instant> {
-        self.pacer.due()
-    }
-
-    pub fn flash(&mut self, msg: &str, now: Instant) {
-        self.flash = Some((msg.to_string(), now + FLASH));
-    }
-
-    // -- saving --------------------------------------------------------------
-
-    fn save(&self) -> std::io::Result<()> {
-        let (Some(s), Some(path)) = (&self.session, &self.entry_path) else {
-            return Ok(());
-        };
-        let mut data = load_progress(&self.state_dir);
-        data.insert(
-            s.book.id.clone(),
-            Entry {
-                path: path.clone(),
-                chapter: s.pos().0,
-                paragraph: s.pos().1,
-                bookmarks: self.bookmarks.clone(),
-                updated_at: timestamp(),
-            },
-        );
-        save_progress(&self.state_dir, &data)
-    }
-
-    /// Take the screens read since last time into the statistics.
-    fn bank_reading(&mut self) {
-        let read = self.pacer.take_read();
-        if read.is_empty() {
-            return;
-        }
-        let day = self.day_override.unwrap_or_else(local_today);
-        for (book, words, seconds) in read {
-            self.stats.record(day, &book, words, seconds);
-        }
-        self.stats_dirty = true;
-    }
-
-    fn save_stats(&mut self) -> std::io::Result<()> {
-        if !self.stats_dirty {
-            return Ok(());
-        }
-        save_stats(&self.state_dir, &self.stats)?;
-        self.stats_dirty = false;
-        Ok(())
-    }
-
-    fn try_save(&mut self) {
-        self.bank_reading();
-        if let Err(e) = self.save().and_then(|()| self.save_stats()) {
-            if self.save_error_shown {
-                return;
-            }
-            self.save_error_shown = true;
-            let lines = error_lines(
-                &FccError::Other(format!("could not save state: {}", e.kind())),
-                self.width(),
-            );
-            self.notice.extend(lines.iter().cloned());
-            if self.auto && !self.panic {
-                self.pacer.finish_typing(&mut self.feed);
-                self.feed.append(lines);
-            } else {
-                self.redraw();
-            }
-        }
     }
 }
 
