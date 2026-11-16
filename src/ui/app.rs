@@ -8,6 +8,7 @@ mod commands;
 mod draw;
 mod keys;
 mod save;
+pub use save::timestamp;
 mod timing;
 
 use std::path::{Path, PathBuf};

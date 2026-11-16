@@ -36,6 +36,15 @@ struct Cli {
 enum Command {
     /// build a target
     Build(BuildArgs),
+    /// print one status line
+    Tick(TickArgs),
+}
+
+#[derive(Args, Debug)]
+struct TickArgs {
+    /// widest the line may be, in columns
+    #[arg(long, default_value_t = crate::tick::DEFAULT_WIDTH)]
+    width: usize,
 }
 
 #[derive(Args, Debug, Default)]
@@ -78,6 +87,8 @@ pub enum Outcome {
     Run(PathBuf, Config),
     /// Nothing to open: print the error and exit with status 1.
     Fail(FccError),
+    /// Print this one line and exit with status 0.
+    Print(String),
 }
 
 /// Parse `argv` (without the program name), apply flags to the saved config, save it and
@@ -106,6 +117,7 @@ where
     let cli = Cli::from_arg_matches(&matches)?;
     let args = match cli.cmd {
         Some(Command::Build(a)) => a,
+        Some(Command::Tick(t)) => return Ok(Outcome::Print(crate::tick::tick(state_dir, t.width))),
         None => BuildArgs::default(),
     };
 

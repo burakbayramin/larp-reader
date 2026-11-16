@@ -47,6 +47,10 @@ fn main() -> ExitCode {
             eprintln!("error: {}\n{err}", err.title());
             return ExitCode::from(1);
         }
+        Ok(Outcome::Print(line)) => {
+            println!("{line}");
+            return ExitCode::SUCCESS;
+        }
         Ok(Outcome::Run(path, config)) => (path, config),
     };
 

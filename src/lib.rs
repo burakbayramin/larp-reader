@@ -14,6 +14,7 @@ pub mod session;
 pub mod state;
 pub mod stats;
 pub mod text;
+pub mod tick;
 pub mod ui;
 
 thread_local! {

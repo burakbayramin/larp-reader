@@ -5,7 +5,7 @@ use crate::masks::time::civil;
 use crate::state::{Entry, save_progress, save_stats};
 
 /// Local-time-free `2026-11-12T10:04:05` (UTC) for the progress file's `updated_at`.
-fn timestamp() -> String {
+pub fn timestamp() -> String {
     let secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())

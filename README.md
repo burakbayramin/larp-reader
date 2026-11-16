@@ -177,6 +177,20 @@ larpr build book.epub --mask=agent --auto --wpm=300
 | `--hide` | what the panic key shows: `stream` (scrolling output) or `shell` (fake shell) |
 | `--theme` | colour theme (see above) |
 
+## Status bar mode
+
+`larpr tick` prints one line that looks like CI or git status and carries the
+next few words of the text you last had open, then moves your place forward by
+what it showed. Put it in a tmux status bar and the text trickles by:
+
+```
+set -g status-interval 5
+set -g status-right '#(larpr tick --width 70)'
+```
+
+`--width` is the widest the line may be (default 80). With nothing open, or if
+the file is gone, it prints a neutral "all checks passed" line and exits 0.
+
 ## Other ways to install
 
 With [cargo-binstall](https://github.com/cargo-bins/cargo-binstall), one command
