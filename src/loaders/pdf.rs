@@ -39,6 +39,8 @@ const MAX_SPAN_SHARE: f32 = 0.15;
 /// A column holds at least this many lines and this share of the text width.
 const MIN_COLUMN_LINES: usize = 3;
 const MIN_COLUMN_SHARE: f32 = 0.2;
+/// A column's lines hold this many words on average; fewer means table cells.
+const MIN_COLUMN_WORDS: usize = 3;
 /// Columns inside columns are looked for down to this depth.
 const MAX_DEPTH: usize = 4;
 /// A line starting this many line heights right of its column's edge opens a paragraph.
@@ -269,11 +271,18 @@ fn find_gutter(pieces: &[Piece]) -> Option<(f32, f32, f32)> {
 /// Whether enough lines sit on both sides of the gutter, side by side.
 fn has_columns(pieces: &[Piece], g0: f32, g1: f32, min_gap: f32) -> bool {
     let (mut left, mut right) = (vec![], vec![]);
+    let (mut left_words, mut right_words) = (0, 0);
     for p in pieces {
         for s in split(p.clone(), g0, g1, min_gap) {
             match s {
-                Side::Left(p) => left.push((p.bottom, p.top)),
-                Side::Right(p) => right.push((p.bottom, p.top)),
+                Side::Left(p) => {
+                    left_words += p.words.len();
+                    left.push((p.bottom, p.top));
+                }
+                Side::Right(p) => {
+                    right_words += p.words.len();
+                    right.push((p.bottom, p.top));
+                }
                 Side::Span(_) => {}
             }
         }
@@ -284,7 +293,14 @@ fn has_columns(pieces: &[Piece], g0: f32, g1: f32, min_gap: f32) -> bool {
         })
     };
     let ((l_lo, l_hi), (r_lo, r_hi)) = (extent(&left), extent(&right));
-    left.len() >= MIN_COLUMN_LINES && right.len() >= MIN_COLUMN_LINES && l_lo < r_hi && r_lo < l_hi
+    // cells of a table are a few words each; a column of text has longer lines
+    let wordy = |words: usize, lines: usize| words >= MIN_COLUMN_WORDS * lines;
+    left.len() >= MIN_COLUMN_LINES
+        && right.len() >= MIN_COLUMN_LINES
+        && l_lo < r_hi
+        && r_lo < l_hi
+        && wordy(left_words, left.len())
+        && wordy(right_words, right.len())
 }
 
 /// The page's lines as single columns in reading order: strips top to bottom,
@@ -1178,6 +1194,27 @@ mod tests {
         assert_eq!(
             load_generated(&[page]),
             vec!["The total came to 42 dollars in the end."]
+        );
+    }
+
+    #[test]
+    fn table_rows_are_not_read_column_by_column() {
+        let mut page = vec![];
+        let table = [
+            ("Name", "Age", "City"),
+            ("Alice", "30", "Paris"),
+            ("Bob", "25", "Rome"),
+            ("Carol", "41", "Oslo"),
+        ];
+        for (i, (a, b, c)) in table.iter().enumerate() {
+            let y = 700.0 - 14.0 * i as f32;
+            page.push(line(72.0, y, 10.0, a));
+            page.push(line(200.0, y, 10.0, b));
+            page.push(line(330.0, y, 10.0, c));
+        }
+        assert_eq!(
+            load_generated(&[page]),
+            vec!["Name Age City Alice 30 Paris Bob 25 Rome Carol 41 Oslo"]
         );
     }
 }
