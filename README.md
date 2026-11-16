@@ -79,6 +79,7 @@ Switch views with `m` (`M` goes back):
 | `git` | `git log --stat` |
 | `docker` | `docker compose up` logs |
 | `kubectl` | `kubectl get pods`, then `kubectl logs -f` across a namespace's pods |
+| `terraform` | `terraform plan`: resource blocks with heredoc content, state refreshing around them |
 | `agent` | An AI coding agent at work: tool calls, coloured diffs, sub-agents |
 
 `n` / `N` set how much fake output is mixed in. The fake lines are drawn from
@@ -216,7 +217,7 @@ larpr build book.epub --mask=agent --auto --wpm=300
 
 | Option | What it does |
 | --- | --- |
-| `--mask` | view to start in: `code`, `log`, `diff`, `test`, `build`, `git`, `docker`, `kubectl`, `agent` |
+| `--mask` | view to start in: `code`, `log`, `diff`, `test`, `build`, `git`, `docker`, `kubectl`, `terraform`, `agent` |
 | `--lang` | language of the `code` view: `python`, `typescript`, `go`, `rust`, `java`, `csharp` |
 | `--noise` | amount of fake output, 0-5 |
 | `--auto` | start with auto scroll |

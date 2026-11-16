@@ -7,7 +7,7 @@ duruyor, nasıl çalışılıyor, sırada ne var.
 ## Bir bakışta
 
 - **Ne:** terminalde e-kitap okuyucu; metni geliştirici aracı çıktısı kılığında
-  gösterir (code, log, diff, test, build, git, docker, kubectl, agent görünümleri). Panik
+  gösterir (code, log, diff, test, build, git, docker, kubectl, terraform, agent görünümleri). Panik
   tuşu (`` ` ``) kitabı anında gizler.
 - **Ad:** paket `larp-reader`, komut `larpr`. Eski adı `fcc` idi.
 - **Dil:** Rust 2024, en az 1.88. Python sürümü kaldırıldı.

@@ -20,6 +20,7 @@ pub mod look;
 pub mod palette;
 pub mod section;
 pub mod snippets;
+pub mod terraform;
 pub mod test;
 pub mod time;
 
@@ -84,7 +85,16 @@ pub fn weighted<'a, T>(rng: &mut Rng, items: &'a [T], weights: &[u32]) -> &'a T 
 
 /// In the order `m` cycles through them.
 pub const MASK_NAMES: &[&str] = &[
-    "code", "log", "diff", "test", "build", "git", "docker", "kubectl", "agent",
+    "code",
+    "log",
+    "diff",
+    "test",
+    "build",
+    "git",
+    "docker",
+    "kubectl",
+    "terraform",
+    "agent",
 ];
 
 /// Source languages of the code mask.
@@ -212,6 +222,7 @@ pub fn get_mask(name: &str, lang: &str) -> Result<Box<dyn Mask>, String> {
         "git" => Box::new(git::GitMask::default()),
         "docker" => Box::new(docker::DockerMask::default()),
         "kubectl" => Box::new(kubectl::KubectlMask::default()),
+        "terraform" => Box::new(terraform::TerraformMask::default()),
         "agent" => Box::new(agent::AgentMask::default()),
         _ => return Err(format!("unknown or unregistered mask: {name:?}")),
     })
@@ -428,6 +439,10 @@ mod contract {
             ("git", "Merge branch '"),
             ("docker", "worker-1 exited with code"),
             ("kubectl", "1/1     Running"),
+            (
+                "terraform",
+                "data.aws_iam_policy_document.assume: Read complete",
+            ),
             ("agent", "> "),
         ];
         for (name, marker) in want {

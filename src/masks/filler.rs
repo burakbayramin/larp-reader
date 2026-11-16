@@ -656,13 +656,23 @@ mod tests {
             "build" => p.contains("Compiling").then(|| p.clone()),
             "docker" => p.contains(" | ").then(|| p.clone()),
             "kubectl" => p.starts_with('[').then(|| p.clone()),
+            "terraform" => (p.contains(": Refreshing") || p.contains(": Read")).then(|| p.clone()),
             _ => p
                 .contains(" | ")
                 .then(|| p.split(" | ").next().unwrap().to_string()),
         }
     }
 
-    const MASKS: [&str; 7] = ["log", "diff", "test", "build", "docker", "git", "kubectl"];
+    const MASKS: [&str; 8] = [
+        "log",
+        "diff",
+        "test",
+        "build",
+        "docker",
+        "git",
+        "kubectl",
+        "terraform",
+    ];
 
     fn assert_spread(mask: &str, keys: Vec<Option<String>>, window: usize) {
         let mut last: HashMap<String, usize> = HashMap::new();
