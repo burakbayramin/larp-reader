@@ -1,3 +1,4 @@
 .superpowers/
 target/
 graphify-out/
+.claude/
