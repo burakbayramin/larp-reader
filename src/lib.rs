@@ -6,6 +6,7 @@
 pub mod book;
 pub mod cli;
 pub mod errors;
+pub mod export;
 pub mod loaders;
 pub mod masks;
 pub mod noise;

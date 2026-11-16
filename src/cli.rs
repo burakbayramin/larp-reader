@@ -38,6 +38,8 @@ enum Command {
     Build(BuildArgs),
     /// print one status line
     Tick(TickArgs),
+    /// write saved marks as Markdown
+    Export(ExportArgs),
 }
 
 #[derive(Args, Debug)]
@@ -45,6 +47,15 @@ struct TickArgs {
     /// widest the line may be, in columns
     #[arg(long, default_value_t = crate::tick::DEFAULT_WIDTH)]
     width: usize,
+}
+
+#[derive(Args, Debug, Default)]
+struct ExportArgs {
+    /// input file (default: last used)
+    file: Option<PathBuf>,
+    /// write here instead of stdout
+    #[arg(long, value_name = "PATH")]
+    out: Option<PathBuf>,
 }
 
 #[derive(Args, Debug, Default)]
@@ -89,6 +100,8 @@ pub enum Outcome {
     Fail(FccError),
     /// Print this one line and exit with status 0.
     Print(String),
+    /// Write this file's saved marks as Markdown, to stdout or to the path.
+    Export(PathBuf, Option<PathBuf>),
 }
 
 /// Parse `argv` (without the program name), apply flags to the saved config, save it and
@@ -118,6 +131,7 @@ where
     let args = match cli.cmd {
         Some(Command::Build(a)) => a,
         Some(Command::Tick(t)) => return Ok(Outcome::Print(crate::tick::tick(state_dir, t.width))),
+        Some(Command::Export(a)) => return Ok(export_outcome(a, state_dir)),
         None => BuildArgs::default(),
     };
 
@@ -161,6 +175,18 @@ where
         },
     };
     Ok(Outcome::Run(path, config))
+}
+
+/// `larpr export`: the file to read (else the last one opened); the config is left alone.
+fn export_outcome(args: ExportArgs, state_dir: &Path) -> Outcome {
+    let path = match args.file {
+        Some(p) => p,
+        None => match last_entry(&load_progress(state_dir)) {
+            Some((_, e)) => PathBuf::from(&e.path),
+            None => return Outcome::Fail(FccError::NoInput("no input files".into())),
+        },
+    };
+    Outcome::Export(path, args.out)
 }
 
 #[cfg(test)]
@@ -389,5 +415,29 @@ mod tests {
             panic!()
         };
         assert_eq!(config.noise, Config::default().noise);
+    }
+
+    #[test]
+    fn export_picks_the_file_and_out_without_touching_config() {
+        let (d, f) = setup();
+        let f_s = f.to_str().unwrap();
+        assert_eq!(
+            run(&["export", f_s], d.path()),
+            Outcome::Export(f.clone(), None)
+        );
+        assert_eq!(
+            run(&["export", f_s, "--out", "marks.md"], d.path()),
+            Outcome::Export(f.clone(), Some(PathBuf::from("marks.md")))
+        );
+        assert!(!d.path().join("config.json").exists());
+        assert_eq!(
+            run(&["export"], d.path()),
+            Outcome::Fail(FccError::NoInput("no input files".into()))
+        );
+        let help = resolve(["export", "--help"], d.path())
+            .unwrap_err()
+            .to_string();
+        assert!(help.contains("--out"));
+        assert!(forbidden(&help).is_empty(), "{help}");
     }
 }

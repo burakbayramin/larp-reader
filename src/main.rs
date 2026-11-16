@@ -1,4 +1,5 @@
-use std::io;
+use std::io::{self, Write};
+use std::path::Path;
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
@@ -33,6 +34,28 @@ fn run(app: &mut App, terminal: &mut ratatui::DefaultTerminal) -> io::Result<()>
     }
 }
 
+/// `larpr export`: the marks as Markdown on stdout, or in `out`.
+fn export(path: &Path, out: Option<&Path>, state_dir: &Path) -> ExitCode {
+    let markdown = match larp_reader::export::export(path, state_dir) {
+        Ok(m) => m,
+        Err(err) => {
+            eprintln!("error: {}\n{err}", err.title());
+            return ExitCode::from(1);
+        }
+    };
+    let written = match out {
+        Some(out) => std::fs::write(out, markdown),
+        None => io::stdout().write_all(markdown.as_bytes()),
+    };
+    match written {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("error: cannot write output: {}", e.kind());
+            ExitCode::from(1)
+        }
+    }
+}
+
 fn main() -> ExitCode {
     let state_dir = match larp_reader::state::state_dir() {
         Ok(d) => d,
@@ -52,6 +75,7 @@ fn main() -> ExitCode {
             return ExitCode::SUCCESS;
         }
         Ok(Outcome::Run(path, config)) => (path, config),
+        Ok(Outcome::Export(path, out)) => return export(&path, out.as_deref(), &state_dir),
     };
 
     let theme = larp_reader::ui::theme::Theme::new(

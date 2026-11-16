@@ -207,6 +207,20 @@ set -g status-right '#(larpr tick --width 70)'
 `--width` is the widest the line may be (default 80). With nothing open, or if
 the file is gone, it prints a neutral "all checks passed" line and exits 0.
 
+## Exporting bookmarks
+
+`larpr export` prints the bookmarks of a book as Markdown: grouped by chapter, in
+reading order, each with its paragraph quoted. Without a file it uses the last book
+you opened; `--out` writes to a file instead of the terminal.
+
+```
+larpr export book.epub > bookmarks.md
+larpr export --out bookmarks.md
+```
+
+The export names the book and quotes it, so it is the one thing larpr writes that
+isn't disguised; it is only ever written where you ask.
+
 ## Other ways to install
 
 With [cargo-binstall](https://github.com/cargo-bins/cargo-binstall), one command
