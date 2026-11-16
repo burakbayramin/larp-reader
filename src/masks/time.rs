@@ -1,7 +1,60 @@
 //! Calendar arithmetic for timestamps in the masks, without a date crate.
 
-/// Days from 1970-01-01 to 2026-11-11, the day the masks' clocks start on.
+/// Days from 1970-01-01 to 2026-11-11, the day the masks' clocks start on in tests.
+#[cfg(test)]
 pub const EPOCH_DAY: i64 = 20_768;
+
+/// The moment the masks' clocks start at: taken once per process, so a
+/// paragraph renders identically on every draw.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Start {
+    /// Unix milliseconds (UTC).
+    pub utc_ms: i64,
+    /// The machine's offset from UTC, in minutes.
+    pub offset_min: i64,
+}
+
+impl Start {
+    /// Unix minutes of this moment, shifted into the local zone.
+    pub fn local_minutes(self) -> i64 {
+        self.utc_ms.div_euclid(60_000) + self.offset_min
+    }
+}
+
+/// `+0300` / `-0530`.
+pub fn offset_text(offset_min: i64) -> String {
+    let sign = if offset_min < 0 { '-' } else { '+' };
+    let a = offset_min.abs();
+    format!("{sign}{:02}{:02}", a / 60, a % 60)
+}
+
+/// The real current moment and the machine's UTC offset.
+fn start_now() -> Start {
+    let now = chrono::Local::now();
+    Start {
+        utc_ms: now.timestamp_millis(),
+        offset_min: i64::from(now.offset().local_minus_utc()) / 60,
+    }
+}
+
+/// The session's start. Tests get a fixed moment (2026-11-11 09:00 UTC,
+/// +0300) so the golden screens stay put.
+pub fn session_start() -> Start {
+    static START: std::sync::OnceLock<Start> = std::sync::OnceLock::new();
+    *START.get_or_init(|| {
+        #[cfg(test)]
+        {
+            Start {
+                utc_ms: (EPOCH_DAY * 86_400 + 9 * 3600) * 1000,
+                offset_min: 180,
+            }
+        }
+        #[cfg(not(test))]
+        {
+            start_now()
+        }
+    })
+}
 
 /// (year, month, day) of a day counted from 1970-01-01 (Howard Hinnant's civil_from_days).
 pub fn civil(days: i64) -> (i64, u32, u32) {
@@ -59,6 +112,39 @@ mod tests {
         let got = local_today();
         // the date may roll over between the two reads, right at midnight
         assert!(got == want || got == want + 1, "{got} vs {want}");
+    }
+
+    #[test]
+    fn the_real_start_is_the_current_moment() {
+        let s = start_now();
+        let real = chrono::Utc::now().timestamp_millis();
+        assert!((real - s.utc_ms).abs() < 60_000, "{} vs {real}", s.utc_ms);
+        assert!(s.offset_min.abs() <= 14 * 60);
+        // local minutes are the wall clock
+        let local = chrono::Local::now().naive_local();
+        let want = local.and_utc().timestamp().div_euclid(60);
+        assert!((s.local_minutes() - want).abs() <= 1);
+    }
+
+    #[test]
+    fn the_session_start_is_taken_once() {
+        assert_eq!(session_start(), session_start());
+    }
+
+    #[test]
+    fn offsets_print_like_git() {
+        assert_eq!(offset_text(180), "+0300");
+        assert_eq!(offset_text(-330), "-0530");
+        assert_eq!(offset_text(0), "+0000");
+    }
+
+    #[test]
+    fn local_minutes_apply_the_offset() {
+        let s = Start {
+            utc_ms: 120_000,
+            offset_min: 60,
+        };
+        assert_eq!(s.local_minutes(), 62);
     }
 
     #[test]

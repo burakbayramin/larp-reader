@@ -4,14 +4,16 @@ use super::base::{Line, Segment, chrome, chrome_owned, progress_bar_label, seg};
 use super::filler::{Slot, log_deck};
 use super::look::Look;
 use super::palette::{BLUE, CYAN, DIM, FG, GREEN, YELLOW};
-use super::time::{EPOCH_DAY, civil};
+use super::time::{civil, session_start};
 use super::{Mask, Rng, pick, randint, section, weighted};
 use crate::book::{Paragraph, Pos};
 use crate::text::{ragged, ragged_count};
 use unicode_width::UnicodeWidthStr;
 
-/// Milliseconds of 2026-11-11 09:00:00 after that day's midnight: the log's first moment.
-const EPOCH_MS: u64 = 9 * 3_600_000;
+/// The log's first moment: the session start, in Unix milliseconds (UTC).
+fn epoch_ms() -> u64 {
+    session_start().utc_ms.max(0) as u64
+}
 const BOOK_SVC: &str = "svc.worker";
 const SVC_WIDTH: usize = 10;
 const SERVICES: &[&str] = &[
@@ -45,7 +47,7 @@ fn short_level(level: &str) -> &'static str {
     }
 }
 
-/// A moment, as milliseconds after 2026-11-11 00:00:00.
+/// A moment, as Unix milliseconds (UTC).
 #[derive(Clone, Copy)]
 struct Time(u64);
 
@@ -61,7 +63,7 @@ impl Time {
 
     /// `2026-11-11T09:00:01.234Z`
     fn stamp(self) -> String {
-        let (y, m, d) = civil(EPOCH_DAY + (self.0 / 86_400_000) as i64);
+        let (y, m, d) = civil((self.0 / 86_400_000) as i64);
         format!(
             "{y:04}-{m:02}-{d:02}T{}.{:03}Z",
             self.clock(),
@@ -95,7 +97,7 @@ fn prefix_segments(t: Time, level: &str, svc: &str, width: usize) -> Vec<Segment
 }
 
 fn prefix_len(width: usize) -> usize {
-    prefix_segments(Time(EPOCH_MS), "INFO", BOOK_SVC, width)
+    prefix_segments(Time(epoch_ms()), "INFO", BOOK_SVC, width)
         .iter()
         .map(|(t, _)| t.width())
         .sum()
@@ -111,7 +113,7 @@ pub struct LogMask {
 impl Default for LogMask {
     fn default() -> Self {
         LogMask {
-            t: EPOCH_MS,
+            t: epoch_ms(),
             slot: Slot::default(),
         }
     }
@@ -165,7 +167,7 @@ impl Mask for LogMask {
         rng: &mut Rng,
         line_no_start: usize,
     ) -> Vec<Line> {
-        self.t = EPOCH_MS + line_no_start as u64 * LINE_MS;
+        self.t = epoch_ms() + line_no_start as u64 * LINE_MS;
         self.slot.set(line_no_start);
         let t = self.tick(rng);
         let mut out = vec![self.entry(rng, t, width)];
@@ -182,7 +184,7 @@ impl Mask for LogMask {
     /// The worker moving on to a new batch, or its log being rotated.
     fn transition(&self, chapter: usize, width: usize, line_no_start: usize) -> Vec<Line> {
         // on the line's own time slot: after the paragraph above, before the one below
-        let t = Time(EPOCH_MS + line_no_start as u64 * LINE_MS);
+        let t = Time(epoch_ms() + line_no_start as u64 * LINE_MS);
         let name = section::name(chapter, 0);
         let n = chapter + 1;
         let text = match chapter % 4 {
@@ -379,12 +381,16 @@ mod tests {
 
     #[test]
     fn dates_roll_over_days_months_and_years() {
-        assert_eq!(Time(EPOCH_MS + 1234).stamp(), "2026-11-11T09:00:01.234Z");
+        assert_eq!(Time(epoch_ms() + 1234).stamp(), "2026-11-11T09:00:01.234Z");
+        let day = 20_768 * 86_400_000;
         assert_eq!(
-            Time(86_400_000 * 20 + 5).stamp(),
+            Time(day + 86_400_000 * 20 + 5).stamp(),
             "2026-12-01T00:00:00.005Z"
         );
-        assert_eq!(Time(86_400_000 * 51).stamp(), "2027-01-01T00:00:00.000Z");
+        assert_eq!(
+            Time(day + 86_400_000 * 51).stamp(),
+            "2027-01-01T00:00:00.000Z"
+        );
     }
 
     #[test]

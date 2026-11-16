@@ -6,13 +6,15 @@ use super::base::{Line, chrome, seg};
 use super::filler::{Slot, git_paths_deck};
 use super::look::Look;
 use super::palette::{DIM, FG, GREEN, RED, YELLOW};
-use super::time::{EPOCH_DAY, civil, month, weekday};
+use super::time::{civil, month, offset_text, session_start, weekday};
 use super::{Mask, Rng, pick, randint, section};
 use crate::book::{Paragraph, Pos};
 use crate::text::{pad_cells, ragged, ragged_count};
 
-/// 2026-11-11 18:00, in minutes since 1970: history counts back from here.
-const EPOCH_MIN: i64 = EPOCH_DAY * 1440 + 18 * 60;
+/// The session start in local minutes since 1970: history counts back from here.
+fn epoch_min() -> i64 {
+    session_start().local_minutes()
+}
 const AUTHORS: &[(&str, &str)] = &[
     ("Deniz Aksoy", "deniz.aksoy@example.com"),
     ("Mert Kaya", "mert@example.com"),
@@ -35,11 +37,12 @@ fn git_date(minutes: i64) -> String {
     let (y, m, d) = civil(days);
     let min = minutes.rem_euclid(1440);
     format!(
-        "{} {} {d:02} {:02}:{:02}:00 {y} +0300",
+        "{} {} {d:02} {:02}:{:02}:00 {y} {}",
         weekday(days),
         month(m),
         min / 60,
-        min % 60
+        min % 60,
+        offset_text(session_start().offset_min)
     )
 }
 
@@ -103,7 +106,7 @@ impl Mask for GitMask {
             .collect();
         let (author, mail) = pick(rng, AUTHORS);
         // newest first, like the real thing: later text is older history
-        let when = EPOCH_MIN - (line_no_start as i64 * 7 + randint(rng, 0, 6) as i64);
+        let when = epoch_min() - (line_no_start as i64 * 7 + randint(rng, 0, 6) as i64);
         let mut out = vec![
             chrome(width, &[(&format!("commit {sha}"), YELLOW)]),
             chrome(width, &[(&format!("Author: {author} <{mail}>"), FG)]),
@@ -125,7 +128,7 @@ impl Mask for GitMask {
     fn transition(&self, chapter: usize, width: usize, line_no_start: usize) -> Vec<Line> {
         let (author, mail) = section::choose(AUTHORS, chapter);
         // newer than the commits below it, older than those above
-        let when = EPOCH_MIN - line_no_start as i64 * 7;
+        let when = epoch_min() - line_no_start as i64 * 7;
         let kind = section::choose(&["feature", "fix", "chore", "feature", "refactor"], chapter);
         let branch = format!(
             "{kind}/{}-{}",
@@ -214,7 +217,7 @@ mod tests {
             [2]
         .plain();
         assert_ne!(first, later);
-        assert_eq!(git_date(EPOCH_MIN - 16), "Wed Nov 11 17:44:00 2026 +0300");
+        assert_eq!(git_date(epoch_min() - 16), "Wed Nov 11 11:44:00 2026 +0300");
     }
 
     #[test]
