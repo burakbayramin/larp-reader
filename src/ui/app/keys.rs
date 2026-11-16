@@ -42,8 +42,7 @@ impl App {
             return; // the box takes every key while it is focused
         }
         if self.reply.is_some() {
-            self.end_reply(); // any key: back to the text, nothing else
-            return;
+            self.end_reply(); // any key: back to the text first, then the key does its own thing
         }
         if let Some(menu) = self.menu.as_mut() {
             let result = menu.handle(key);

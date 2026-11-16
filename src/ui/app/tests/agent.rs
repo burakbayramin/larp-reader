@@ -495,26 +495,50 @@ fn the_same_request_gets_the_same_reply() {
     assert!((3..=6).contains(&calls(&first)), "{}", calls(&first));
 }
 
+/// Where reading stands: the paragraph, the line in it, and the lines on screen.
+fn place(h: &mut Harness) -> ((usize, usize), usize, Vec<Line>) {
+    (h.session().pos(), h.session().line_offset, h.visible())
+}
+
 #[test]
-fn a_reading_key_or_esc_ends_the_reply_where_the_text_was() {
-    for k in ["space", "j", "escape", "q"] {
+fn a_key_during_the_reply_ends_it_and_then_does_what_it_always_does() {
+    for k in ["space", "j", "escape", "q", "S", "b"] {
+        // the same key with no reply playing
+        let mut plain = sample_with(30, agent(), 80, 24);
+        plain.press(&["space"]);
+        plain.press(&[k]);
         let mut h = sample_with(30, agent(), 80, 24);
         h.press(&["space"]);
-        let (pos, offset, before) = (h.session().pos(), h.session().line_offset, h.visible());
         ask(&mut h, REQUEST);
         h.advance(Duration::from_secs(2));
+        assert!(h.app.reply.is_some(), "{k}");
         h.press(&[k]);
         assert!(h.app.reply.is_none(), "{k}");
-        assert!(!h.app.should_quit() && !h.app.panel, "{k} did only that");
-        assert_eq!(
-            (h.session().pos(), h.session().line_offset),
-            (pos, offset),
-            "{k}"
-        );
-        assert_eq!(h.visible(), before, "{k}");
-        h.press(&["space"]);
-        assert_ne!(h.session().pos(), pos, "{k}: reading goes on");
+        assert_eq!(h.app.should_quit(), plain.app.should_quit(), "{k}");
+        assert_eq!(h.app.panel, plain.app.panel, "{k}");
+        assert_eq!(h.app.report.is_some(), plain.app.report.is_some(), "{k}");
+        if !h.app.should_quit() && h.app.report.is_none() {
+            assert_eq!(place(&mut h), place(&mut plain), "{k}");
+            assert!(!h.screen().contains(REQUEST), "{k}");
+        }
     }
+    let mut h = sample_with(30, agent(), 80, 24);
+    ask(&mut h, REQUEST);
+    h.press(&["q"]);
+    assert!(h.app.should_quit(), "q quits mid-reply");
+}
+
+#[test]
+fn keys_typed_into_the_box_stay_in_the_box() {
+    let mut h = sample_with(30, agent(), 80, 24);
+    ask(&mut h, REQUEST);
+    h.press(&["i"]); // ends the reply and opens the box again
+    assert!(h.app.reply.is_none() && h.app.ask.is_some());
+    let pos = h.session().pos();
+    type_text(&mut h, "q jS");
+    assert!(!h.app.should_quit() && h.app.report.is_none());
+    assert_eq!(h.session().pos(), pos);
+    assert!(h.screen().contains("q jS"));
 }
 
 #[test]
@@ -592,10 +616,8 @@ fn the_box_and_the_report_keep_out_of_each_other_s_way() {
     assert!(h.screen().contains("Sort the imports"));
     h.press(&["enter"]);
     assert!(h.app.reply.is_some());
-    h.press(&["S"]); // a key during the reply only ends it
+    h.press(&["S"]); // a key during the reply ends it, then opens the report
     assert!(h.app.reply.is_none());
-    assert!(h.app.report.is_none());
-    h.press(&["S"]); // now it opens
     assert!(h.app.report.is_some());
 }
 
