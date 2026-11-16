@@ -15,6 +15,7 @@ use crate::noise::MAX_NOISE;
 use crate::pace::{MAX_WPM, MIN_WPM};
 use crate::state::{
     Config, HIDE_STYLES, THEMES, last_entry, load_config, load_progress, save_config,
+    save_config_without_theme, theme_is_saved,
 };
 
 #[derive(Parser, Debug)]
@@ -86,6 +87,20 @@ where
     I: IntoIterator<Item = T>,
     T: Into<OsString> + Clone,
 {
+    resolve_on(
+        argv,
+        state_dir,
+        crate::ui::theme::light_background_from_env(),
+    )
+}
+
+/// `resolve`, told whether the terminal background is light: with no `--theme` and no
+/// saved theme, a light terminal gets the light theme (and it is not saved).
+fn resolve_on<I, T>(argv: I, state_dir: &Path, light_terminal: bool) -> Result<Outcome, clap::Error>
+where
+    I: IntoIterator<Item = T>,
+    T: Into<OsString> + Clone,
+{
     let argv = std::iter::once(OsString::from("larpr")).chain(argv.into_iter().map(Into::into));
     let matches = command().try_get_matches_from(argv)?;
     let cli = Cli::from_arg_matches(&matches)?;
@@ -95,6 +110,10 @@ where
     };
 
     let mut config = load_config(state_dir);
+    let auto_theme = args.theme.is_none() && !theme_is_saved(state_dir);
+    if auto_theme && light_terminal {
+        config.theme = "light".into();
+    }
     if let Some(m) = args.mask {
         config.mask = m;
     }
@@ -116,7 +135,11 @@ where
     if let Some(t) = args.theme {
         config.theme = t;
     }
-    let _ = save_config(state_dir, &config); // best effort: the flags still apply to this run
+    let _ = if auto_theme {
+        save_config_without_theme(state_dir, &config)
+    } else {
+        save_config(state_dir, &config)
+    }; // best effort: the flags still apply to this run
 
     let path = match args.file {
         Some(p) => p,
@@ -150,7 +173,7 @@ mod tests {
     }
 
     fn run(argv: &[&str], dir: &Path) -> Outcome {
-        resolve(argv.iter().copied(), dir).unwrap()
+        resolve_on(argv.iter().copied(), dir, false).unwrap()
     }
 
     // -- test_cli.py --
@@ -224,6 +247,55 @@ mod tests {
         };
         assert_eq!(config.theme, "light");
         assert_eq!(load_config(d.path()).theme, "light");
+    }
+
+    fn theme_after(argv: &[&str], dir: &Path, light: bool) -> String {
+        let Ok(Outcome::Run(_, config)) = resolve_on(argv.iter().copied(), dir, light) else {
+            panic!()
+        };
+        config.theme
+    }
+
+    #[test]
+    fn a_light_terminal_gets_the_light_theme_unsaved() {
+        let (d, f) = setup();
+        let file = f.to_str().unwrap();
+        assert_eq!(theme_after(&["build", file], d.path(), true), "light");
+        assert!(!theme_is_saved(d.path()));
+        assert_eq!(load_config(d.path()).theme, "monokai");
+        // the terminal turned dark again
+        assert_eq!(theme_after(&["build", file], d.path(), false), "monokai");
+    }
+
+    #[test]
+    fn a_dark_terminal_keeps_the_default_theme() {
+        let (d, f) = setup();
+        assert_eq!(
+            theme_after(&["build", f.to_str().unwrap()], d.path(), false),
+            "monokai"
+        );
+    }
+
+    #[test]
+    fn an_explicit_or_saved_theme_beats_the_terminal() {
+        let (d, f) = setup();
+        let file = f.to_str().unwrap();
+        assert_eq!(
+            theme_after(&["build", file, "--theme=dark"], d.path(), true),
+            "dark"
+        );
+        assert!(theme_is_saved(d.path()));
+        assert_eq!(theme_after(&["build", file], d.path(), true), "dark");
+        let (d2, f2) = setup();
+        let saved = Config {
+            theme: "monokai".into(),
+            ..Config::default()
+        };
+        save_config(d2.path(), &saved).unwrap();
+        assert_eq!(
+            theme_after(&["build", f2.to_str().unwrap()], d2.path(), true),
+            "monokai"
+        );
     }
 
     #[test]

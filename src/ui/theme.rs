@@ -50,6 +50,19 @@ pub fn detect_depth_from_env() -> Depth {
     )
 }
 
+/// Whether `COLORFGBG` (`fg;bg`, or `fg;default;bg`) says the background is light.
+/// Palette colours 7 and 9..=15 are the light ones; anything unreadable is not.
+pub fn light_background(colorfgbg: Option<&str>) -> bool {
+    let bg = colorfgbg
+        .and_then(|v| v.rsplit(';').next())
+        .and_then(|b| b.trim().parse::<u8>().ok());
+    matches!(bg, Some(7 | 9..=15))
+}
+
+pub fn light_background_from_env() -> bool {
+    light_background(std::env::var("COLORFGBG").ok().as_deref())
+}
+
 /// A colour in a theme: a 24-bit value, a terminal palette colour, or the terminal's own default.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Paint {
@@ -487,5 +500,17 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn colorfgbg_tells_a_light_background() {
+        assert!(light_background(Some("0;15")));
+        assert!(light_background(Some("0;default;15")));
+        assert!(light_background(Some("0;7")));
+        assert!(!light_background(Some("15;0")));
+        assert!(!light_background(Some("15;8")));
+        assert!(!light_background(Some("15;default")));
+        assert!(!light_background(Some("")));
+        assert!(!light_background(None));
     }
 }

@@ -200,6 +200,20 @@ pub fn save_config(dir: &Path, cfg: &Config) -> io::Result<()> {
     atomic_write(&dir.join("config.json"), cfg)
 }
 
+/// Whether the saved config names a theme, i.e. the user chose one.
+pub fn theme_is_saved(dir: &Path) -> bool {
+    read_object(&dir.join("config.json")).is_some_and(|o| one_of(o.get("theme"), THEMES).is_some())
+}
+
+/// Like `save_config`, but leaves the theme out: it was picked for the terminal, not by the user.
+pub fn save_config_without_theme(dir: &Path, cfg: &Config) -> io::Result<()> {
+    let mut value = serde_json::to_value(cfg)?;
+    if let Some(obj) = value.as_object_mut() {
+        obj.remove("theme");
+    }
+    atomic_write(&dir.join("config.json"), &value)
+}
+
 /// A non-negative JSON integer (not a float, not a boolean).
 fn index(value: Option<&Value>) -> Option<usize> {
     value?.as_u64().map(|n| n as usize)
