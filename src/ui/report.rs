@@ -83,6 +83,10 @@ impl Report {
             "docker" => vec![seg("$ ", DIM), seg("docker stats --no-stream", FG)],
             "kubectl" => vec![seg("$ ", DIM), seg("kubectl top pods -n prod", FG)],
             "terraform" => vec![seg("$ ", DIM), seg("terraform output metrics", FG)],
+            "sql" => vec![
+                seg("app=> ", DIM),
+                seg("SELECT * FROM metrics_summary;", FG),
+            ],
             "diff" => vec![seg("$ ", DIM), seg("git diff --shortstat", FG)],
             _ => vec![seg("$ ", DIM), seg("python -m metrics --summary", FG)],
         };

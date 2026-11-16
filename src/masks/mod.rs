@@ -20,6 +20,7 @@ pub mod look;
 pub mod palette;
 pub mod section;
 pub mod snippets;
+pub mod sql;
 pub mod terraform;
 pub mod test;
 pub mod time;
@@ -94,6 +95,7 @@ pub const MASK_NAMES: &[&str] = &[
     "docker",
     "kubectl",
     "terraform",
+    "sql",
     "agent",
 ];
 
@@ -223,6 +225,7 @@ pub fn get_mask(name: &str, lang: &str) -> Result<Box<dyn Mask>, String> {
         "docker" => Box::new(docker::DockerMask::default()),
         "kubectl" => Box::new(kubectl::KubectlMask::default()),
         "terraform" => Box::new(terraform::TerraformMask::default()),
+        "sql" => Box::new(sql::SqlMask::default()),
         "agent" => Box::new(agent::AgentMask::default()),
         _ => return Err(format!("unknown or unregistered mask: {name:?}")),
     })
@@ -443,6 +446,7 @@ mod contract {
                 "terraform",
                 "data.aws_iam_policy_document.assume: Read complete",
             ),
+            ("sql", "SET search_path TO "),
             ("agent", "> "),
         ];
         for (name, marker) in want {

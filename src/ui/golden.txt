@@ -12,6 +12,7 @@ git/python monokai truecolor 0da607a4b2fc1696
 docker/python monokai truecolor 6801df3194405ffc
 kubectl/python monokai truecolor 2d12e37505d7f679
 terraform/python monokai truecolor 39a377a88e62093a
+sql/python monokai truecolor 743ffe1cfe86839d
 agent/python monokai truecolor 404d6ce14222c305
 shell monokai truecolor b0fe992f4555776b
 chrome monokai truecolor 55577c2955a90789
@@ -29,6 +30,7 @@ git/python monokai ansi256 ef991f5fe92ab704
 docker/python monokai ansi256 9c92af55e988c06b
 kubectl/python monokai ansi256 c2385bf7ee43280c
 terraform/python monokai ansi256 e53ac0d3c64ed884
+sql/python monokai ansi256 e8f200a4f828c60a
 agent/python monokai ansi256 75074ad8889f3bb1
 shell monokai ansi256 a31bfc59c782e356
 chrome monokai ansi256 9cbc03780aeb0d87
@@ -46,6 +48,7 @@ git/python monokai ansi16 cdbbb82e917b559b
 docker/python monokai ansi16 7d6e312cb3d4e7b7
 kubectl/python monokai ansi16 c03f98c1ed1b89d1
 terraform/python monokai ansi16 a54d1cf2dffd8da4
+sql/python monokai ansi16 7cc3396db9d92694
 agent/python monokai ansi16 a53aabdeda4dca39
 shell monokai ansi16 a88802078285d501
 chrome monokai ansi16 b19f0a2e2f0510b9
@@ -63,6 +66,7 @@ git/python dark truecolor f2f4f22852003951
 docker/python dark truecolor 69521ee1a62cf5c2
 kubectl/python dark truecolor b289c2b05b17781d
 terraform/python dark truecolor a7f2f4b57404b608
+sql/python dark truecolor ce18e915777c9c96
 agent/python dark truecolor 2076b7672e72860a
 shell dark truecolor 04267ec86e3a5782
 chrome dark truecolor b864aedae61b520c
@@ -80,6 +84,7 @@ git/python dark ansi256 12cc5a4b3314c379
 docker/python dark ansi256 3e1f6f1dceb10681
 kubectl/python dark ansi256 112c01074bccbab1
 terraform/python dark ansi256 b57e4b8d24c3fc1c
+sql/python dark ansi256 8d8804d8e18ce45f
 agent/python dark ansi256 06c3c818cf7fb68e
 shell dark ansi256 bedb0b2f9c963758
 chrome dark ansi256 5d22c1d0c65ccb4e
@@ -97,6 +102,7 @@ git/python dark ansi16 c44c94340cf17351
 docker/python dark ansi16 d187c359795afbfd
 kubectl/python dark ansi16 4ed0d84a03826cf8
 terraform/python dark ansi16 7a613abaa2eef7c6
+sql/python dark ansi16 a813b6d73af15f26
 agent/python dark ansi16 27759a02d8b0a8ea
 shell dark ansi16 65ddf2303487acef
 chrome dark ansi16 83aa5ef99981f9bc
@@ -114,6 +120,7 @@ git/python light truecolor 88f1143da3ca1372
 docker/python light truecolor 4e9c1914ac92597b
 kubectl/python light truecolor 472e6691a7040c70
 terraform/python light truecolor 499b405915f6624e
+sql/python light truecolor 2b176458ac8f8e2b
 agent/python light truecolor 9ab5404256be6596
 shell light truecolor 16ca899470d4c701
 chrome light truecolor d0e270ce524dcb3f
@@ -131,6 +138,7 @@ git/python light ansi256 710b6bd91aa9add5
 docker/python light ansi256 2639377b6403a7cb
 kubectl/python light ansi256 18e07b6d5740d382
 terraform/python light ansi256 4660e940da46c431
+sql/python light ansi256 47801860efa61e9f
 agent/python light ansi256 d49afc297863f28f
 shell light ansi256 ba11eefe04fb5ff6
 chrome light ansi256 a1840784e828f696
@@ -148,6 +156,7 @@ git/python light ansi16 757c387fa3e69b6b
 docker/python light ansi16 398bbe5bd76afefe
 kubectl/python light ansi16 f2caddb65aa1f58c
 terraform/python light ansi16 690c822b9a4df3d1
+sql/python light ansi16 2e2dfc29cb2b46da
 agent/python light ansi16 988b95d4409af9f6
 shell light ansi16 549bdbd53aaea9f8
 chrome light ansi16 d2d2c6f965a5471c
@@ -165,6 +174,7 @@ git/python dark-daltonized truecolor 315357bbd3b44174
 docker/python dark-daltonized truecolor 3193a2f9761adc98
 kubectl/python dark-daltonized truecolor 5ac6c3c48f470d51
 terraform/python dark-daltonized truecolor 7fb609086bef8c2b
+sql/python dark-daltonized truecolor 06d98f7233cb48d9
 agent/python dark-daltonized truecolor c6930cb42dcf29cd
 shell dark-daltonized truecolor 04267ec86e3a5782
 chrome dark-daltonized truecolor b864aedae61b520c
@@ -182,6 +192,7 @@ git/python dark-daltonized ansi256 b9d849ac16b871bb
 docker/python dark-daltonized ansi256 bac8a05b796ca580
 kubectl/python dark-daltonized ansi256 1ba22da3e9d6243b
 terraform/python dark-daltonized ansi256 41798c4645916875
+sql/python dark-daltonized ansi256 814f341b7d5b56d2
 agent/python dark-daltonized ansi256 6467dcee18b00c98
 shell dark-daltonized ansi256 bedb0b2f9c963758
 chrome dark-daltonized ansi256 5d22c1d0c65ccb4e
@@ -199,6 +210,7 @@ git/python dark-daltonized ansi16 c6662c9065f78748
 docker/python dark-daltonized ansi16 bf8bbb9238bc4d1d
 kubectl/python dark-daltonized ansi16 8c6920afea681a6f
 terraform/python dark-daltonized ansi16 4c7fa5d62ab0eb30
+sql/python dark-daltonized ansi16 fba8e55b7084311d
 agent/python dark-daltonized ansi16 b2451954dd30d394
 shell dark-daltonized ansi16 65ddf2303487acef
 chrome dark-daltonized ansi16 83aa5ef99981f9bc
@@ -216,6 +228,7 @@ git/python light-daltonized truecolor b29ef085c8e4cd44
 docker/python light-daltonized truecolor 58e0c3e86b23150a
 kubectl/python light-daltonized truecolor 8235b094810cffbd
 terraform/python light-daltonized truecolor 920d2205354a8222
+sql/python light-daltonized truecolor fb38fa422059871b
 agent/python light-daltonized truecolor b515302d5f8a3a86
 shell light-daltonized truecolor 16ca899470d4c701
 chrome light-daltonized truecolor d0e270ce524dcb3f
@@ -233,6 +246,7 @@ git/python light-daltonized ansi256 988636fe1e421107
 docker/python light-daltonized ansi256 31bc7a9328b669ba
 kubectl/python light-daltonized ansi256 975709f4a07f1086
 terraform/python light-daltonized ansi256 d1b9d2f61ca05b6b
+sql/python light-daltonized ansi256 db151207568a2939
 agent/python light-daltonized ansi256 41c495f5de8f1314
 shell light-daltonized ansi256 ba11eefe04fb5ff6
 chrome light-daltonized ansi256 a1840784e828f696
@@ -250,6 +264,7 @@ git/python light-daltonized ansi16 e97a56d31b057c62
 docker/python light-daltonized ansi16 2cdaafeace5745d3
 kubectl/python light-daltonized ansi16 c64a2759731a2c47
 terraform/python light-daltonized ansi16 4103fccdf0283885
+sql/python light-daltonized ansi16 ac64c38358baf399
 agent/python light-daltonized ansi16 f44f415353524a6d
 shell light-daltonized ansi16 549bdbd53aaea9f8
 chrome light-daltonized ansi16 d2d2c6f965a5471c
@@ -267,6 +282,7 @@ git/python dark-ansi truecolor 36756b821c35d546
 docker/python dark-ansi truecolor 3cf0a44c5af22a7c
 kubectl/python dark-ansi truecolor 338d5ea2367dec40
 terraform/python dark-ansi truecolor 1ec3c5526e2f8bd4
+sql/python dark-ansi truecolor 20d74008533a84c2
 agent/python dark-ansi truecolor 019b50764b7fe9c4
 shell dark-ansi truecolor 4df160ebde7c3e69
 chrome dark-ansi truecolor 6ede196353a3b527
@@ -284,6 +300,7 @@ git/python dark-ansi ansi256 36756b821c35d546
 docker/python dark-ansi ansi256 3cf0a44c5af22a7c
 kubectl/python dark-ansi ansi256 338d5ea2367dec40
 terraform/python dark-ansi ansi256 1ec3c5526e2f8bd4
+sql/python dark-ansi ansi256 20d74008533a84c2
 agent/python dark-ansi ansi256 019b50764b7fe9c4
 shell dark-ansi ansi256 4df160ebde7c3e69
 chrome dark-ansi ansi256 ea438c9285b3af05
@@ -301,6 +318,7 @@ git/python dark-ansi ansi16 36756b821c35d546
 docker/python dark-ansi ansi16 3cf0a44c5af22a7c
 kubectl/python dark-ansi ansi16 338d5ea2367dec40
 terraform/python dark-ansi ansi16 1ec3c5526e2f8bd4
+sql/python dark-ansi ansi16 20d74008533a84c2
 agent/python dark-ansi ansi16 019b50764b7fe9c4
 shell dark-ansi ansi16 4df160ebde7c3e69
 chrome dark-ansi ansi16 1beb2189c5332c32
@@ -318,6 +336,7 @@ git/python light-ansi truecolor 36756b821c35d546
 docker/python light-ansi truecolor 3cf0a44c5af22a7c
 kubectl/python light-ansi truecolor 338d5ea2367dec40
 terraform/python light-ansi truecolor 1ec3c5526e2f8bd4
+sql/python light-ansi truecolor 43b6c121d211af8f
 agent/python light-ansi truecolor 858f595809952064
 shell light-ansi truecolor 4df160ebde7c3e69
 chrome light-ansi truecolor 6ede196353a3b527
@@ -335,6 +354,7 @@ git/python light-ansi ansi256 36756b821c35d546
 docker/python light-ansi ansi256 3cf0a44c5af22a7c
 kubectl/python light-ansi ansi256 338d5ea2367dec40
 terraform/python light-ansi ansi256 1ec3c5526e2f8bd4
+sql/python light-ansi ansi256 43b6c121d211af8f
 agent/python light-ansi ansi256 858f595809952064
 shell light-ansi ansi256 4df160ebde7c3e69
 chrome light-ansi ansi256 ea438c9285b3af05
@@ -352,6 +372,7 @@ git/python light-ansi ansi16 36756b821c35d546
 docker/python light-ansi ansi16 3cf0a44c5af22a7c
 kubectl/python light-ansi ansi16 338d5ea2367dec40
 terraform/python light-ansi ansi16 1ec3c5526e2f8bd4
+sql/python light-ansi ansi16 43b6c121d211af8f
 agent/python light-ansi ansi16 858f595809952064
 shell light-ansi ansi16 4df160ebde7c3e69
 chrome light-ansi ansi16 1beb2189c5332c32

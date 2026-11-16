@@ -657,13 +657,17 @@ mod tests {
             "docker" => p.contains(" | ").then(|| p.clone()),
             "kubectl" => p.starts_with('[').then(|| p.clone()),
             "terraform" => (p.contains(": Refreshing") || p.contains(": Read")).then(|| p.clone()),
+            // statements other than the text's query, and their timings (the query's is under 10 ms)
+            "sql" => ((p.len() > 6 && p.starts_with("app=> ") && !p.contains("SELECT id, "))
+                || (p.starts_with("Time: ") && p.len() > 14))
+                .then(|| p.clone()),
             _ => p
                 .contains(" | ")
                 .then(|| p.split(" | ").next().unwrap().to_string()),
         }
     }
 
-    const MASKS: [&str; 8] = [
+    const MASKS: [&str; 9] = [
         "log",
         "diff",
         "test",
@@ -672,6 +676,7 @@ mod tests {
         "git",
         "kubectl",
         "terraform",
+        "sql",
     ];
 
     fn assert_spread(mask: &str, keys: Vec<Option<String>>, window: usize) {
