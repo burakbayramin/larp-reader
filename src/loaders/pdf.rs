@@ -413,11 +413,43 @@ fn column_blocks(lines: &[Piece]) -> Vec<Placed> {
     out
 }
 
+/// Whether a line is only a short number (a page number).
+fn is_page_number(p: &Piece) -> bool {
+    let t = p.text();
+    let t = t.trim().trim_matches(['-', '\u{2013}', '\u{2014}']).trim();
+    (1..=4).contains(&t.len()) && t.chars().all(|c| c.is_ascii_digit())
+}
+
+/// Drops a standalone short numeric line at the very top or bottom of the page,
+/// however close to the text it sits, so it cannot end up inside a column.
+fn drop_page_numbers(mut pieces: Vec<Piece>) -> Vec<Piece> {
+    for from_top in [true, false] {
+        let extreme = (0..pieces.len()).reduce(|a, b| {
+            let better = if from_top {
+                pieces[b].top > pieces[a].top
+            } else {
+                pieces[b].bottom < pieces[a].bottom
+            };
+            if better { b } else { a }
+        });
+        if let Some(i) = extreme
+            && pieces.len() > 1
+            && is_page_number(&pieces[i])
+            && pieces.iter().enumerate().all(|(j, q)| {
+                j == i || q.bottom >= pieces[i].top - EPS || q.top <= pieces[i].bottom + EPS
+            })
+        {
+            pieces.remove(i);
+        }
+    }
+    pieces
+}
+
 fn page_blocks(doc: &PdfDocument, page: usize) -> Result<Vec<Block>, FccError> {
     let read_err =
         |e: pdf_oxide::error::Error| FccError::UnsupportedFormat(format!("dosya okunamadı: {e}"));
     let lines = doc.extract_text_lines(page).map_err(read_err)?;
-    let pieces = lines.iter().map(Piece::from_line).collect();
+    let pieces = drop_page_numbers(lines.iter().map(Piece::from_line).collect());
 
     let mut placed: Vec<Placed> = vec![];
     for column in layout(pieces, 0) {
@@ -964,7 +996,7 @@ mod tests {
             .map(|n| {
                 let mut page = two_column_page(740.0, 320.0);
                 page.push(line(72.0, 770.0, 9.0, "Running Head Of The Book"));
-                page.push(line(300.0, 40.0, 9.0, &format!("{n}")));
+                page.push(line(300.0, 40.0, 9.0, &format!("Page {n}")));
                 page
             })
             .collect();
@@ -1126,5 +1158,26 @@ mod tests {
             ],
         ));
         assert_eq!(load_generated(&[page]).len(), 2);
+    }
+
+    #[test]
+    fn page_number_close_to_the_text_is_dropped() {
+        // a single page, so the repeated-footer pass cannot help; the number
+        // sits 12pt under the last line, in the same column
+        let mut page = rows(72.0, 700.0, &LEFT);
+        page.push(line(72.0, 644.0, 10.0, "17"));
+        page.push(line(72.0, 744.0, 10.0, "- 18 -"));
+        assert_eq!(load_generated(&[page]), vec![LEFT_PARA]);
+    }
+
+    #[test]
+    fn numeric_line_inside_the_text_is_kept() {
+        let mut page = rows(72.0, 700.0, &["The total came to"]);
+        page.extend(rows(72.0, 686.0, &["42"]));
+        page.extend(rows(72.0, 672.0, &["dollars in the end."]));
+        assert_eq!(
+            load_generated(&[page]),
+            vec!["The total came to 42 dollars in the end."]
+        );
     }
 }
