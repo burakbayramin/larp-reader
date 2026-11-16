@@ -5,6 +5,7 @@ use super::*;
 use crate::state::load_progress;
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
+use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 pub fn make_txt(dir: &Path, n: usize) -> PathBuf {
     let p = dir.join("sample.txt");
