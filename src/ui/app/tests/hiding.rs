@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::pace::learn;
+use crate::ui::app::draw::tail_fitting;
 
 #[test]
 fn panic_removes_every_word_of_the_text() {
