@@ -348,6 +348,14 @@ fn ends_hyphen(text: &str) -> bool {
     text.trim_end().ends_with(['-', '\u{ad}'])
 }
 
+/// Whether a text opens with a lowercase letter (a sentence going on).
+fn starts_lowercase(text: &str) -> bool {
+    text.trim_start()
+        .chars()
+        .next()
+        .is_some_and(char::is_lowercase)
+}
+
 /// One column's lines (top to bottom) as blocks: a new one starts at a vertical
 /// gap, at a first-line indent, and after a line that stops well short of the
 /// column's right edge on a sentence end; never after a hyphenated line end.
@@ -419,8 +427,11 @@ fn page_blocks(doc: &PdfDocument, page: usize) -> Result<Vec<Block>, FccError> {
             block: Block::Text(prev),
             ..
         }) = placed.last_mut()
-            && ends_hyphen(prev)
-            && !blocks.is_empty()
+            && let Some(Placed {
+                block: Block::Text(first),
+                ..
+            }) = blocks.first()
+            && (ends_hyphen(prev) || (!ends_sentence(prev) && starts_lowercase(first)))
             && let Block::Text(next) = blocks.remove(0).block
         {
             prev.push('\n');
@@ -1064,5 +1075,56 @@ mod tests {
                  by a hyphenated break that the right column finishes for it."
             ]
         );
+    }
+
+    #[test]
+    fn sentence_continues_across_columns_without_hyphen() {
+        let mut page = rows(
+            72.0,
+            700.0,
+            &[
+                "The left column opens the story and",
+                "goes on until its very last line, which",
+                "stops in the middle of a",
+            ],
+        );
+        page.extend(rows(
+            320.0,
+            700.0,
+            &[
+                "sentence that the right column",
+                "finishes here.",
+                "Then a new one.",
+            ],
+        ));
+        let t = load_generated(&[page]);
+        assert_eq!(t.len(), 2, "{t:?}");
+        assert!(
+            t[0].contains("middle of a sentence that the right"),
+            "{t:?}"
+        );
+    }
+
+    #[test]
+    fn column_starting_uppercase_after_open_line_is_not_joined() {
+        let mut page = rows(
+            72.0,
+            700.0,
+            &[
+                "The left column opens the story and",
+                "goes on until it stops",
+                "without punctuation",
+            ],
+        );
+        page.extend(rows(
+            320.0,
+            700.0,
+            &[
+                "Another story begins in the right",
+                "column and runs on here",
+                "until its end.",
+            ],
+        ));
+        assert_eq!(load_generated(&[page]).len(), 2);
     }
 }
