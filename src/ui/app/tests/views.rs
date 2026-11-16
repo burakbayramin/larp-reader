@@ -24,7 +24,7 @@ fn m_and_shift_m_cycle_views_keeping_the_place() {
     assert_eq!(
         seen,
         [
-            "code", "log", "diff", "test", "build", "git", "docker", "agent", "code"
+            "code", "log", "diff", "test", "build", "git", "docker", "kubectl", "agent", "code"
         ]
     );
     h.press(&["M"]);

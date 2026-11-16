@@ -14,6 +14,7 @@ pub mod diff;
 pub mod docker;
 pub mod filler;
 pub mod git;
+pub mod kubectl;
 pub mod log;
 pub mod look;
 pub mod palette;
@@ -83,7 +84,7 @@ pub fn weighted<'a, T>(rng: &mut Rng, items: &'a [T], weights: &[u32]) -> &'a T 
 
 /// In the order `m` cycles through them.
 pub const MASK_NAMES: &[&str] = &[
-    "code", "log", "diff", "test", "build", "git", "docker", "agent",
+    "code", "log", "diff", "test", "build", "git", "docker", "kubectl", "agent",
 ];
 
 /// Source languages of the code mask.
@@ -210,6 +211,7 @@ pub fn get_mask(name: &str, lang: &str) -> Result<Box<dyn Mask>, String> {
         "build" => Box::new(build::BuildMask::default()),
         "git" => Box::new(git::GitMask::default()),
         "docker" => Box::new(docker::DockerMask::default()),
+        "kubectl" => Box::new(kubectl::KubectlMask::default()),
         "agent" => Box::new(agent::AgentMask::default()),
         _ => return Err(format!("unknown or unregistered mask: {name:?}")),
     })
@@ -425,6 +427,7 @@ mod contract {
             ("build", "   Compiling core-"),
             ("git", "Merge branch '"),
             ("docker", "worker-1 exited with code"),
+            ("kubectl", "1/1     Running"),
             ("agent", "> "),
         ];
         for (name, marker) in want {

@@ -1,4 +1,5 @@
-//! Filler pools for the log, diff, test, build, docker and git masks.
+//! Filler pools for the log, diff, test, build, docker and git masks, and the
+//! helpers the other masks build their own pools with.
 //!
 //! Like `codegen`, each pool is a `Deck`: hundreds to thousands of distinct lines
 //! built from templates and word lists, shuffled once, read by a running slot
@@ -69,17 +70,17 @@ impl Slot {
 }
 
 /// `count` numbers from `start`, `step` apart, as text.
-fn seq(start: usize, step: usize, count: usize) -> Vec<String> {
+pub(super) fn seq(start: usize, step: usize, count: usize) -> Vec<String> {
     (0..count).map(|i| (start + i * step).to_string()).collect()
 }
 
-fn words(list: &[&str]) -> Vec<String> {
+pub(super) fn words(list: &[&str]) -> Vec<String> {
     list.iter().map(|s| s.to_string()).collect()
 }
 
 /// Each template filled from the cross product of the word lists it mentions,
 /// sampled in a scattered order and cut to `cap` lines.
-fn expand(templates: &[&str], vocab: &[(&str, Vec<String>)], cap: usize) -> Vec<String> {
+pub(super) fn expand(templates: &[&str], vocab: &[(&str, Vec<String>)], cap: usize) -> Vec<String> {
     let mut out = vec![];
     for tpl in templates {
         let used: Vec<&(&str, Vec<String>)> = vocab
@@ -654,13 +655,14 @@ mod tests {
                 .then(|| p.split(" PASSED").next().unwrap().to_string()),
             "build" => p.contains("Compiling").then(|| p.clone()),
             "docker" => p.contains(" | ").then(|| p.clone()),
+            "kubectl" => p.starts_with('[').then(|| p.clone()),
             _ => p
                 .contains(" | ")
                 .then(|| p.split(" | ").next().unwrap().to_string()),
         }
     }
 
-    const MASKS: [&str; 6] = ["log", "diff", "test", "build", "docker", "git"];
+    const MASKS: [&str; 7] = ["log", "diff", "test", "build", "docker", "git", "kubectl"];
 
     fn assert_spread(mask: &str, keys: Vec<Option<String>>, window: usize) {
         let mut last: HashMap<String, usize> = HashMap::new();

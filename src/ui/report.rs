@@ -81,6 +81,7 @@ impl Report {
                 seg("`bench` profile [optimized] target(s)", FG),
             ],
             "docker" => vec![seg("$ ", DIM), seg("docker stats --no-stream", FG)],
+            "kubectl" => vec![seg("$ ", DIM), seg("kubectl top pods -n prod", FG)],
             "diff" => vec![seg("$ ", DIM), seg("git diff --shortstat", FG)],
             _ => vec![seg("$ ", DIM), seg("python -m metrics --summary", FG)],
         };
