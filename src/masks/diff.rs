@@ -36,6 +36,10 @@ impl Mask for DiffMask {
         ]
     }
 
+    fn stream(&mut self) {
+        self.slot.stream();
+    }
+
     fn noise(&mut self, rng: &mut Rng, width: usize) -> Line {
         let n = self.slot.take();
         let indent = if (n / 7).is_multiple_of(3) {

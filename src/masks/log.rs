@@ -150,6 +150,10 @@ impl Mask for LogMask {
         vec![chrome(width, &[(text, DIM)])]
     }
 
+    fn stream(&mut self) {
+        self.slot.stream();
+    }
+
     fn noise(&mut self, rng: &mut Rng, width: usize) -> Line {
         let t = self.tick(rng);
         self.entry(rng, t, width)

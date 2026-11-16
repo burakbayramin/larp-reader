@@ -55,6 +55,46 @@ fn hidden_stream_flows_on_a_timer() {
     assert_eq!(h.app.feed.history_lines().len(), n + 1);
 }
 
+/// The log pool entry a filler line shows: its text after the time, level and service.
+fn log_entry(l: &Line) -> Option<String> {
+    (!l.is_book)
+        .then(|| l.segments.last().map(|(t, _)| t.clone()))
+        .flatten()
+}
+
+#[test]
+fn the_hidden_stream_never_repeats_the_filler_of_the_text() {
+    let config = Config {
+        mask: "log".into(),
+        noise: 5,
+        ..cfg()
+    };
+    let mut h = sample_with(30, config, 80, 24);
+    h.press(&["space", "space"]);
+    let mut hidden = vec![];
+    for _ in 0..2 {
+        h.press(&["`"]); // the second hide goes on where the first one stopped
+        for _ in 0..40 {
+            h.app.tick();
+        }
+        hidden.extend(h.app.feed.history_lines().iter().filter_map(log_entry));
+        h.press(&["`"]);
+    }
+    // the filler of every screen read so far and the next few
+    let first = h.session().book.chapter_list()[0].0;
+    let text: std::collections::HashSet<String> = h
+        .session()
+        .lines_from((first, 0), 60)
+        .iter()
+        .filter_map(log_entry)
+        .collect();
+    assert!(text.len() > 50);
+    let again: Vec<&String> = hidden.iter().filter(|e| text.contains(*e)).collect();
+    assert_eq!(again, Vec::<&String>::new());
+    let unique: std::collections::HashSet<&String> = hidden.iter().collect();
+    assert_eq!(unique.len(), hidden.len());
+}
+
 #[test]
 fn time_spent_hidden_is_not_reading_time() {
     let mut h = paced(200);

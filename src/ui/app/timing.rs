@@ -69,6 +69,7 @@ impl App {
         if self.panic {
             let width = self.width();
             let mut rng = self.panic_rng.clone();
+            self.mask_mut().stream(); // not the filler around the text just read
             let line = self.mask_mut().noise(&mut rng, width);
             self.panic_rng = rng;
             self.feed.append(vec![line]);

@@ -241,6 +241,7 @@ impl App {
             self.feed.set_bottom_anchored(true);
             let (width, rows) = (self.width(), self.view_height() - usize::from(shell));
             let mut rng = self.panic_rng.clone();
+            self.mask_mut().stream();
             let lines: Vec<Line> = (0..rows)
                 .map(|_| self.mask_mut().noise(&mut rng, width))
                 .collect();
@@ -261,6 +262,7 @@ impl App {
         let command = command.trim().to_string();
         let width = self.width();
         let mut rng = self.panic_rng.clone();
+        self.mask_mut().stream();
         let out = shell_output(&command, self.mask_mut(), &mut rng, width);
         self.panic_rng = rng;
         match out {

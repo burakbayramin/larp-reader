@@ -57,6 +57,10 @@ impl Mask for TestMask {
         ]
     }
 
+    fn stream(&mut self) {
+        self.slot.stream();
+    }
+
     fn noise(&mut self, rng: &mut Rng, width: usize) -> Line {
         let name = format!("{} ", test_ids_deck().get(self.slot.take()));
         let pct = format!(" [{:3}%]", randint(rng, 1, 100));

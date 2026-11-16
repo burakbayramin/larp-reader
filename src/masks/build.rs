@@ -28,6 +28,10 @@ impl Mask for BuildMask {
         )]
     }
 
+    fn stream(&mut self) {
+        self.slot.stream();
+    }
+
     fn noise(&mut self, _rng: &mut Rng, width: usize) -> Line {
         let name = format!(" {}", crates_deck().get(self.slot.take()));
         chrome(width, &[("   Compiling", GREEN.bold()), (&name, FG)])

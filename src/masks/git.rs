@@ -84,6 +84,10 @@ impl Mask for GitMask {
         vec![chrome(width, &[("git log --stat --first-parent", DIM)])]
     }
 
+    fn stream(&mut self) {
+        self.slot.stream();
+    }
+
     fn noise(&mut self, rng: &mut Rng, width: usize) -> Line {
         stat(rng, width, self.slot.take())
     }

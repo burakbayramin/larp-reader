@@ -8,27 +8,63 @@ use std::sync::OnceLock;
 
 use super::codegen::{DIRS, Deck, FUNCS, MODULES, fill};
 
-/// Where the hidden screen's endless stream starts: far from any paragraph's line numbers.
+/// Where the hidden screen's endless stream starts before any text is drawn:
+/// far from any paragraph's line numbers.
 pub const STREAM_BASE: usize = 1_000_003;
+
+/// How far ahead of the text the hidden stream reads: half the smallest pool,
+/// as far as a pool gets from the text's place both ways (pools wrap around).
+pub const STREAM_GAP: usize = 200;
 
 /// The index a mask reads its pools at. `render` sets it from the paragraph's
 /// line number; every filler line then takes the next one.
-pub struct Slot(usize);
+///
+/// The hidden screen's stream must not read on from there: that is the filler
+/// around the text just read. `stream` moves it `STREAM_GAP` ahead of the
+/// text's place, or back to where the last stream stopped if the text has not
+/// moved since (a redraw, hiding again), so a hide repeats neither.
+pub struct Slot {
+    at: usize,
+    /// While the stream reads: the text's place it started from.
+    stream_from: Option<usize>,
+    /// The last stream a render cut off: the text's place it started from, and where it stopped.
+    paused: Option<(usize, usize)>,
+}
 
 impl Default for Slot {
     fn default() -> Self {
-        Slot(STREAM_BASE)
+        Slot {
+            at: STREAM_BASE,
+            stream_from: Some(STREAM_BASE),
+            paused: None,
+        }
     }
 }
 
 impl Slot {
     pub fn set(&mut self, n: usize) {
-        self.0 = n;
+        if let Some(from) = self.stream_from.take() {
+            self.paused = Some((from, self.at));
+        }
+        self.at = n;
     }
 
     pub fn take(&mut self) -> usize {
-        self.0 += 1;
-        self.0 - 1
+        self.at += 1;
+        self.at - 1
+    }
+
+    /// Read the hidden stream from here on, away from the text's filler.
+    pub fn stream(&mut self) {
+        if self.stream_from.is_some() {
+            return; // already streaming
+        }
+        let text = self.at;
+        self.at = match self.paused {
+            Some((from, stopped)) if from == text => stopped,
+            _ => text + STREAM_GAP,
+        };
+        self.stream_from = Some(text);
     }
 }
 
@@ -565,6 +601,24 @@ mod tests {
     }
 
     #[test]
+    fn the_stream_reads_away_from_the_text_and_goes_on_where_it_stopped() {
+        let mut s = Slot::default();
+        s.set(40);
+        s.take();
+        s.stream();
+        assert_eq!((s.take(), s.take()), (41 + STREAM_GAP, 42 + STREAM_GAP));
+        s.stream(); // still streaming: no jump
+        assert_eq!(s.take(), 43 + STREAM_GAP);
+        s.set(40); // the same screen drawn again
+        s.take();
+        s.stream();
+        assert_eq!(s.take(), 44 + STREAM_GAP);
+        s.set(90); // read on
+        s.stream();
+        assert_eq!(s.take(), 90 + STREAM_GAP);
+    }
+
+    #[test]
     fn crate_lines_are_names_with_semver() {
         for i in 0..crates_deck().len() {
             let (name, ver) = crates_deck().get(i).split_once(" v").unwrap();
@@ -650,6 +704,56 @@ mod tests {
             let lines = s.lines_from((0, 0), 1500);
             let keys = lines.iter().map(|l| key(name, l)).collect();
             assert_spread(name, keys, 150);
+        }
+    }
+
+    #[test]
+    fn the_hidden_stream_reads_where_the_text_never_does() {
+        let text = "Oda dar ve basıktı, tavanı alçaktı; pencereden giren ışık azdı. ";
+        let book = Book {
+            id: "bk".into(),
+            chapters: vec![Chapter {
+                title: Some("1".into()),
+                paragraphs: (0..60)
+                    .map(|i| Paragraph::new(format!("{}{i}", text.repeat(2 + i % 3))))
+                    .collect(),
+            }],
+        };
+        for name in MASKS {
+            let mut s = Session::new(
+                book.clone(),
+                get_mask(name, "python").unwrap(),
+                5,
+                120,
+                (0, 0),
+            );
+            let mut rng = seeded("hidden");
+            for p in [3, 40] {
+                // the filler of the screens around paragraph `p`
+                let near: std::collections::HashSet<String> = (p - 3..p + 6)
+                    .flat_map(|q| s.paragraph_lines((0, q)))
+                    .filter_map(|l| key(name, &l))
+                    .collect();
+                let mut hidden = vec![];
+                for _ in 0..2 {
+                    // the screen drawn, then hidden: twice at the same place
+                    let _ = s.paragraph_lines((0, p));
+                    s.mask_mut().stream();
+                    hidden.extend(
+                        (0..60).filter_map(|_| key(name, &s.mask_mut().noise(&mut rng, 120))),
+                    );
+                }
+                assert!(hidden.len() > 40, "{name}");
+                for k in &hidden {
+                    assert!(!near.contains(k), "{name}: {k:?} is filler around the text");
+                }
+                let unique: std::collections::HashSet<&String> = hidden.iter().collect();
+                assert_eq!(
+                    unique.len(),
+                    hidden.len(),
+                    "{name}: hiding again repeats the last hide"
+                );
+            }
         }
     }
 

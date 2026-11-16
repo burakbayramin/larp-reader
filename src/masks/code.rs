@@ -52,6 +52,8 @@ pub struct CodeMask {
     /// Where in the corpus the next filler comes from: walking through it keeps
     /// the same definition from turning up twice on one screen.
     cursor: usize,
+    /// A render moved `cursor` to the text since the stream last read.
+    drawn: bool,
 }
 
 impl CodeMask {
@@ -65,6 +67,7 @@ impl CodeMask {
             next_no: 1,
             stream: VecDeque::new(),
             cursor: 0,
+            drawn: false,
         })
     }
 
@@ -105,6 +108,13 @@ impl Mask for CodeMask {
             .enumerate()
             .map(|(i, r)| self.line(i + 1, r, width, None))
             .collect()
+    }
+
+    /// Half the corpus away from the definitions around the text.
+    fn stream(&mut self) {
+        if std::mem::take(&mut self.drawn) {
+            self.cursor += snippets::blocks(self.lang).len() / 2;
+        }
     }
 
     /// Next line of an endless stream of complete definitions.
@@ -191,6 +201,7 @@ impl Mask for CodeMask {
             emit(&mut out, self, vec![seg(*text, COMMENT)], false);
         }
         self.cursor = pos.0 * 5 + pos.1;
+        self.drawn = true;
         let items = snippets::items(self.lang);
         let item = highlight(
             self.lang,

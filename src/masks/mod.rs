@@ -126,6 +126,11 @@ pub trait Mask {
     /// One line of filler.
     fn noise(&mut self, rng: &mut Rng, width: usize) -> Line;
 
+    /// The next `noise` lines are the hidden screen's stream, not filler of
+    /// the text: they must not repeat what was just around it. Called before
+    /// each stream line; a render in between goes back to the text's filler.
+    fn stream(&mut self) {}
+
     /// Exactly `count` lines of filler in whole units, for masks whose filler
     /// only makes sense that way; None means one `noise` line at a time.
     fn noise_block(&mut self, _count: usize, _rng: &mut Rng, _width: usize) -> Option<Vec<Line>> {

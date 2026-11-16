@@ -55,6 +55,10 @@ impl Mask for DockerMask {
         ]
     }
 
+    fn stream(&mut self) {
+        self.slot.stream();
+    }
+
     fn noise(&mut self, rng: &mut Rng, width: usize) -> Line {
         let (svc, colour) = pick(rng, SERVICES);
         chrome_owned(
