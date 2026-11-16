@@ -26,16 +26,15 @@ impl App {
             return Ok(());
         };
         let mut data = load_progress(&self.state_dir);
-        data.insert(
-            s.book.id.clone(),
-            Entry {
-                path: path.clone(),
-                chapter: s.pos().0,
-                paragraph: s.pos().1,
-                bookmarks: self.bookmarks.clone(),
-                updated_at: timestamp(),
-            },
-        );
+        let entry = Entry {
+            path: path.clone(),
+            chapter: s.pos().0,
+            paragraph: s.pos().1,
+            bookmarks: self.bookmarks.clone(),
+            updated_at: timestamp(),
+        };
+        crate::sync::push(&self.config.sync_dir, &s.book.id, &entry);
+        data.insert(s.book.id.clone(), entry);
         save_progress(&self.state_dir, &data)
     }
 

@@ -177,6 +177,22 @@ larpr build book.epub --mask=agent --auto --wpm=300
 | `--hide` | what the panic key shows: `stream` (scrolling output) or `shell` (fake shell) |
 | `--theme` | colour theme (see above) |
 
+## Sync between computers
+
+To keep your place on several machines, point `sync_dir` in the settings file
+(`config.json` in the data folder, see below) at a folder that something else
+syncs for you (Dropbox, Syncthing, a network drive):
+
+```json
+{ "sync_dir": "C:/Users/you/Dropbox/larpr" }
+```
+
+Your place and bookmarks for each text are written there under its ID number, so
+the same text opened from a different path on another computer is matched by its
+contents. The synced files hold no file name, path or title. If two computers
+disagree, the newest one wins. A missing or unwritable folder is ignored silently.
+Leave `sync_dir` empty (the default) to turn this off.
+
 ## Status bar mode
 
 `larpr tick` prints one line that looks like CI or git status and carries the

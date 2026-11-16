@@ -14,7 +14,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::book::Book;
 use crate::loaders::load_book;
-use crate::state::{Entry, last_entry, load_progress, save_progress};
+use crate::state::{Entry, last_entry, load_config, load_progress, save_progress};
 use crate::text::truncate_cells;
 use crate::ui::app::timestamp;
 
@@ -163,7 +163,9 @@ fn run(dir: &Path, width: usize) -> Option<String> {
     let mut progress = load_progress(dir);
     let path = last_entry(&progress)?.1.path.clone();
     let book = load_book(Path::new(&path)).ok()?;
-    let entry = progress.get(&book.id)?.clone();
+    let local = progress.get(&book.id)?.clone();
+    let sync_dir = load_config(dir).sync_dir;
+    let entry = crate::sync::merge(&sync_dir, &book.id, Some(local.clone()))?;
 
     let mut cur = read_cursor(dir);
     if cur.id != book.id || (cur.chapter, cur.paragraph) != (entry.chapter, entry.paragraph) {
@@ -179,16 +181,21 @@ fn run(dir: &Path, width: usize) -> Option<String> {
     let line = step(&book, &mut cur, width);
     let (chapter, paragraph) = (cur.chapter, cur.paragraph);
     write_cursor(dir, &cur);
-    if (chapter, paragraph) != (entry.chapter, entry.paragraph) {
-        progress.insert(
-            book.id.clone(),
-            Entry {
-                chapter,
-                paragraph,
-                updated_at: timestamp(),
-                ..entry
-            },
-        );
+    let moved = (chapter, paragraph) != (entry.chapter, entry.paragraph);
+    if moved || entry != local {
+        let updated_at = if moved {
+            timestamp()
+        } else {
+            entry.updated_at.clone()
+        };
+        let saved = Entry {
+            chapter,
+            paragraph,
+            updated_at,
+            ..entry
+        };
+        crate::sync::push(&sync_dir, &book.id, &saved);
+        progress.insert(book.id.clone(), saved);
         let _ = save_progress(dir, &progress);
     }
     line
@@ -312,6 +319,43 @@ mod tests {
         assert!(seen.contains("second"), "{seen}");
         let p = load_progress(&state);
         assert_eq!(p.values().next().unwrap().paragraph, 1);
+    }
+
+    #[test]
+    fn tick_syncs_the_place_through_the_shared_folder() {
+        let d = setup("aaa bbb\n\nccc ddd\n\neee fff");
+        let state = d.path().join("state");
+        let shared = d.path().join("shared");
+        let cfg = crate::state::Config {
+            sync_dir: shared.to_string_lossy().into(),
+            ..Default::default()
+        };
+        crate::state::save_config(&state, &cfg).unwrap();
+        for _ in 0..4 {
+            tick(&state, 80);
+        }
+        let id = load_progress(&state).keys().next().unwrap().clone();
+        assert!(shared.join(format!("{id}.json")).is_file());
+        // a second machine with the same book at another path picks the place up
+        let other = d.path().join("other");
+        fs::create_dir(&other).unwrap();
+        fs::copy(d.path().join("a.txt"), other.join("b.txt")).unwrap();
+        let mut p = crate::state::Progress::new();
+        p.insert(
+            id.clone(),
+            Entry {
+                path: other.join("b.txt").to_string_lossy().into(),
+                chapter: 0,
+                paragraph: 0,
+                bookmarks: vec![],
+                updated_at: "2026-01-01T00:00:00".into(),
+            },
+        );
+        save_progress(&other, &p).unwrap();
+        crate::state::save_config(&other, &cfg).unwrap();
+        let line = tick(&other, 80);
+        assert!(line.contains("eee") || line.contains("ccc"), "{line}");
+        assert!(load_progress(&other)[&id].paragraph >= 1);
     }
 
     #[test]

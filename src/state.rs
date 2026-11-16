@@ -43,6 +43,8 @@ pub struct Config {
     pub hide: String,
     /// Colour theme.
     pub theme: String,
+    /// Shared folder that places are synced through; empty means off.
+    pub sync_dir: String,
 }
 
 impl Default for Config {
@@ -55,6 +57,7 @@ impl Default for Config {
             auto: false,
             hide: "stream".into(),
             theme: "monokai".into(),
+            sync_dir: String::new(),
         }
     }
 }
@@ -187,6 +190,9 @@ fn valid_config(obj: &Map<String, Value>) -> Config {
     if let Some(theme) = one_of(obj.get("theme"), THEMES) {
         cfg.theme = theme;
     }
+    if let Some(dir) = obj.get("sync_dir").and_then(Value::as_str) {
+        cfg.sync_dir = dir.to_string();
+    }
     cfg
 }
 
@@ -223,6 +229,10 @@ fn index(value: Option<&Value>) -> Option<usize> {
 ///
 /// Unknown keys are ignored, missing optional keys get defaults and malformed
 /// bookmarks are dropped, so one odd entry never costs the other books' progress.
+pub(crate) fn entry_from_value(value: &Value) -> Option<Entry> {
+    entry(value)
+}
+
 fn entry(value: &Value) -> Option<Entry> {
     let obj = value.as_object()?;
     let bookmarks = obj

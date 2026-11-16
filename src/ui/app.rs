@@ -216,11 +216,16 @@ impl App {
     fn load(&mut self, path: &Path) -> Result<(), FccError> {
         let book = load_book(path)?; // fails before any state changes
         let progress = load_progress(&self.state_dir);
-        let entry = progress.get(&book.id);
+        let entry = crate::sync::merge(
+            &self.config.sync_dir,
+            &book.id,
+            progress.get(&book.id).cloned(),
+        );
         let pos = entry
+            .as_ref()
             .map(|e| valid_pos(&book, (e.chapter, e.paragraph)))
             .unwrap_or((0, 0));
-        self.bookmarks = entry.map(|e| e.bookmarks.clone()).unwrap_or_default();
+        self.bookmarks = entry.map(|e| e.bookmarks).unwrap_or_default();
         self.entry_path = Some(
             std::path::absolute(path)
                 .unwrap_or(path.to_path_buf())

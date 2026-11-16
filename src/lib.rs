@@ -13,6 +13,7 @@ pub mod pace;
 pub mod session;
 pub mod state;
 pub mod stats;
+pub mod sync;
 pub mod text;
 pub mod tick;
 pub mod ui;
