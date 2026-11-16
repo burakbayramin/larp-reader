@@ -49,8 +49,12 @@ pub fn line_delay(words: usize, wpm: u32) -> f64 {
 
 /// Whether a screen of `words` words, up for `seconds`, was really read: not
 /// skimmed past, not left open, not faster than anyone reads.
+///
+/// Short screens (a chapter's last page) count too: the time floor and the
+/// speed cap bound what paging past them can add. Only the reading-rate
+/// estimate (`learn`) needs a longer sample to say anything.
 pub fn counts_as_read(words: usize, seconds: f64) -> bool {
-    words >= MIN_SAMPLE_WORDS
+    words > 0
         && (MIN_SAMPLE_SECONDS..=MAX_SAMPLE_SECONDS).contains(&seconds)
         && words as f64 * 60.0 / seconds <= MAX_WPM as f64
 }
@@ -78,6 +82,17 @@ mod tests {
         assert!((line_delay(10, 200) - 3.0).abs() < 1e-9);
         assert!((line_delay(10, 400) - 1.5).abs() < 1e-9);
         assert_eq!(line_delay(0, 200), MIN_DELAY); // filler-only or empty lines never stall or spin
+    }
+
+    #[test]
+    fn short_screens_count_as_read_when_looked_at_long_enough() {
+        assert!(counts_as_read(6, 4.0)); // a chapter-end page
+        assert!(counts_as_read(MIN_SAMPLE_WORDS, 10.0));
+        assert!(!counts_as_read(0, 10.0));
+        assert!(!counts_as_read(6, 1.0)); // paging past
+        assert!(!counts_as_read(6, 900.0)); // left open
+        assert!(!counts_as_read(10_000, 3.0)); // faster than anyone reads
+        assert_eq!(learn(200, 6, 4.0), None); // too short to learn a rate from
     }
 
     #[test]
