@@ -52,6 +52,7 @@ klasöründe tutar; eski `~/.config/fcc` klasörü ilk açılışta oraya taşı
 | `src/masks/` | sekiz görünüm; `Mask` trait'i `mod.rs`'te. `agent.rs` karşılama kutusu, larper figürü, alt ajanlar, giriş kutusunun yanıtı. `filler.rs` / `codegen.rs` tekrar etmeyen dolgu havuzları. `look.rs` tipli stiller (`Look`, `Role`) |
 | `src/session.rs` | satır numaralama, sayfalama, bölüm geçişleri; derin atlama için sayım önbelleği |
 | `src/state.rs`, `src/stats.rs` | ayar, ilerleme, istatistik JSON'ları (atomik yazma) |
+| `src/keymap.rs` | `config.json` içindeki `keys` nesnesi: eylem adı → tuş(lar), varsayılanlar, çakışma/bilinmeyen eylem doğrulaması; panik tuşu taşınabilir ama kaldırılamaz |
 | `src/pace.rs`, `src/noise.rs` | okuma hızı öğrenme, dolgu miktarı |
 | `src/ui/app.rs` | `App` durum makinesi: tuşlar, çizim, kaydetme |
 | `src/ui/` diğerleri | `search`, `timer` (akış ve hız), `panel`, `menu`, `shell` (sahte kabuk), `reply` (agent kutusunun yanıtı), `report` (`S` istatistik ekranı), `theme` (7 tema, renk derinliği), `feed` |

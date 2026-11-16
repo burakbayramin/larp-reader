@@ -274,13 +274,13 @@ impl App {
             );
         }
         if self.panel {
-            panel::draw_panel(frame, theme, self.entry_path.as_deref());
+            panel::draw_panel(frame, theme, self.entry_path.as_deref(), &self.keys);
         }
     }
 
     /// The side panel's text: the keys, then the folder's openable files.
     pub fn panel_text(&self, theme: &Theme) -> Vec<ratatui::text::Line<'static>> {
-        panel::panel_text(theme, self.entry_path.as_deref())
+        panel::panel_text(theme, self.entry_path.as_deref(), &self.keys)
     }
 
     /// The mask in use: the open session's, or the one kept for errors.

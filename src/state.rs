@@ -45,6 +45,10 @@ pub struct Config {
     pub theme: String,
     /// Shared folder that places are synced through; empty means off.
     pub sync_dir: String,
+    /// The `keys` object as written (null when absent); `keymap::Keymap::parse`
+    /// checks it at start-up. Kept raw so saving the config never drops it.
+    #[serde(skip_serializing_if = "Value::is_null")]
+    pub keys: Value,
 }
 
 impl Default for Config {
@@ -58,6 +62,7 @@ impl Default for Config {
             hide: "stream".into(),
             theme: "monokai".into(),
             sync_dir: String::new(),
+            keys: Value::Null,
         }
     }
 }
@@ -193,6 +198,9 @@ fn valid_config(obj: &Map<String, Value>) -> Config {
     if let Some(dir) = obj.get("sync_dir").and_then(Value::as_str) {
         cfg.sync_dir = dir.to_string();
     }
+    if let Some(keys) = obj.get("keys") {
+        cfg.keys = keys.clone();
+    }
     cfg
 }
 
@@ -327,6 +335,18 @@ mod tests {
     }
 
     // -- test_state.py --
+
+    #[test]
+    fn keys_are_kept_as_written_and_saved_back() {
+        let d = tmp();
+        let c = config_with(d.path(), json!({"keys": {"panic": "f12", "nope": 1}}));
+        assert_eq!(c.keys, json!({"panic": "f12", "nope": 1}));
+        save_config(d.path(), &c).unwrap();
+        assert_eq!(load_config(d.path()), c);
+        save_config(d.path(), &Config::default()).unwrap();
+        let text = fs::read_to_string(d.path().join("config.json")).unwrap();
+        assert!(!text.contains("keys"), "{text}");
+    }
 
     #[test]
     fn roundtrip_config() {

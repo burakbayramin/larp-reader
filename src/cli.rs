@@ -136,6 +136,9 @@ where
     };
 
     let mut config = load_config(state_dir);
+    if let Err(e) = crate::keymap::Keymap::parse(&config.keys) {
+        return Ok(Outcome::Fail(FccError::Config(e)));
+    }
     let auto_theme = args.theme.is_none() && !theme_is_saved(state_dir);
     if auto_theme && light_terminal {
         config.theme = "light".into();
@@ -404,6 +407,34 @@ mod tests {
             assert_eq!(e.exit_code(), 2, "{flag}");
             assert!(!d.path().join("config.json").exists(), "{flag}");
         }
+    }
+
+    #[test]
+    fn bad_keys_stop_the_build_with_a_clear_error() {
+        let (d, f) = setup();
+        let f_s = f.to_str().unwrap();
+        fs::write(
+            d.path().join("config.json"),
+            r#"{"keys": {"bookmark": "m"}}"#,
+        )
+        .unwrap();
+        let Outcome::Fail(FccError::Config(msg)) = run(&["build", f_s], d.path()) else {
+            panic!()
+        };
+        assert!(
+            msg.contains("bookmark") && msg.contains("next_view"),
+            "{msg}"
+        );
+        fs::write(
+            d.path().join("config.json"),
+            r#"{"keys": {"bookmark": "B"}}"#,
+        )
+        .unwrap();
+        let Outcome::Run(_, config) = run(&["build", f_s], d.path()) else {
+            panic!()
+        };
+        assert_eq!(config.keys, serde_json::json!({"bookmark": "B"}));
+        assert_eq!(load_config(d.path()).keys, config.keys, "saving keeps them");
     }
 
     #[test]

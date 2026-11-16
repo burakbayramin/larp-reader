@@ -55,7 +55,8 @@ Next time just type `larpr build`: the last book you read opens where you left o
 
 The moment you press `` ` ``, not a single word of the book stays on screen; fake
 output that matches the current view fills it instead. Press it again to get back
-to where you were.
+to where you were. The panic key can be moved to another key (see
+[Changing the keys](#changing-the-keys)), but never removed.
 
 You can make the panic key open a working fake shell instead (`--hide=shell`):
 `ls`, `pwd` and `git status` give the output you'd expect, tools like `npm`,
@@ -137,6 +138,51 @@ on the panic screen don't.
 | `q` | save and quit |
 
 Your place in every book, your bookmarks and your settings are saved automatically.
+
+### Changing the keys
+
+Add a `keys` object to `config.json` in the settings folder (see
+[Your data](#your-data)). Each entry names an action and gives it a key or a list of
+keys; it replaces that action's default keys, and every other action keeps its own.
+An empty list unbinds an action.
+
+```json
+{
+  "mask": "agent",
+  "keys": {
+    "panic": "f12",
+    "bookmark": ["B", "ctrl+b"],
+    "auto": []
+  }
+}
+```
+
+Actions and their default keys:
+
+| Action | Default | Action | Default |
+| --- | --- | --- | --- |
+| `page_down` | `space`, `pagedown` | `page_up` | `u`, `pageup` |
+| `line_down` | `j`, `down` | `line_up` | `k`, `up` |
+| `next_chapter` | `]` | `prev_chapter` | `[` |
+| `search` | `/` | `find_next` / `find_prev` | `f` / `F` |
+| `bookmark` | `b` | `next_mark` / `prev_mark` | `'` / `"` |
+| `auto` | `a` | `faster` / `slower` | `+` / `-` |
+| `next_view` / `prev_view` | `m` / `M` | `next_lang` / `prev_lang` | `l` / `L` |
+| `more_noise` / `less_noise` | `n` / `N` | `next_file` / `prev_file` | `o` / `O` |
+| `theme` | `t` | `input` | `i` |
+| `stats` | `S` | `menu` | `:` |
+| `panel` | `esc` | `panic` | `` ` `` |
+| `quit` | `q` | | |
+
+A key is a single character (case matters: `F` is Shift+F), `ctrl+` plus a
+character, or one of `space`, `esc`, `enter`, `tab`, `backspace`, `delete`,
+`insert`, `home`, `end`, `pageup` (`pgup`), `pagedown` (`pgdn`), `up`, `down`,
+`left`, `right`, `f1`-`f12`. `1`-`9` (open a listed book) and `ctrl+q` (quit) are
+fixed.
+
+If the `keys` object has a mistake (an unknown action or key, the same key on two
+actions, or the panic key removed), larpr won't start and says what to fix. The
+panic key can be moved but never left without a key.
 
 ## Colour themes
 

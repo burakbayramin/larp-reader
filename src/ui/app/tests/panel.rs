@@ -102,6 +102,36 @@ fn digits_open_a_listed_file_only_while_the_panel_is_open() {
 }
 
 #[test]
+fn remapped_keys_act_and_show_in_the_panel() {
+    let d = tempfile::tempdir().unwrap();
+    let p = make_txt(d.path(), 10);
+    let config = Config {
+        keys: serde_json::json!({"panic": "ctrl+h", "bookmark": ["B"], "auto": []}),
+        ..cfg()
+    };
+    let mut h = Harness::new(Some(p), config, d, 80, 24);
+    h.press(&["`"]);
+    assert!(!h.app.panic, "the old panic key does nothing");
+    h.press(&["ctrl+h"]);
+    assert!(h.app.panic);
+    h.press(&["ctrl+h", "b"]);
+    assert!(!h.app.panic && h.app.bookmarks.is_empty());
+    h.press(&["B"]);
+    assert_eq!(h.app.bookmarks.len(), 1);
+    h.press(&["a"]);
+    assert!(!h.app.auto);
+    h.press(&["escape"]);
+    let text = panel(&h);
+    assert!(text.contains("ctrl+h   hide / unhide"), "{text}");
+    assert!(text.contains("B        mark this place"), "{text}");
+    assert!(text.contains("-        auto scroll"), "{text}");
+    assert!(
+        text.contains("space    page down"),
+        "defaults unchanged: {text}"
+    );
+}
+
+#[test]
 fn switching_files_is_ignored_while_hidden() {
     let mut h = shelf();
     h.press(&["`", "o"]);

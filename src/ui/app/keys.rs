@@ -12,7 +12,7 @@ impl App {
         self.now = now;
         self.pacer.finish_typing(&mut self.feed); // any key, paging and hiding included, shows the whole line
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
-        if key.code == KeyCode::Char('`') {
+        if self.keys.is_panic(&key) {
             self.toggle_panic(); // works from anywhere, bars and menus included
             return;
         }
@@ -45,6 +45,9 @@ impl App {
             self.end_reply(); // any key: back to the text first, then the key does its own thing
         }
         if let Some(menu) = self.menu.as_mut() {
+            if key.code == KeyCode::Char('`') {
+                return; // the menu's own hide key; with the panic key moved it does nothing
+            }
             let result = menu.handle(key);
             if result != MenuResult::Stay {
                 self.menu = None;
@@ -61,39 +64,44 @@ impl App {
             }
             return;
         }
-        match key.code {
-            KeyCode::Char('q') if ctrl => self.quit_and_save(),
-            KeyCode::Char('q') => self.quit_and_save(),
-            KeyCode::Char(' ') | KeyCode::PageDown => self.page(),
-            KeyCode::Char('u') | KeyCode::PageUp => self.page_back(),
-            KeyCode::Char('j') | KeyCode::Down => self.step(1),
-            KeyCode::Char('k') | KeyCode::Up => self.step(-1),
-            KeyCode::Char('a') => self.toggle_auto(),
-            KeyCode::Char('+') => self.set_wpm(step_wpm(self.config.wpm, 1)),
-            KeyCode::Char('-') => self.set_wpm(step_wpm(self.config.wpm, -1)),
-            KeyCode::Char(']') => self.chapter(1),
-            KeyCode::Char('[') => self.chapter(-1),
-            KeyCode::Char('/') => self.open_search(),
-            KeyCode::Char('f') => self.find_next(false),
-            KeyCode::Char('F') => self.find_next(true),
-            KeyCode::Char('b') => self.bookmark(),
-            KeyCode::Char('m') => self.cycle_mask(1),
-            KeyCode::Char('M') => self.cycle_mask(-1),
-            KeyCode::Char('l') => self.cycle_lang(1),
-            KeyCode::Char('L') => self.cycle_lang(-1),
-            KeyCode::Char('n') => self.change_noise(1),
-            KeyCode::Char('N') => self.change_noise(-1),
-            KeyCode::Char('o') => self.cycle_input(1),
-            KeyCode::Char('O') => self.cycle_input(-1),
-            KeyCode::Char(c @ '1'..='9') => self.open_listed(c as usize - '0' as usize),
-            KeyCode::Esc if !self.panic => self.panel = !self.panel,
-            KeyCode::Char(':') => self.open_menu(),
-            KeyCode::Char('t') => self.cycle_theme(),
-            KeyCode::Char('i') => self.focus_box(),
-            KeyCode::Char('S') => self.open_report(),
-            KeyCode::Char('\'') => self.jump_mark(true),
-            KeyCode::Char('"') => self.jump_mark(false),
-            _ => {}
+        if let KeyCode::Char(c @ '1'..='9') = key.code {
+            self.open_listed(c as usize - '0' as usize); // fixed: the panel numbers them
+            return;
+        }
+        let Some(action) = self.keys.action(&key) else {
+            return;
+        };
+        match action {
+            Action::Quit => self.quit_and_save(),
+            Action::PageDown => self.page(),
+            Action::PageUp => self.page_back(),
+            Action::LineDown => self.step(1),
+            Action::LineUp => self.step(-1),
+            Action::Auto => self.toggle_auto(),
+            Action::Faster => self.set_wpm(step_wpm(self.config.wpm, 1)),
+            Action::Slower => self.set_wpm(step_wpm(self.config.wpm, -1)),
+            Action::NextChapter => self.chapter(1),
+            Action::PrevChapter => self.chapter(-1),
+            Action::Search => self.open_search(),
+            Action::FindNext => self.find_next(false),
+            Action::FindPrev => self.find_next(true),
+            Action::Bookmark => self.bookmark(),
+            Action::NextMask => self.cycle_mask(1),
+            Action::PrevMask => self.cycle_mask(-1),
+            Action::NextLang => self.cycle_lang(1),
+            Action::PrevLang => self.cycle_lang(-1),
+            Action::MoreNoise => self.change_noise(1),
+            Action::LessNoise => self.change_noise(-1),
+            Action::NextFile => self.cycle_input(1),
+            Action::PrevFile => self.cycle_input(-1),
+            Action::Panel if !self.panic => self.panel = !self.panel,
+            Action::Panel | Action::Panic => {} // the panic key was handled first
+            Action::Menu => self.open_menu(),
+            Action::Theme => self.cycle_theme(),
+            Action::Input => self.focus_box(),
+            Action::Stats => self.open_report(),
+            Action::NextMark => self.jump_mark(true),
+            Action::PrevMark => self.jump_mark(false),
         }
     }
 

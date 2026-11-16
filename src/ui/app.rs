@@ -28,6 +28,7 @@ use super::theme::Theme;
 use super::timer::Pacer;
 use crate::book::{Book, Pos};
 use crate::errors::FccError;
+use crate::keymap::{Action, Keymap};
 use crate::loaders::load_book;
 use crate::masks::base::{error_lines, plain_line};
 use crate::masks::time::local_today;
@@ -124,6 +125,8 @@ pub struct App {
     pub day_override: Option<i64>,
     /// The statistics screen, while it is up.
     pub report: Option<Report>,
+    /// What each key does: the config's `keys` over the defaults.
+    pub keys: Keymap,
 }
 
 impl App {
@@ -138,6 +141,8 @@ impl App {
         now: Instant,
     ) -> App {
         let (mask, mask_error) = resolve_mask(&config);
+        // `larpr build` refuses a bad keys object; anything else gets the defaults
+        let keys = Keymap::parse(&config.keys).unwrap_or_default();
         let mut app = App {
             path,
             config,
@@ -179,6 +184,7 @@ impl App {
             stats_dirty: false,
             day_override: None,
             report: None,
+            keys,
         };
         app.stats = load_stats(&app.state_dir);
         if let Some(e) = mask_error {

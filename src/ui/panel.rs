@@ -10,6 +10,7 @@ use ratatui::text::{Line as TLine, Span};
 use ratatui::widgets::{Block, Borders, Clear, Padding, Paragraph};
 
 use super::theme::Theme;
+use crate::keymap::{Action, Keymap};
 use crate::loaders::{suffix, supported_extensions};
 use crate::masks::{Look, Role};
 
@@ -22,29 +23,82 @@ pub(crate) const PANEL_BOLD: Look = Look::fg(Role::Text).bold();
 pub(crate) const PANEL_KEY: Look = Look::fg(Role::Function);
 pub(crate) const PANEL_TEXT: Look = Look::fg(Role::PanelText);
 pub(crate) const PANEL_DIM: Look = Look::fg(Role::Gutter);
-const KEYS: &[(&str, &str)] = &[
-    ("space", "page down"),
-    ("u, pgup", "page up"),
-    ("j / k", "line down / up"),
-    ("] / [", "next / prev section"),
-    ("/", "find"),
-    ("f / F", "find next / prev"),
-    ("a", "auto scroll"),
-    ("+ / -", "reading rate"),
-    ("m / M", "next / prev view"),
-    ("l / L", "next / prev language"),
-    ("n / N", "more / less filler"),
-    ("o / O", "next / prev input"),
-    ("1-9", "open listed input"),
-    ("b", "mark this place"),
-    ("' / \"", "next / prev mark"),
-    ("i", "ask (agent view)"),
-    ("S", "stats"),
-    (":", "config"),
-    ("`", "hide / unhide"),
-    ("esc", "this panel"),
-    ("q", "quit"),
+/// The actions of each row, its label while they have their default keys, and what it does.
+const KEYS: &[(&[Action], &str, &str)] = &[
+    (&[Action::PageDown], "space", "page down"),
+    (&[Action::PageUp], "u, pgup", "page up"),
+    (
+        &[Action::LineDown, Action::LineUp],
+        "j / k",
+        "line down / up",
+    ),
+    (
+        &[Action::NextChapter, Action::PrevChapter],
+        "] / [",
+        "next / prev section",
+    ),
+    (&[Action::Search], "/", "find"),
+    (
+        &[Action::FindNext, Action::FindPrev],
+        "f / F",
+        "find next / prev",
+    ),
+    (&[Action::Auto], "a", "auto scroll"),
+    (&[Action::Faster, Action::Slower], "+ / -", "reading rate"),
+    (
+        &[Action::NextMask, Action::PrevMask],
+        "m / M",
+        "next / prev view",
+    ),
+    (
+        &[Action::NextLang, Action::PrevLang],
+        "l / L",
+        "next / prev language",
+    ),
+    (
+        &[Action::MoreNoise, Action::LessNoise],
+        "n / N",
+        "more / less filler",
+    ),
+    (
+        &[Action::NextFile, Action::PrevFile],
+        "o / O",
+        "next / prev input",
+    ),
+    (&[], "1-9", "open listed input"),
+    (&[Action::Bookmark], "b", "mark this place"),
+    (
+        &[Action::NextMark, Action::PrevMark],
+        "' / \"",
+        "next / prev mark",
+    ),
+    (&[Action::Input], "i", "ask (agent view)"),
+    (&[Action::Stats], "S", "stats"),
+    (&[Action::Menu], ":", "config"),
+    (&[Action::Panic], "`", "hide / unhide"),
+    (&[Action::Panel], "esc", "this panel"),
+    (&[Action::Quit], "q", "quit"),
 ];
+
+/// A row's key label: the fixed one while its keys are the defaults, else the
+/// bound keys (`-` for an unbound action).
+fn key_label(keys: &Keymap, actions: &[Action], default: &str) -> String {
+    if actions.iter().all(|a| keys.is_default(*a)) {
+        return default.to_string();
+    }
+    actions
+        .iter()
+        .map(|a| match keys.keys(*a) {
+            [] => "-".to_string(),
+            bound => bound
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(", "),
+        })
+        .collect::<Vec<_>>()
+        .join(" / ")
+}
 
 /// The openable files next to `current`, in name order.
 pub fn inputs(current: Option<&str>) -> Vec<PathBuf> {
@@ -99,7 +153,7 @@ pub fn listed_target(current: Option<&str>, n: usize) -> Option<PathBuf> {
 }
 
 /// The side panel's text: the keys, then the folder's openable files.
-pub fn panel_text(theme: &Theme, current: Option<&str>) -> Vec<TLine<'static>> {
+pub fn panel_text(theme: &Theme, current: Option<&str>, keys: &Keymap) -> Vec<TLine<'static>> {
     let style = |look: Look| theme.style(look);
     let (bold, key_style, text_style, dim) = (
         style(PANEL_BOLD),
@@ -108,7 +162,8 @@ pub fn panel_text(theme: &Theme, current: Option<&str>) -> Vec<TLine<'static>> {
         style(PANEL_DIM),
     );
     let mut out = vec![TLine::styled("keys", bold)];
-    for (k, what) in KEYS {
+    for (actions, default, what) in KEYS {
+        let k = key_label(keys, actions, default);
         out.push(TLine::from(vec![
             Span::styled(format!("{k:<9}"), key_style),
             Span::styled(*what, text_style),
@@ -146,7 +201,7 @@ pub fn panel_text(theme: &Theme, current: Option<&str>) -> Vec<TLine<'static>> {
 }
 
 /// Draw the panel over the right edge of the screen.
-pub fn draw_panel(frame: &mut Frame, theme: &Theme, current: Option<&str>) {
+pub fn draw_panel(frame: &mut Frame, theme: &Theme, current: Option<&str>, keys: &Keymap) {
     let style = |look: Look| theme.style(look);
     let area = frame.area();
     let width = PANEL_WIDTH.min(area.width);
@@ -163,7 +218,7 @@ pub fn draw_panel(frame: &mut Frame, theme: &Theme, current: Option<&str>) {
         .style(style(PANEL));
     frame.render_widget(Clear, rect);
     frame.render_widget(
-        Paragraph::new(panel_text(theme, current)).block(block),
+        Paragraph::new(panel_text(theme, current, keys)).block(block),
         rect,
     );
 }

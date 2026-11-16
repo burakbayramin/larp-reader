@@ -19,6 +19,9 @@ pub enum FccError {
     NoInput(String),
     #[error("{0}")]
     InputUnavailable(String),
+    /// A setting to fix before starting, e.g. a bad `keys` object.
+    #[error("{0}")]
+    Config(String),
     /// Anything else, e.g. "could not save state".
     #[error("{0}")]
     Other(String),
@@ -33,6 +36,7 @@ impl FccError {
             FccError::EmptyBook(_) => "empty input",
             FccError::NoInput(_) => "no input files",
             FccError::InputUnavailable(_) => "cannot open input",
+            FccError::Config(_) => "invalid config",
             FccError::Other(_) => "error",
         }
     }
