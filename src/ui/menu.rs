@@ -26,7 +26,6 @@ pub enum MenuResult {
     /// Still open.
     Stay,
     Close,
-    Panic,
     Apply {
         mask: String,
         lang: String,
@@ -209,7 +208,6 @@ impl Menu {
         let shift_tab = key.code == KeyCode::BackTab
             || (key.code == KeyCode::Tab && key.modifiers.contains(KeyModifiers::SHIFT));
         match key.code {
-            KeyCode::Char('`') => return MenuResult::Panic,
             KeyCode::Esc => return MenuResult::Close,
             _ if shift_tab => self.move_focus(-1),
             KeyCode::Tab => self.move_focus(1),
@@ -397,9 +395,10 @@ mod tests {
     }
 
     #[test]
-    fn escape_closes_and_backtick_hides() {
+    fn escape_closes_and_backtick_is_not_special() {
         assert_eq!(menu().handle(key(KeyCode::Esc)), MenuResult::Close);
-        assert_eq!(menu().handle(key(KeyCode::Char('`'))), MenuResult::Panic);
+        // the panic key is caught before the menu sees a key, so a backtick is plain text here
+        assert_ne!(menu().handle(key(KeyCode::Char('`'))), MenuResult::Close);
     }
 
     #[test]

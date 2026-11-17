@@ -145,3 +145,39 @@ fn switching_files_is_ignored_while_hidden() {
             .starts_with("beta")
     );
 }
+
+#[test]
+fn a_backtick_is_just_text_once_the_panic_key_moves() {
+    let d = tempfile::tempdir().unwrap();
+    let p = make_txt(d.path(), 10);
+    let config = Config {
+        keys: serde_json::json!({"panic": "ctrl+h"}),
+        ..cfg()
+    };
+    let mut h = Harness::new(Some(p), config, d, 80, 24);
+    h.press(&[":", "`"]);
+    assert!(
+        !h.app.panic,
+        "the menu does not hide on a backtick any more"
+    );
+    h.press(&["ctrl+h"]);
+    assert!(h.app.panic, "the moved panic key still works from the menu");
+}
+
+#[test]
+fn a_theme_picked_for_the_terminal_stays_out_of_the_saved_config() {
+    let d = tempfile::tempdir().unwrap();
+    let p = make_txt(d.path(), 10);
+    let config = Config {
+        theme: "light".into(),
+        ..cfg()
+    };
+    let mut h = Harness::new(Some(p), config, d, 80, 24);
+    let file = h.state_dir().join("config.json");
+    h.press(&["m"]); // any change saves the config
+    let saved = std::fs::read_to_string(&file).unwrap();
+    assert!(!saved.contains("\"theme\""), "{saved}");
+    h.press(&["t"]); // choosing one is a different matter
+    let saved = std::fs::read_to_string(&file).unwrap();
+    assert!(saved.contains("\"theme\""), "{saved}");
+}

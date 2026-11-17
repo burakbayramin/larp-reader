@@ -31,7 +31,6 @@ impl LineInput {
                 self.value.clear();
                 InputEvent::Edited
             }
-            KeyCode::Char('`') => InputEvent::Ignored,
             KeyCode::Char(c) if !ctrl => {
                 self.value.push(c);
                 InputEvent::Edited
@@ -59,6 +58,7 @@ mod tests {
         assert_eq!(f.handle(k(KeyCode::Enter)), InputEvent::Submit("ls".into()));
         assert_eq!(f.value, "");
         assert_eq!(f.handle(k(KeyCode::Esc)), InputEvent::Ignored);
-        assert_eq!(f.handle(k(KeyCode::Char('`'))), InputEvent::Ignored);
+        // the panic key is caught before any field sees it, so a backtick is just text
+        assert_eq!(f.handle(k(KeyCode::Char('`'))), InputEvent::Edited);
     }
 }

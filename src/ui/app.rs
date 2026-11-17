@@ -75,6 +75,8 @@ pub struct App {
     path: Option<PathBuf>,
     pub config: Config,
     state_dir: PathBuf,
+    /// Whether the user chose the theme (saved before, or changed here): only then is it written.
+    theme_chosen: bool,
     pub session: Option<Session>,
     /// Where the open text was opened (or resumed): the view's header shows
     /// there too, as a session greets you whenever it starts.
@@ -143,10 +145,12 @@ impl App {
         let (mask, mask_error) = resolve_mask(&config);
         // `larpr build` refuses a bad keys object; anything else gets the defaults
         let keys = Keymap::parse(&config.keys).unwrap_or_default();
+        let theme_chosen = crate::state::theme_is_saved(&state_dir);
         let mut app = App {
             path,
             config,
             state_dir,
+            theme_chosen,
             session: None,
             opened_at: None,
             spare_mask: Some(mask),

@@ -3,7 +3,7 @@
 use super::*;
 use crate::masks::{LANGS, MASK_NAMES};
 use crate::noise::MAX_NOISE;
-use crate::state::save_config;
+use crate::state::{save_config, save_config_without_theme};
 use crate::ui::menu::section_label;
 use crate::ui::theme::THEMES;
 
@@ -62,6 +62,9 @@ impl App {
     }
 
     pub(super) fn use_theme(&mut self, name: &str) {
+        if name != self.config.theme {
+            self.theme_chosen = true; // picked by the user, so it is worth keeping
+        }
         self.theme = Theme::new(name, self.theme.depth());
         self.config.theme = self.theme.name().to_string();
     }
@@ -176,11 +179,6 @@ impl App {
     pub(super) fn on_menu_result(&mut self, result: MenuResult) {
         match result {
             MenuResult::Stay | MenuResult::Close => {}
-            MenuResult::Panic => {
-                if !self.panic {
-                    self.toggle_panic();
-                }
-            }
             MenuResult::Apply {
                 mask,
                 lang,
@@ -310,7 +308,12 @@ impl App {
     }
 
     pub(super) fn persist_config(&self) {
-        let _ = save_config(&self.state_dir, &self.config); // best effort: the choice still applies now
+        // a theme picked for the terminal (not by the user) stays out of the file
+        let _ = if self.theme_chosen {
+            save_config(&self.state_dir, &self.config)
+        } else {
+            save_config_without_theme(&self.state_dir, &self.config)
+        }; // best effort: the choice still applies now
     }
 
     /// The screen that ends just above this one (or the first screen).
