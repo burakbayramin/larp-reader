@@ -1,6 +1,6 @@
 # larp-reader: devir notu
 
-Son güncelleme: 2026-11-16. Bu dosya, işe başka bir bilgisayardan (ya da yeni bir
+Son güncelleme: 2026-11-17. Bu dosya, işe başka bir bilgisayardan (ya da yeni bir
 Claude oturumundan) devam etmek için gereken her şeyi toplar: proje ne, nerede
 duruyor, nasıl çalışılıyor, sırada ne var.
 
@@ -16,8 +16,9 @@ duruyor, nasıl çalışılıyor, sırada ne var.
   Linux tar.gz) + `SHA256SUMS`.
 - **Homebrew:** https://github.com/burakbayramin/homebrew-tap,
   `brew install burakbayramin/tap/larpr`.
-- **Durum:** `main` temiz ve push edilmiş; 397 test geçiyor; CI (Windows, macOS,
-  Linux) yeşil.
+- **Durum:** 467 test geçiyor, fmt ve clippy temiz. v0.7.0 sonrası işler
+  (aşağıda "Bu dönemde yapılanlar") `main`'de ama push edilmemiş olabilir:
+  `git status -sb` ile bakın.
 
 ## Yeni bilgisayarda kurulum
 
@@ -25,7 +26,7 @@ duruyor, nasıl çalışılıyor, sırada ne var.
 git clone git@github.com:burakbayramin/larp-reader.git
 cd larp-reader
 # Rust: https://rustup.rs  (rustup default stable)
-cargo test                                   # 397 test
+cargo test                                   # 467 test
 cargo clippy --all-targets -- -D warnings
 cargo fmt --check
 cargo build --release                        # target/release/larpr
@@ -49,12 +50,13 @@ klasöründe tutar; eski `~/.config/fcc` klasörü ilk açılışta oraya taşı
 | `src/cli.rs` | `larpr build [DOSYA] --mask … --theme …`; seçenekler ayara kaydedilir |
 | `src/book.rs`, `src/text.rs` | kitap modeli (kimlik = dosyanın SHA-256'sının ilk 16 hanesi), satır kırma (`ragged`, `ragged_count`) |
 | `src/loaders/` | EPUB, PDF (iki sütunlu sayfalar dahil), MOBI/AZW3, FB2, DOCX, ODT, RTF, TXT/MD, HTML; Calibre yedek yolu |
-| `src/masks/` | sekiz görünüm; `Mask` trait'i `mod.rs`'te. `agent.rs` karşılama kutusu, larper figürü, alt ajanlar, giriş kutusunun yanıtı. `filler.rs` / `codegen.rs` tekrar etmeyen dolgu havuzları. `look.rs` tipli stiller (`Look`, `Role`) |
+| `src/masks/` | on iki görünüm; `Mask` trait'i `mod.rs`'te. `agent/` (alt modüller: `figure`, `welcome`, `reply`, `subagents`, `spinner`, `tools`, `draw`) karşılama kutusu, larper figürü, alt ajanlar, giriş kutusunun yanıtı. `time.rs` oturum başlangıcından türeyen zaman damgaları (log, git). `filler.rs` / `codegen.rs` tekrar etmeyen dolgu havuzları. `look.rs` tipli stiller (`Look`, `Role`) |
 | `src/session.rs` | satır numaralama, sayfalama, bölüm geçişleri; derin atlama için sayım önbelleği |
 | `src/state.rs`, `src/stats.rs` | ayar, ilerleme, istatistik JSON'ları (atomik yazma) |
 | `src/keymap.rs` | `config.json` içindeki `keys` nesnesi: eylem adı → tuş(lar), varsayılanlar, çakışma/bilinmeyen eylem doğrulaması; panik tuşu taşınabilir ama kaldırılamaz |
 | `src/pace.rs`, `src/noise.rs` | okuma hızı öğrenme, dolgu miktarı |
-| `src/ui/app.rs` | `App` durum makinesi: tuşlar, çizim, kaydetme |
+| `src/ui/app.rs` + `src/ui/app/` | `App` durum makinesi: durum ve açılış `app.rs`'te; `draw`, `keys`, `commands`, `timing`, `save` alt modülleri |
+| `src/tick.rs`, `src/sync.rs`, `src/export.rs` | `larpr tick` (tmux tek satır), `sync_dir` ile bilgisayarlar arası ilerleme eşitleme, `larpr export` (yer imleri Markdown) |
 | `src/ui/` diğerleri | `search`, `timer` (akış ve hız), `panel`, `menu`, `shell` (sahte kabuk), `reply` (agent kutusunun yanıtı), `report` (`S` istatistik ekranı), `theme` (7 tema, renk derinliği), `feed` |
 | `src/ui/golden.rs` + `golden.txt` | her görünüm × tema × renk derinliği için ekran özeti testi |
 | `src/ui/app/tests/` | arayüz testleri (`Harness`: tuşa bas, zamanı ilerlet, ekranı oku) |
@@ -125,6 +127,17 @@ yerelde derlendi). Depo herkese açık olduğundan Actions artık ücretsiz.
   Homebrew tap'i; CI elle de başlatılabiliyor; sürüm iş akışı var olan etiketi
   yeniden derleyebiliyor.
 
+## Bu dönemde yapılanlar (v0.7.0 sonrası)
+
+- `agent.rs` ve `app.rs` alt modüllere bölündü (davranış değişmedi, golden aynı).
+- Yeni görünümler: `kubectl`, `terraform`, `sql`, `jupyter`.
+- Log ve git görünümlerinde gerçek saate yakın zaman damgaları; açık terminalde
+  açık tema otomatik.
+- `larpr tick`, `larpr export`, `sync_dir` eşitlemesi, `keys` ile tuş ayarı.
+- Düzeltmeler: panik sonrası dolgu tekrarı, yanıt sırasında tuşun yutulması,
+  `test` görünümü yüzdesi, kısa ekranların istatistiği, PDF (sütun arası cümle,
+  sayfa numarası, kısa hücreli tablo).
+
 ## Sırada ne var
 
 ### 1. npm / npx ile dağıtım (konuşuldu, başlanmadı)
@@ -148,37 +161,21 @@ edildi). Plan:
   olarak eklemek.
 - Sonuç: `npx larpr build kitap.epub` ya da `npm install -g larpr`.
 
-### 2. Diğer fikirler
+### 2. Küçük işler
 
-- **Kamuflaj:**
-  - yeni görünümler (`kubectl logs`, `terraform plan`, SQL konsolu, Jupyter);
-  - log ve git görünümlerinde gerçek saate yakın zaman damgaları;
-  - tmux durum çubuğu için tek satır modu (`larpr tick`);
-  - terminal açık renkliyse açık temayı kendiliğinden seçme.
-- **Okuma:**
-  - not ve vurguları Markdown olarak dışa aktarma;
-  - ilerlemeyi iki bilgisayar arasında eşitleme (ilerleme dosyası paylaşılan bir klasörde);
-  - tuşları ayar dosyasından değiştirebilme.
-- **Küçük işler:**
-  - `LICENSE`'taki telif satırı şu an `burakbayramin`; istenirse tam ad yazılabilir.
+- **Panik tuşu taşınınca:** `ui/input.rs` ve menü hâlâ backtick'i özel sayıyor;
+  panik tuşu başka bir tuşa taşınırsa giriş kutusuna backtick yazılamıyor.
+- **Otomatik açık tema:** yalnızca `COLORFGBG` okunuyor (OSC 11 sorgusu yok).
+  Otomatik seçilen tema ayara yazılmıyor, ama uygulama ayarı başka bir sebeple
+  kaydederse (örneğin `t` ile tema değişince) kalıcı olur.
 
 ### 3. Teknik borç ve bilinen kusurlar
 
-- **Büyüyen dosyalar:** `src/masks/agent.rs` (~1360 satır) ve `src/ui/app.rs`
-  (~1380 satır) yeniden büyüdü. Figür / karşılama kutusu / yanıt üretimi ayrı
-  modüllere taşınabilir.
 - **Bayat dokümanlar:** `docs/superpowers/` altındaki plan ve spec dosyaları
-  Python dönemine ait ve `fcc` adını kullanıyor; tarihî kayıt olarak duruyorlar.
-- **Panik akışı:** okumadan sonra açılan gizli ekranın akışı son paragrafların
-  dolgu satırlarını tekrar gösterebiliyor (kitap metni değil).
-- **test görünümü:** bölüm geçişindeki yüzde gerçek ilerlemeyi göstermiyor.
-- **PDF:**
-  - sütunlar arasında tiresiz devam eden paragraf ikiye bölünüyor;
-  - metne çok yakın bir sayfa numarası sütuna karışabiliyor;
-  - tablolar için özel işlem yok.
-- **İstatistikler:** 15 kelimeden kısa ekranlar (bölüm sonu sayfaları) okunmuş sayılmıyor.
-- **Giriş kutusu:** bir yanıt oynarken basılan tuş yalnızca yanıtı bitirir
-  (örneğin `q` çıkmaz).
+  Python dönemine ait ve `fcc` adını kullanıyor; tarihî kayıt olarak duruyorlar
+  (dosyaların başında not var).
+- **PDF:** hücreleri satır başına ortalama 3 kelimeden uzun olan tablolar hâlâ
+  sütunlara bölünebiliyor; tablo satırları tek paragrafta birleşiyor.
 - **Derin atlama:** 20 bin paragraflık (~22 MB) yapay kitapta ilk soğuk atlama
   ~110 ms; gerçek bir romanda ~10 ms beklenir ama ölçülmedi.
 

@@ -1,3 +1,6 @@
+> **Not:** Python dönemine ait tarihî kayıt; proje o zaman `fcc` adını taşıyordu
+> (şimdi `larp-reader` / `larpr`, Rust). Güncel durum için `docs/HANDOFF.md`.
+
 # fcc — Fiction Compiler Collection: Tasarım
 
 - **Tarih:** 2026-11-10
