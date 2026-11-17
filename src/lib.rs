@@ -7,6 +7,7 @@ pub mod book;
 pub mod cli;
 pub mod errors;
 pub mod export;
+pub mod find;
 pub mod keymap;
 pub mod loaders;
 pub mod masks;
