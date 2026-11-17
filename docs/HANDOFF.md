@@ -16,9 +16,9 @@ duruyor, nasıl çalışılıyor, sırada ne var.
   Linux tar.gz) + `SHA256SUMS`.
 - **Homebrew:** https://github.com/burakbayramin/homebrew-tap,
   `brew install burakbayramin/tap/larpr`.
-- **Durum:** 467 test geçiyor, fmt ve clippy temiz. v0.7.0 sonrası işler
-  (aşağıda "Bu dönemde yapılanlar") `main`'de ama push edilmemiş olabilir:
-  `git status -sb` ile bakın.
+- **Durum:** 487 test geçiyor, fmt ve clippy temiz. v0.7.0 sonrası işler
+  (aşağıda "Bu dönemde yapılanlar") `main`'de ve push edildi; **yeni sürüm
+  çıkarılmadı** (son etiket v0.7.0, kullanıcı henüz istemedi).
 
 ## Yeni bilgisayarda kurulum
 
@@ -26,7 +26,7 @@ duruyor, nasıl çalışılıyor, sırada ne var.
 git clone git@github.com:burakbayramin/larp-reader.git
 cd larp-reader
 # Rust: https://rustup.rs  (rustup default stable)
-cargo test                                   # 467 test
+cargo test                                   # 487 test
 cargo clippy --all-targets -- -D warnings
 cargo fmt --check
 cargo build --release                        # target/release/larpr
@@ -162,15 +162,26 @@ edildi). Plan:
   olarak eklemek.
 - Sonuç: `npx larpr build kitap.epub` ya da `npm install -g larpr`.
 
-### 2. Küçük işler
+### 2. Kullanım geri bildirimi (açık)
 
-- **Panik tuşu taşınınca:** `ui/input.rs` ve menü hâlâ backtick'i özel sayıyor;
-  panik tuşu başka bir tuşa taşınırsa giriş kutusuna backtick yazılamıyor.
+Kullanıcı gerçek hayatta denedi: kullanımı zor buldu, ilk sorun kitabı bir
+klasörün içinde bulamamaktı. Cevap olarak `larpr find` ve kitap seçici eklendi
+(`src/find.rs`). Kullanıcı "vsvs" dedi: başka zorluklar da var, **henüz
+söylenmedi**; bir sonraki oturumda sorun. Seçicinin numara girip dosyayı
+açması yalnızca birim testle doğrulandı, gerçek terminalde kullanıcı
+denemedi (denemesi istendi).
+
+### 3. Küçük, bilinçli açık bırakılanlar
+
 - **Otomatik açık tema:** yalnızca `COLORFGBG` okunuyor (OSC 11 sorgusu yok).
-  Otomatik seçilen tema ayara yazılmıyor, ama uygulama ayarı başka bir sebeple
-  kaydederse (örneğin `t` ile tema değişince) kalıcı olur.
+  (Panik tuşu taşınınca backtick sorunu ve otomatik temanın kalıcı olması
+  giderildi.)
+- **Windows:** çalışan `larpr.exe` `target\debug\larpr.exe`'yi kilitler ve
+  `cargo build` "os error 5" verir; önce `larpr`'ı kapatın.
+- **Geçici artıklar:** `.claude/worktrees/agent-afa533a55b80f0d21` (kilitli, git
+  dışı) ve `%TEMP%\larpr-check` elle silinebilir.
 
-### 3. Teknik borç ve bilinen kusurlar
+### 4. Teknik borç ve bilinen kusurlar
 
 - **Bayat dokümanlar:** `docs/superpowers/` altındaki plan ve spec dosyaları
   Python dönemine ait ve `fcc` adını kullanıyor; tarihî kayıt olarak duruyorlar
