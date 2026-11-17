@@ -48,6 +48,7 @@ klasöründe tutar; eski `~/.config/fcc` klasörü ilk açılışta oraya taşı
 | --- | --- |
 | `src/main.rs` | terminal döngüsü (ratatui), sessiz panic kancası |
 | `src/cli.rs` | `larpr build [DOSYA] --mask … --theme …`; seçenekler ayara kaydedilir |
+| `src/find.rs` | `larpr find [SORGU] [--dir KLASÖR]`, klasör olarak verilen `build` ve geçmişsiz `larpr build`: olağan klasörlerde (Documents, Downloads, Desktop, Books, OneDrive, ev klasörünün kendisi) 4 seviyeye kadar desteklenen dosyaları arar, en yeni önce numaralı liste; seçici tam ekran uygulamadan önce düz terminalde çalışır (`cli::Outcome::Pick`, `main.rs`'teki `pick`) |
 | `src/book.rs`, `src/text.rs` | kitap modeli (kimlik = dosyanın SHA-256'sının ilk 16 hanesi), satır kırma (`ragged`, `ragged_count`) |
 | `src/loaders/` | EPUB, PDF (iki sütunlu sayfalar dahil), MOBI/AZW3, FB2, DOCX, ODT, RTF, TXT/MD, HTML; Calibre yedek yolu |
 | `src/masks/` | on iki görünüm; `Mask` trait'i `mod.rs`'te. `agent/` (alt modüller: `figure`, `welcome`, `reply`, `subagents`, `spinner`, `tools`, `draw`) karşılama kutusu, larper figürü, alt ajanlar, giriş kutusunun yanıtı. `time.rs` oturum başlangıcından türeyen zaman damgaları (log, git). `filler.rs` / `codegen.rs` tekrar etmeyen dolgu havuzları. `look.rs` tipli stiller (`Look`, `Role`) |

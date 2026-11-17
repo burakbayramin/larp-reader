@@ -51,6 +51,29 @@ Next time just type `larpr build`: the last book you read opens where you left o
 
 `Space` to read, `q` to quit. Someone coming? `` ` `` (backtick).
 
+## Finding your book
+
+Not sure where the file is? Let larpr look for it:
+
+```
+larpr find            # books in Documents, Downloads, Desktop, Books and your home folder
+larpr find dune       # only names containing "dune" (any case)
+larpr find --dir D:\ebooks
+```
+
+You get a numbered list, newest first; type a number and the book opens (the
+list is printed before the reader takes over the screen, never inside it).
+Plain `.txt`, `.md` and `.html` files show up only when you give a name to
+match or a folder.
+
+You can also give `larpr build` a folder (`larpr build ~/Downloads`) to pick
+from its books, and the very first `larpr build`, with nothing read yet, shows
+the same list.
+
+To type a path without typing it: drag the file from your file manager into
+the terminal window and its path is pasted. Put quotes around a path with
+spaces: `larpr build "My Books/Dune Messiah.epub"`.
+
 ## The panic key
 
 The moment you press `` ` ``, not a single word of the book stays on screen; fake
