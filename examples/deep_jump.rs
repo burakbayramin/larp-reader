@@ -1,4 +1,5 @@
-//! Times deep jumps in a long synthetic book: `cargo run --release --example deep_jump`.
+//! Times deep jumps in a long synthetic book: `cargo run --release --example deep_jump [PARAGRAPHS]`
+//! (default 20000; a novel is about 1500).
 use std::time::Instant;
 
 use larp_reader::book::{Book, Chapter, Paragraph};
@@ -60,7 +61,11 @@ fn book(paragraphs: usize, chapters: usize) -> Book {
 }
 
 fn main() {
-    let b = book(20_000, 20);
+    let paragraphs = std::env::args()
+        .nth(1)
+        .and_then(|n| n.parse().ok())
+        .unwrap_or(20_000);
+    let b = book(paragraphs, 20);
     let last = (
         b.chapters.len() - 1,
         b.chapters.last().unwrap().paragraphs.len() - 1,

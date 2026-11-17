@@ -176,8 +176,11 @@ edildi). Plan:
   (dosyaların başında not var).
 - **PDF:** hücreleri satır başına ortalama 3 kelimeden uzun olan tablolar hâlâ
   sütunlara bölünebiliyor; tablo satırları tek paragrafta birleşiyor.
-- **Derin atlama:** 20 bin paragraflık (~22 MB) yapay kitapta ilk soğuk atlama
-  ~110 ms; gerçek bir romanda ~10 ms beklenir ama ölçülmedi.
+- **Derin atlama:** `cargo run --release --example deep_jump [PARAGRAF]` (sentetik
+  kitap, soğuk atlama, "open" sütunu). Roman boyu (1500 paragraf): en kötüsü
+  ~35 ms (`kubectl`), çoğu görünüm 1-30 ms; ortalama 12 görünümde ~12 ms.
+  20 bin paragraf (~22 MB): en yavaşı `agent` ~200 ms açılış, ~270 ms yeniden
+  boyutlandırma. Gerçek bir kitap dosyasıyla ölçülmedi, yalnızca sentetik metinle.
 
 ## Claude için notlar
 
