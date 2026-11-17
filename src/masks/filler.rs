@@ -661,13 +661,17 @@ mod tests {
             "sql" => ((p.len() > 6 && p.starts_with("app=> ") && !p.contains("SELECT id, "))
                 || (p.starts_with("Time: ") && p.len() > 14))
                 .then(|| p.clone()),
+            "jupyter" => p
+                .split_once("]: ")
+                .map(|(_, c)| c.to_string())
+                .filter(|c| !c.contains(".loc[")),
             _ => p
                 .contains(" | ")
                 .then(|| p.split(" | ").next().unwrap().to_string()),
         }
     }
 
-    const MASKS: [&str; 9] = [
+    const MASKS: [&str; 10] = [
         "log",
         "diff",
         "test",
@@ -677,6 +681,7 @@ mod tests {
         "kubectl",
         "terraform",
         "sql",
+        "jupyter",
     ];
 
     fn assert_spread(mask: &str, keys: Vec<Option<String>>, window: usize) {

@@ -87,6 +87,7 @@ impl Report {
                 seg("app=> ", DIM),
                 seg("SELECT * FROM metrics_summary;", FG),
             ],
+            "jupyter" => vec![seg("In [1]: ", GREEN), seg("metrics.summary()", FG)],
             "diff" => vec![seg("$ ", DIM), seg("git diff --shortstat", FG)],
             _ => vec![seg("$ ", DIM), seg("python -m metrics --summary", FG)],
         };

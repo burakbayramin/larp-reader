@@ -34,6 +34,7 @@ fn m_and_shift_m_cycle_views_keeping_the_place() {
             "kubectl",
             "terraform",
             "sql",
+            "jupyter",
             "agent",
             "code"
         ]
