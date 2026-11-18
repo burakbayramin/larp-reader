@@ -121,12 +121,25 @@ pub enum Outcome {
 }
 
 /// A search to list in the plain terminal, and the `build` flags to open the pick with.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct Pick {
     pub search: Search,
     build: BuildArgs,
-    light_terminal: bool,
+    light_terminal: LightProbe,
 }
+
+/// Equal when they search and build the same; the probe is not compared.
+impl PartialEq for Pick {
+    fn eq(&self, other: &Self) -> bool {
+        self.search == other.search && self.build == other.build
+    }
+}
+
+impl Eq for Pick {}
+
+/// Asks whether the terminal background is light. Called only when the theme is picked
+/// automatically, since asking the terminal can take a moment.
+pub type LightProbe = fn() -> bool;
 
 impl Pick {
     /// What `larpr build PATH` with the same flags would do. The flags are applied (and
@@ -147,16 +160,16 @@ where
     I: IntoIterator<Item = T>,
     T: Into<OsString> + Clone,
 {
-    resolve_on(
-        argv,
-        state_dir,
-        crate::ui::theme::light_background_from_env(),
-    )
+    resolve_on(argv, state_dir, crate::ui::theme::light_background_from_env)
 }
 
-/// `resolve`, told whether the terminal background is light: with no `--theme` and no
-/// saved theme, a light terminal gets the light theme (and it is not saved).
-fn resolve_on<I, T>(argv: I, state_dir: &Path, light_terminal: bool) -> Result<Outcome, clap::Error>
+/// `resolve`, with a way to ask whether the terminal background is light: with no
+/// `--theme` and no saved theme, a light terminal gets the light theme (and it is not saved).
+fn resolve_on<I, T>(
+    argv: I,
+    state_dir: &Path,
+    light_terminal: LightProbe,
+) -> Result<Outcome, clap::Error>
 where
     I: IntoIterator<Item = T>,
     T: Into<OsString> + Clone,
@@ -198,7 +211,7 @@ where
 }
 
 /// `larpr find [QUERY] [--dir DIR]`: a pick that opens with the saved config.
-fn find_outcome(args: FindArgs, light_terminal: bool) -> Outcome {
+fn find_outcome(args: FindArgs, light_terminal: LightProbe) -> Outcome {
     let search = match args.dir {
         Some(dir) if !dir.is_dir() => {
             return Outcome::Fail(FccError::NoInput("--dir is not a directory".into()));
@@ -217,13 +230,13 @@ fn find_outcome(args: FindArgs, light_terminal: bool) -> Outcome {
 }
 
 /// `larpr build`: apply the flags to the saved config, save it, pick the file.
-fn build_outcome(args: BuildArgs, state_dir: &Path, light_terminal: bool) -> Outcome {
+fn build_outcome(args: BuildArgs, state_dir: &Path, light_terminal: LightProbe) -> Outcome {
     let mut config = load_config(state_dir);
     if let Err(e) = crate::keymap::Keymap::parse(&config.keys) {
         return Outcome::Fail(FccError::Config(e));
     }
     let auto_theme = args.theme.is_none() && !theme_is_saved(state_dir);
-    if auto_theme && light_terminal {
+    if auto_theme && light_terminal() {
         config.theme = "light".into();
     }
     if let Some(m) = args.mask {
@@ -297,7 +310,11 @@ mod tests {
     }
 
     fn run(argv: &[&str], dir: &Path) -> Outcome {
-        resolve_on(argv.iter().copied(), dir, false).unwrap()
+        resolve_on(argv.iter().copied(), dir, || false).unwrap()
+    }
+
+    fn probe(light: bool) -> LightProbe {
+        if light { || true } else { || false }
     }
 
     // -- test_cli.py --
@@ -374,7 +391,8 @@ mod tests {
     }
 
     fn theme_after(argv: &[&str], dir: &Path, light: bool) -> String {
-        let Ok(Outcome::Run(_, config)) = resolve_on(argv.iter().copied(), dir, light) else {
+        let Ok(Outcome::Run(_, config)) = resolve_on(argv.iter().copied(), dir, probe(light))
+        else {
             panic!()
         };
         config.theme
@@ -389,6 +407,18 @@ mod tests {
         assert_eq!(load_config(d.path()).theme, "monokai");
         // the terminal turned dark again
         assert_eq!(theme_after(&["build", file], d.path(), false), "monokai");
+    }
+
+    #[test]
+    fn the_terminal_is_asked_only_when_the_theme_is_automatic() {
+        let (d, f) = setup();
+        let file = f.to_str().unwrap();
+        let never: LightProbe = || panic!("asked the terminal");
+        let argv = ["build", file, "--theme=dark"];
+        assert!(resolve_on(argv, d.path(), never).is_ok());
+        // now the theme is saved
+        assert!(resolve_on(["build", file], d.path(), never).is_ok());
+        assert!(resolve_on(["find", "--dir", file], d.path(), never).is_ok());
     }
 
     #[test]

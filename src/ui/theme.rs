@@ -50,17 +50,22 @@ pub fn detect_depth_from_env() -> Depth {
     )
 }
 
-/// Whether `COLORFGBG` (`fg;bg`, or `fg;default;bg`) says the background is light.
-/// Palette colours 7 and 9..=15 are the light ones; anything unreadable is not.
-pub fn light_background(colorfgbg: Option<&str>) -> bool {
-    let bg = colorfgbg
+/// What `COLORFGBG` (`fg;bg`, or `fg;default;bg`) says about the background: light for
+/// palette colours 7 and 9..=15, dark for the others, nothing when it is missing or unreadable.
+pub fn light_background(colorfgbg: Option<&str>) -> Option<bool> {
+    colorfgbg
         .and_then(|v| v.rsplit(';').next())
-        .and_then(|b| b.trim().parse::<u8>().ok());
-    matches!(bg, Some(7 | 9..=15))
+        .and_then(|b| b.trim().parse::<u8>().ok())
+        .map(|bg| matches!(bg, 7 | 9..=15))
 }
 
+/// Whether the terminal background is light: `COLORFGBG` when it says, otherwise the
+/// terminal's answer to an OSC 11 colour query. No answer (or no terminal) means dark.
 pub fn light_background_from_env() -> bool {
-    light_background(std::env::var("COLORFGBG").ok().as_deref())
+    light_background(std::env::var("COLORFGBG").ok().as_deref()).unwrap_or_else(|| {
+        use terminal_colorsaurus::{QueryOptions, ThemeMode, theme_mode};
+        matches!(theme_mode(QueryOptions::default()), Ok(ThemeMode::Light))
+    })
 }
 
 /// A colour in a theme: a 24-bit value, a terminal palette colour, or the terminal's own default.
@@ -504,13 +509,13 @@ mod tests {
 
     #[test]
     fn colorfgbg_tells_a_light_background() {
-        assert!(light_background(Some("0;15")));
-        assert!(light_background(Some("0;default;15")));
-        assert!(light_background(Some("0;7")));
-        assert!(!light_background(Some("15;0")));
-        assert!(!light_background(Some("15;8")));
-        assert!(!light_background(Some("15;default")));
-        assert!(!light_background(Some("")));
-        assert!(!light_background(None));
+        assert_eq!(light_background(Some("0;15")), Some(true));
+        assert_eq!(light_background(Some("0;default;15")), Some(true));
+        assert_eq!(light_background(Some("0;7")), Some(true));
+        assert_eq!(light_background(Some("15;0")), Some(false));
+        assert_eq!(light_background(Some("15;8")), Some(false));
+        assert_eq!(light_background(Some("15;default")), None);
+        assert_eq!(light_background(Some("")), None);
+        assert_eq!(light_background(None), None);
     }
 }
