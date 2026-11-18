@@ -41,6 +41,14 @@ const MIN_COLUMN_LINES: usize = 3;
 const MIN_COLUMN_SHARE: f32 = 0.2;
 /// A column's lines hold this many words on average; fewer means table cells.
 const MIN_COLUMN_WORDS: usize = 3;
+/// A column's lines mostly run to its right edge: more than this share of them end
+/// within `SHORT_LINE` of it. Table cells of differing lengths do not.
+const MIN_FILLED_SHARE: f32 = 0.5;
+/// Words further apart than this many line heights sit in different table cells.
+const CELL_GAP: f32 = 1.5;
+/// A strip is a table when at least this many rows have two cells or more, and
+/// they are at least half of its rows.
+const MIN_TABLE_ROWS: usize = 3;
 /// Columns inside columns are looked for down to this depth.
 const MAX_DEPTH: usize = 4;
 /// A line starting this many line heights right of its column's edge opens a paragraph.
@@ -271,6 +279,7 @@ fn find_gutter(pieces: &[Piece]) -> Option<(f32, f32, f32)> {
 /// Whether enough lines sit on both sides of the gutter, side by side.
 fn has_columns(pieces: &[Piece], g0: f32, g1: f32, min_gap: f32) -> bool {
     let (mut left, mut right) = (vec![], vec![]);
+    let (mut left_x, mut right_x) = (vec![], vec![]);
     let (mut left_words, mut right_words) = (0, 0);
     for p in pieces {
         for s in split(p.clone(), g0, g1, min_gap) {
@@ -278,10 +287,12 @@ fn has_columns(pieces: &[Piece], g0: f32, g1: f32, min_gap: f32) -> bool {
                 Side::Left(p) => {
                     left_words += p.words.len();
                     left.push((p.bottom, p.top));
+                    left_x.push((p.x0(), p.x1()));
                 }
                 Side::Right(p) => {
                     right_words += p.words.len();
                     right.push((p.bottom, p.top));
+                    right_x.push((p.x0(), p.x1()));
                 }
                 Side::Span(_) => {}
             }
@@ -301,6 +312,18 @@ fn has_columns(pieces: &[Piece], g0: f32, g1: f32, min_gap: f32) -> bool {
         && r_lo < l_hi
         && wordy(left_words, left.len())
         && wordy(right_words, right.len())
+        && filled(&left_x)
+        && filled(&right_x)
+}
+
+/// Whether most lines (as `(x0, x1)`) run to the right edge of their column, as
+/// text does; table cells stop wherever their text ends.
+fn filled(lines: &[(f32, f32)]) -> bool {
+    let left = quantile(lines.iter().map(|l| l.0).collect(), 0.25);
+    let right = quantile(lines.iter().map(|l| l.1).collect(), 0.9);
+    let reach = right - SHORT_LINE * (right - left);
+    let full = lines.iter().filter(|l| l.1 >= reach).count();
+    full as f32 > MIN_FILLED_SHARE * lines.len() as f32
 }
 
 /// The page's lines as single columns in reading order: strips top to bottom,
@@ -429,6 +452,52 @@ fn column_blocks(lines: &[Piece]) -> Vec<Placed> {
     out
 }
 
+/// One column's lines as table rows, each row one block with its cells joined by
+/// ` | `, if the lines form a table; `None` for running text.
+fn table_blocks(lines: &[Piece]) -> Option<Vec<Placed>> {
+    // pieces side by side (tops within half a line) make one row
+    let mut rows: Vec<Vec<&Piece>> = vec![];
+    for p in lines {
+        match rows.last_mut() {
+            Some(row) if (row[0].top - p.top).abs() < 0.5 * row[0].height().max(p.height()) => {
+                row.push(p);
+            }
+            _ => rows.push(vec![p]),
+        }
+    }
+    let cells = |row: &[&Piece]| -> Vec<String> {
+        let h = row.iter().map(|p| p.height()).fold(0.0, f32::max);
+        let mut words: Vec<&(f32, f32, String)> = row.iter().flat_map(|p| &p.words).collect();
+        words.sort_by(|a, b| a.0.total_cmp(&b.0));
+        let mut out: Vec<Vec<&str>> = vec![];
+        let mut end = f32::MIN;
+        for w in words {
+            match out.last_mut() {
+                Some(cell) if w.0 - end < CELL_GAP * h => cell.push(&w.2),
+                _ => out.push(vec![&w.2]),
+            }
+            end = end.max(w.1);
+        }
+        out.into_iter().map(|c| c.join(" ")).collect()
+    };
+    let split: Vec<Vec<String>> = rows.iter().map(|r| cells(r)).collect();
+    let multi = split.iter().filter(|c| c.len() >= 2).count();
+    if multi < MIN_TABLE_ROWS || 2 * multi < rows.len() {
+        return None;
+    }
+    let blocks = rows
+        .iter()
+        .zip(split)
+        .map(|(row, cells)| Placed {
+            top: row[0].top,
+            x0: row.iter().map(|p| p.x0()).fold(f32::MAX, f32::min),
+            x1: row.iter().map(|p| p.x1()).fold(f32::MIN, f32::max),
+            block: Block::Text(cells.join(" | ")),
+        })
+        .collect();
+    Some(blocks)
+}
+
 /// Whether a line is only a short number (a page number).
 fn is_page_number(p: &Piece) -> bool {
     let t = p.text();
@@ -469,7 +538,7 @@ fn page_blocks(doc: &PdfDocument, page: usize) -> Result<Vec<Block>, FccError> {
 
     let mut placed: Vec<Placed> = vec![];
     for column in layout(pieces, 0) {
-        let mut blocks = column_blocks(&column);
+        let mut blocks = table_blocks(&column).unwrap_or_else(|| column_blocks(&column));
         // a word hyphenated across a column break stays one paragraph
         if let Some(Placed {
             block: Block::Text(prev),
@@ -961,15 +1030,24 @@ mod tests {
             10.0,
             "A caption runs across the whole width of the page, over both columns.",
         ));
+        // column lines run to the gutter; short ones side by side would be table cells
         page.extend(rows(
             72.0,
             638.0,
-            &["Lower left one", "lower left two", "lower left end."],
+            &[
+                "Lower left one runs on to the gutter",
+                "lower left two runs on to the gutter",
+                "lower left end runs to the gutter.",
+            ],
         ));
         page.extend(rows(
             320.0,
             638.0,
-            &["Lower right one", "lower right two", "lower right end."],
+            &[
+                "Lower right one runs on to the edge",
+                "lower right two runs on to the edge",
+                "lower right end runs to the edge.",
+            ],
         ));
         assert_eq!(
             load_generated(&[page]),
@@ -979,8 +1057,10 @@ mod tests {
                 "The right column comes second and must not be read before the left one even \
                  though its lines sit at the very",
                 "A caption runs across the whole width of the page, over both columns.",
-                "Lower left one lower left two lower left end.",
-                "Lower right one lower right two lower right end.",
+                "Lower left one runs on to the gutter lower left two runs on to the gutter \
+                 lower left end runs to the gutter.",
+                "Lower right one runs on to the edge lower right two runs on to the edge \
+                 lower right end runs to the edge.",
             ]
         );
     }
@@ -1002,7 +1082,12 @@ mod tests {
         }
         assert_eq!(
             load_generated(&[page]),
-            vec!["Chapter One 5 Chapter Two 9 Chapter Three 14 Chapter Four 20"]
+            vec![
+                "Chapter One | 5",
+                "Chapter Two | 9",
+                "Chapter Three | 14",
+                "Chapter Four | 20"
+            ]
         );
     }
 
@@ -1214,7 +1299,55 @@ mod tests {
         }
         assert_eq!(
             load_generated(&[page]),
-            vec!["Name Age City Alice 30 Paris Bob 25 Rome Carol 41 Oslo"]
+            vec![
+                "Name | Age | City",
+                "Alice | 30 | Paris",
+                "Bob | 25 | Rome",
+                "Carol | 41 | Oslo"
+            ]
+        );
+    }
+
+    #[test]
+    fn table_with_long_cells_is_read_row_by_row() {
+        // four words and more a cell, so word counts alone would call these columns
+        let table = [
+            (
+                "The first ship sailed north",
+                "and never came back home again",
+            ),
+            (
+                "A second one tried the southern route",
+                "with a crew of nine",
+            ),
+            (
+                "The last of them stayed",
+                "safe in the harbour all winter long",
+            ),
+            (
+                "Nobody remembers their names today",
+                "except for the old captain",
+            ),
+        ];
+        let mut page = vec![];
+        for (i, (a, b)) in table.iter().enumerate() {
+            let y = 700.0 - 14.0 * i as f32;
+            page.push(line(72.0, y, 10.0, a));
+            page.push(line(330.0, y, 10.0, b));
+        }
+        let want: Vec<String> = table.iter().map(|(a, b)| format!("{a} | {b}")).collect();
+        assert_eq!(load_generated(&[page]), want);
+    }
+
+    #[test]
+    fn loose_words_in_running_text_are_not_cells() {
+        // a single wide word gap is not a table
+        let mut page = rows(72.0, 700.0, &LEFT);
+        page.push(line(72.0, 644.0, 10.0, "One"));
+        page.push(line(110.0, 644.0, 10.0, "loose line here."));
+        assert_eq!(
+            load_generated(&[page]),
+            vec![format!("{LEFT_PARA} One loose line here.")]
         );
     }
 }
