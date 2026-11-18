@@ -1,7 +1,6 @@
-//! fcc: the reading engine and its terminal front end.
+//! larp-reader: the reading engine and its terminal front end.
 //!
-//! Ported from the Python version layer by layer; see
-//! `docs/superpowers/plans/2026-11-11-rust-port.md` for the map and order.
+//! See the code map in `docs/HANDOFF.md`.
 
 pub mod book;
 pub mod cli;

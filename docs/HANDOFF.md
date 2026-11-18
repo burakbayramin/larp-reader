@@ -187,9 +187,6 @@ denemedi (denemesi istendi).
 
 ### 4. Teknik borç ve bilinen kusurlar
 
-- **Bayat dokümanlar:** `docs/superpowers/` altındaki plan ve spec dosyaları
-  Python dönemine ait ve `fcc` adını kullanıyor; tarihî kayıt olarak duruyorlar
-  (dosyaların başında not var).
 - **PDF:** tablo algısı gerçek bir slayt destesiyle denendi, gerçek bir kitap
   PDF'iyle denenmedi. Izgara düzenli slaytlarda (yan yana 3-6 kart) kartlar
   satır satır okunuyor; eskisi de bozuktu. Kaydırılan bir hücrenin devamı ayrı
