@@ -44,6 +44,9 @@ const MIN_COLUMN_WORDS: usize = 3;
 /// A column's lines mostly run to its right edge: more than this share of them end
 /// within `SHORT_LINE` of it. Table cells of differing lengths do not.
 const MIN_FILLED_SHARE: f32 = 0.5;
+/// A gutter between sides whose lines are this share or more side by side, and
+/// do not run to their edges, is a table's, not a page's.
+const ROWS_LINE_UP_SHARE: f32 = 0.8;
 /// Words further apart than this many line heights sit in different table cells.
 const CELL_GAP: f32 = 1.5;
 /// A strip is a table when at least this many rows have two cells or more, and
@@ -280,6 +283,7 @@ fn find_gutter(pieces: &[Piece]) -> Option<(f32, f32, f32)> {
 fn has_columns(pieces: &[Piece], g0: f32, g1: f32, min_gap: f32) -> bool {
     let (mut left, mut right) = (vec![], vec![]);
     let (mut left_x, mut right_x) = (vec![], vec![]);
+    let (mut left_text, mut right_text) = (vec![], vec![]);
     let (mut left_words, mut right_words) = (0, 0);
     for p in pieces {
         for s in split(p.clone(), g0, g1, min_gap) {
@@ -288,11 +292,13 @@ fn has_columns(pieces: &[Piece], g0: f32, g1: f32, min_gap: f32) -> bool {
                     left_words += p.words.len();
                     left.push((p.bottom, p.top));
                     left_x.push((p.x0(), p.x1()));
+                    left_text.push(p.text());
                 }
                 Side::Right(p) => {
                     right_words += p.words.len();
                     right.push((p.bottom, p.top));
                     right_x.push((p.x0(), p.x1()));
+                    right_text.push(p.text());
                 }
                 Side::Span(_) => {}
             }
@@ -312,8 +318,34 @@ fn has_columns(pieces: &[Piece], g0: f32, g1: f32, min_gap: f32) -> bool {
         && r_lo < l_hi
         && wordy(left_words, left.len())
         && wordy(right_words, right.len())
-        && filled(&left_x)
-        && filled(&right_x)
+        && (!rows_line_up(&left, &right)
+            || (text_like(&left_x, &left_text) && text_like(&right_x, &right_text)))
+}
+
+/// Whether one side's lines (top to bottom) read as running text: they run to the
+/// side's edge, or sentences go on from one line to the next (text in narrow boxes).
+fn text_like(xs: &[(f32, f32)], texts: &[String]) -> bool {
+    let goes_on = texts
+        .windows(2)
+        .filter(|w| !ends_sentence(&w[0]) && (ends_hyphen(&w[0]) || starts_lowercase(&w[1])))
+        .count();
+    filled(xs) || 3 * goes_on >= texts.len()
+}
+
+/// Whether nearly every line on the side with fewer lines has a line at the same
+/// height on the other side, as the cells of a table's rows do. Lines are `(bottom, top)`.
+fn rows_line_up(left: &[(f32, f32)], right: &[(f32, f32)]) -> bool {
+    let (few, many) = if left.len() <= right.len() {
+        (left, right)
+    } else {
+        (right, left)
+    };
+    let beside = |&(b, t): &(f32, f32)| {
+        many.iter()
+            .any(|&(b2, t2)| (t - t2).abs() < 0.5 * (t - b).max(t2 - b2))
+    };
+    let paired = few.iter().filter(|l| beside(l)).count();
+    paired as f32 >= ROWS_LINE_UP_SHARE * few.len() as f32
 }
 
 /// Whether most lines (as `(x0, x1)`) run to the right edge of their column, as
@@ -478,7 +510,18 @@ fn table_blocks(lines: &[Piece]) -> Option<Vec<Placed>> {
             }
             end = end.max(w.1);
         }
-        out.into_iter().map(|c| c.join(" ")).collect()
+        // a bullet before its text is not a cell of its own
+        let mut cells: Vec<String> = vec![];
+        for c in out.into_iter().map(|c| c.join(" ")) {
+            match cells.last_mut() {
+                Some(prev) if is_bullet(prev) => {
+                    prev.push(' ');
+                    prev.push_str(&c);
+                }
+                _ => cells.push(c),
+            }
+        }
+        cells
     };
     let split: Vec<Vec<String>> = rows.iter().map(|r| cells(r)).collect();
     let multi = split.iter().filter(|c| c.len() >= 2).count();
@@ -496,6 +539,12 @@ fn table_blocks(lines: &[Piece]) -> Option<Vec<Placed>> {
         })
         .collect();
     Some(blocks)
+}
+
+/// Whether a text is a lone list bullet such as `•` or `–`.
+fn is_bullet(text: &str) -> bool {
+    let mut chars = text.chars();
+    matches!((chars.next(), chars.next()), (Some(c), None) if !c.is_alphanumeric())
 }
 
 /// Whether a line is only a short number (a page number).
@@ -1337,6 +1386,49 @@ mod tests {
         }
         let want: Vec<String> = table.iter().map(|(a, b)| format!("{a} | {b}")).collect();
         assert_eq!(load_generated(&[page]), want);
+    }
+
+    #[test]
+    fn a_bullet_is_not_a_cell() {
+        // a checklist table whose first column is bulleted
+        let mut page = vec![];
+        let items = [
+            ("Review every change", "done"),
+            ("Check the dependencies", "open"),
+            ("Run the scanners", "done"),
+        ];
+        for (i, (t, state)) in items.iter().enumerate() {
+            let y = 700.0 - 14.0 * i as f32;
+            page.push(line(72.0, y, 10.0, "*"));
+            page.push(line(100.0, y, 10.0, t));
+            page.push(line(330.0, y, 10.0, state));
+        }
+        let want: Vec<String> = items.iter().map(|(t, s)| format!("* {t} | {s}")).collect();
+        assert_eq!(load_generated(&[page]), want);
+    }
+
+    #[test]
+    fn boxes_of_wrapped_text_side_by_side_are_columns() {
+        // short lines at the same heights, but each box's sentence runs on
+        let left = [
+            "Human review of the plan",
+            "catches mistakes early and",
+            "keeps control.",
+        ];
+        let right = [
+            "Steps two to four repeat",
+            "until the result is good",
+            "enough to ship.",
+        ];
+        let mut page = rows(72.0, 700.0, &left);
+        page.extend(rows(330.0, 700.0, &right));
+        assert_eq!(
+            load_generated(&[page]),
+            vec![
+                "Human review of the plan catches mistakes early and keeps control.",
+                "Steps two to four repeat until the result is good enough to ship."
+            ]
+        );
     }
 
     #[test]
