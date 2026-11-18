@@ -1,6 +1,6 @@
 # larp-reader: devir notu
 
-Son güncelleme: 2026-11-17. Bu dosya, işe başka bir bilgisayardan (ya da yeni bir
+Son güncelleme: 2026-11-18. Bu dosya, işe başka bir bilgisayardan (ya da yeni bir
 Claude oturumundan) devam etmek için gereken her şeyi toplar: proje ne, nerede
 duruyor, nasıl çalışılıyor, sırada ne var.
 
@@ -16,7 +16,7 @@ duruyor, nasıl çalışılıyor, sırada ne var.
   Linux tar.gz) + `SHA256SUMS`.
 - **Homebrew:** https://github.com/burakbayramin/homebrew-tap,
   `brew install burakbayramin/tap/larpr`.
-- **Durum:** 487 test geçiyor, fmt ve clippy temiz. v0.7.0 sonrası işler
+- **Durum:** 492 test geçiyor, fmt ve clippy temiz. v0.7.0 sonrası işler
   (aşağıda "Bu dönemde yapılanlar") `main`'de ve push edildi; **yeni sürüm
   çıkarılmadı** (son etiket v0.7.0, kullanıcı henüz istemedi).
 
@@ -135,6 +135,11 @@ yerelde derlendi). Depo herkese açık olduğundan Actions artık ücretsiz.
 - Log ve git görünümlerinde gerçek saate yakın zaman damgaları; açık terminalde
   açık tema otomatik.
 - `larpr tick`, `larpr export`, `sync_dir` eşitlemesi, `keys` ile tuş ayarı.
+- Açık tema algısı: `COLORFGBG` yoksa terminale OSC 11 ile arka plan rengi
+  soruluyor (`terminal-colorsaurus`; yalnızca tema otomatik seçilecekse).
+- PDF tabloları: hücreleri hizalı satırlar satır satır, her satır bir paragraf,
+  hücreler ` | ` ile (`Bölüm Bir | 5`). Uzun hücreli tablolar artık sütun
+  sanılmıyor; kısa satırlı kartlar ve madde imleri bozulmuyor.
 - Düzeltmeler: panik sonrası dolgu tekrarı, yanıt sırasında tuşun yutulması,
   `test` görünümü yüzdesi, kısa ekranların istatistiği, PDF (sütun arası cümle,
   sayfa numarası, kısa hücreli tablo).
@@ -173,9 +178,8 @@ denemedi (denemesi istendi).
 
 ### 3. Küçük, bilinçli açık bırakılanlar
 
-- **Otomatik açık tema:** yalnızca `COLORFGBG` okunuyor (OSC 11 sorgusu yok).
-  (Panik tuşu taşınınca backtick sorunu ve otomatik temanın kalıcı olması
-  giderildi.)
+- **Otomatik açık tema:** OSC 11 sorgusu yalnızca testle ve cevap vermeyen
+  ortamda (anında koyu) doğrulandı; gerçek açık temalı bir terminalde denenmedi.
 - **Windows:** çalışan `larpr.exe` `target\debug\larpr.exe`'yi kilitler ve
   `cargo build` "os error 5" verir; önce `larpr`'ı kapatın.
 - **Geçici artıklar:** `.claude/worktrees/agent-afa533a55b80f0d21` (kilitli, git
@@ -186,8 +190,10 @@ denemedi (denemesi istendi).
 - **Bayat dokümanlar:** `docs/superpowers/` altındaki plan ve spec dosyaları
   Python dönemine ait ve `fcc` adını kullanıyor; tarihî kayıt olarak duruyorlar
   (dosyaların başında not var).
-- **PDF:** hücreleri satır başına ortalama 3 kelimeden uzun olan tablolar hâlâ
-  sütunlara bölünebiliyor; tablo satırları tek paragrafta birleşiyor.
+- **PDF:** tablo algısı gerçek bir slayt destesiyle denendi, gerçek bir kitap
+  PDF'iyle denenmedi. Izgara düzenli slaytlarda (yan yana 3-6 kart) kartlar
+  satır satır okunuyor; eskisi de bozuktu. Kaydırılan bir hücrenin devamı ayrı
+  satır olarak çıkıyor.
 - **Derin atlama:** `cargo run --release --example deep_jump [PARAGRAF]` (sentetik
   kitap, soğuk atlama, "open" sütunu). Roman boyu (1500 paragraf): en kötüsü
   ~35 ms (`kubectl`), çoğu görünüm 1-30 ms; ortalama 12 görünümde ~12 ms.
